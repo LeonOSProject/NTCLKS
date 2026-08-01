@@ -19,6 +19,7 @@
 #define LEONOS_AUTH_IOCTL_LIST_USERS 0x4c41554cUL
 #define LEONOS_AUTH_IOCTL_LOGIN 0x4c415547UL
 #define LEONOS_AUTH_IOCTL_ELEVATE_ADMIN 0x4c415545UL
+#define LEONOS_AUTH_IOCTL_DELEGATE_ELEVATION 0x4c415544UL
 #define LEONOS_AUTH_IOCTL_LOGOUT 0x4c41554fUL
 #define LEONOS_AUTH_IOCTL_CREATE_USER 0x4c415541UL
 #define LEONOS_AUTH_IOCTL_UPDATE_USER 0x4c415555UL
@@ -79,6 +80,11 @@ struct leonos_auth_login {
     struct leonos_user_info user;
 };
 
+struct leonos_auth_delegate_elevation {
+    uint32_t child_pid;
+    uint32_t reserved;
+};
+
 struct leonos_auth_create {
     uint32_t actor_uid;
     uint32_t actor_role;
@@ -128,7 +134,8 @@ int leonos_auth_list_users(struct leonos_user_info *users, uint32_t capacity,
 int leonos_auth_login(const char *username, const char *password,
                       struct leonos_user_info *user);
 int leonos_auth_elevate_admin(const char *username, const char *password,
-                              struct leonos_user_info *user);
+                               struct leonos_user_info *user);
+int leonos_auth_delegate_elevation(uint32_t child_pid);
 int leonos_auth_logout(void);
 int leonos_auth_create_user(const char *username, const char *password,
                             uint32_t role, struct leonos_user_info *user);

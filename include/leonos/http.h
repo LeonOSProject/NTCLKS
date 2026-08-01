@@ -44,12 +44,21 @@ struct leonos_http_response {
     char final_url[LEONOS_HTTP_URL_LEN];
 };
 
+typedef int (*leonos_http_download_progress_fn)(uint32_t received,
+                                                uint32_t total,
+                                                void *context);
+
 int leonos_http_request(const struct leonos_http_request *request,
                         struct leonos_http_response *response);
 int leonos_http_get(const char *url, uint32_t timeout_ms,
                     char *response_body, uint32_t response_body_capacity,
                     char *response_headers, uint32_t response_headers_capacity,
                     struct leonos_http_response *response);
+int leonos_http_download(const char *url, const char *output_path,
+                         uint32_t timeout_ms,
+                         leonos_http_download_progress_fn progress,
+                         void *context,
+                         struct leonos_http_response *response);
 int leonos_http_resolve_url(const char *base_url, const char *location,
                             char *out, uint32_t capacity);
 

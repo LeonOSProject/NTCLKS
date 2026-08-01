@@ -124,6 +124,8 @@ struct leonos_driver_kernel_api {
                         uint8_t offset, uint16_t value);
     uint32_t (*pci_read32)(uint8_t bus, uint8_t slot, uint8_t function,
                            uint8_t offset);
+    uint64_t (*ticks)(void);
+    void (*sleep_ms)(uint64_t ms);
     int (*register_mouse)(const struct leonos_driver_mouse_ops *ops);
     int (*register_serial)(const struct leonos_driver_serial_ops *ops);
     int (*register_e1000)(const struct leonos_driver_e1000_ops *ops);
