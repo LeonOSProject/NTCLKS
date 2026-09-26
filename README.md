@@ -1,8 +1,9 @@
 # ntclks
 
 **ntclks** 是 LeonOS 4 项目的独立内核仓库：Ring-0 内核（`kernel/ntclks`、
-`kernel/ostui`、`kernel/kerneldebug`）、启动加载器（`boot/loader`）、UAPI 头
-（`include/uapi`、`include/leonos`）以及引导期驱动（`drivers/`）。构建产物恰为
+`kernel/kerneldebug`）、启动加载器（`boot/loader`）、UAPI 头
+（`include/uapi`、`include/leonos`）以及引导期驱动（`drivers/`，console/TTY
+显示后端在 `drivers/console`）。构建产物恰为
 内核侧六个制品：`kernel.sys`、`kernel.debug`、`loader.elf`、五个 `.drv`
 （mouse/serial/e1000/ac97/es1371）与 `kerneldebug.sys`。本仓库不含用户态、镜像
 或打包目标。

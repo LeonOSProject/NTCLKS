@@ -4,7 +4,7 @@
 # files cannot collide (plan section 6.1).
 
 KERNEL_LD_SCRIPT := $(LEONOS_SRC)/arch/x86_64/linker.ld
-KERNEL_SOURCE_DIRS := kernel/ntclks kernel/ostui drivers/bootstrap arch mm fs net kernel/exec
+KERNEL_SOURCE_DIRS := kernel/ntclks drivers/console drivers/bootstrap arch mm fs net kernel/exec
 # drivers/bootstrap/storage/*.c are textually included by the storage.c facade
 # and must not also become independent objects.
 KERNEL_SOURCE_EXCLUDE := drivers/bootstrap/storage
