@@ -41,7 +41,7 @@ $(O_OBJ)/drivers/%.S.o: $(LEONOS_SRC)/%.S $(O_META)/kernel-as.sig
 	$(Q)$(KERNEL_AS_BASE) -MMD -MP -MF $@.d -MT $@ -c $< -o $@.tmp
 	$(Q)mv $@.tmp $@
 KERNELDEBUG_SYS := $(O_GENERATED)/system/kerneldebug.sys
-$(KERNELDEBUG_SYS): $(LEONOS_SRC)/kernel/kerneldebug/kerneldebug.c $(AUTOCONF_H) $(O_META)/kernel-cc.sig
+$(KERNELDEBUG_SYS): $(LEONOS_SRC)/debug/kerneldebug.c $(AUTOCONF_H) $(O_META)/kernel-cc.sig
 	$(Q)mkdir -p $(@D)
 	$(Q)$(KERNEL_CC_BASE) -c $< -o $@.o.tmp
 	$(Q)$(TARGET_OBJCOPY) --remove-section .llvm_addrsig --remove-section .comment --remove-section .note.GNU-stack --rename-section .note.leonos.kerneldebug=.note.leonos.kerneldebug,alloc,load,readonly,data,contents $@.o.tmp $@.tmp
