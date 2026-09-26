@@ -7,6 +7,7 @@
 #include <ntclks/syscall.h>
 #include <ntclks/syscall_internal.h>
 #include <ntclks/time.h>
+#include <ntclks/userland.h>
 #include <ntclks/version.h>
 #include <ntclks/uts.h>
 #include <ntclks/inventory.h>
@@ -97,10 +98,27 @@ static int proc_path_kind(const char *path, const char **file_name,
     return 0;
 }
 
+/**
+ * @brief Fill buffer with the complete content of a fixed proc file.
+ * @param path Absolute kernel pathname of the fixed proc file.
+ * @param buffer Writable kernel buffer, always NUL-terminated on return.
+ * @param capacity Nonzero byte capacity of buffer.
+ * @return Zero with the file content in buffer, or negative ENOENT for paths
+ * this generator does not own.
+ */
 static int proc_fill_content(const char *path, char *buffer, uint32_t capacity)
 {
     uint32_t pos = 0;
     buffer[0] = 0;
+    if (proc_text_eq(path, "/proc/cmdline")) {
+        /* Linux cmdline_proc_show prints saved_command_line as one line. */
+        const char *cmdline = userland_boot_cmdline();
+        if (cmdline && cmdline[0]) {
+            proc_append_text(buffer, &pos, capacity, cmdline);
+            proc_append_text(buffer, &pos, capacity, "\n");
+        }
+        return 0;
+    }
     if (proc_text_eq(path, "/proc/uptime")) {
         uint64_t busy, idle;
         sched_cpu_ticks(&busy, &idle);
@@ -468,7 +486,8 @@ int proc_lookup(const char *path, struct storage_node *out)
         };
         return 0;
     }
-    if (proc_text_eq(path, "/proc/uptime") ||
+    if (proc_text_eq(path, "/proc/cmdline") ||
+        proc_text_eq(path, "/proc/uptime") ||
         proc_text_eq(path, "/proc/meminfo") ||
         proc_text_eq(path, "/proc/version") ||
         proc_text_eq(path, "/proc/filesystems") ||
@@ -680,7 +699,7 @@ int proc_readlink(const char *path, char *buffer, uint32_t capacity)
 int proc_readdir(const char *path, uint64_t *offset, struct leonos_dir_entry *entry)
 {
     uint32_t index;
-    static const char *files[] = {"uptime", "meminfo", "version", "filesystems", "stat", "mounts", "self", "sys", "cpuinfo", "leonos-drivers"};
+    static const char *files[] = {"uptime", "meminfo", "version", "filesystems", "stat", "mounts", "self", "sys", "cpuinfo", "leonos-drivers", "cmdline"};
     if (!path || !offset || !entry) return -22;
     if (!__builtin_strncmp(path,"/sys",4) && (!path[4] || path[4]=='/')) return sysfs_readdir(path,offset,entry);
     if (proc_text_eq(path, "/proc/sys") || proc_text_eq(path, "/proc/sys/kernel")) {

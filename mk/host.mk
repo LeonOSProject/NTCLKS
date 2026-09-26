@@ -54,24 +54,19 @@ LEONOS_HOST_COMMON_SRCS := \
 LEONOS_HOST_PUFF_SRC := third_party/zlib/contrib/puff/puff.c
 LEONOS_HOST_PUFF_WARNINGS := -std=c11 -O2 -w -I$(LEONOS_SRC)/third_party/zlib/contrib/puff
 
+# The kernel checkout owns exactly the host tools its own build graph needs:
+# the content-change publisher, the .config translator, the version renderer and
+# the lock-file reader (plus its JSON module); mk/resources.mk links the CJK
+# font generator. The userland-side tools (gbk, musl-cc, apk-own, nls-extract)
+# stay with the parent repository and are not part of this tree.
 LEONOS_HOST_BIN := $(O_HOST)/bin
 LEONOS_EMIT := $(LEONOS_HOST_BIN)/leonos-emit
 LEONOS_CONFIG_TOOL := $(LEONOS_HOST_BIN)/leonos-config
 LEONOS_VERSION_TOOL := $(LEONOS_HOST_BIN)/leonos-version
 LEONOS_DEPS_TOOL := $(LEONOS_HOST_BIN)/leonos-deps
-LEONOS_GBK_TOOL := $(LEONOS_HOST_BIN)/leonos-gbk
-LEONOS_SDK_DRIVER := $(LEONOS_HOST_BIN)/leonos-musl-cc
-LEONOS_APK_OWN := $(LEONOS_HOST_BIN)/leonos-apk-own
-LEONOS_NLS_EXTRACT := $(LEONOS_HOST_BIN)/leonos-nls-extract
 
 LEONOS_HOST_TOOLS := $(LEONOS_EMIT) $(LEONOS_CONFIG_TOOL) \
-	$(LEONOS_VERSION_TOOL) $(LEONOS_DEPS_TOOL) $(LEONOS_GBK_TOOL) $(LEONOS_SDK_DRIVER)
-
-LEONOS_HOST_TOOLS += $(LEONOS_APK_OWN)
-# Registered here although mk/nls.mk owns the link rule: this list is what
-# `make tools` builds, so an unlisted tool would never be compiled by the
-# generic host rule with its strict warning set.
-LEONOS_HOST_TOOLS += $(LEONOS_NLS_EXTRACT)
+	$(LEONOS_VERSION_TOOL) $(LEONOS_DEPS_TOOL)
 
 LEONOS_HOST_COMMON_OBJS := $(patsubst %.c,$(O_HOST)/obj/%.c.o,$(LEONOS_HOST_COMMON_SRCS))
 
@@ -137,7 +132,7 @@ $(if $(LEONOS_PASSIVE),,$(eval $(call LEONOS_SIGNATURE_RULE,host-cc)))
 
 # --- directories ------------------------------------------------------------
 $(O_HOST) $(O_HOST)/obj $(LEONOS_HOST_BIN) $(O_META) $(O_INCLUDE) $(O_GENERATED) \
-$(O_CONFIG) $(O_OBJ) $(O_SYSROOT) $(O_STAGE) $(O_PACKAGES) $(O_IMAGES) $(O_LOGS) \
+$(O_CONFIG) $(O_OBJ) $(O_LOGS) \
 $(O_INCLUDE)/generated $(O_GENERATED)/system $(O_CONFIG)/generated $(O_OBJ)/kernel:
 	$(Q)mkdir -p $@
 
@@ -167,18 +162,8 @@ $(LEONOS_VERSION_TOOL): $(O_HOST)/obj/tools/host/version/leonos-version.c.o $(LE
 
 # The lock-file reader links the JSON module as well as the shared primitives.
 LEONOS_JSON_OBJ := $(O_HOST)/obj/tools/host/manifest/json.c.o
-$(LEONOS_SDK_DRIVER): $(O_HOST)/obj/tools/host/sdk/leonos-musl-cc.c.o | $(LEONOS_HOST_BIN)
-	$(Q)$(HOSTCC) $(HOST_CFLAGS) $(HOST_LDFLAGS) $^ -o $@
-
-$(LEONOS_GBK_TOOL): $(O_HOST)/obj/tools/host/assets/leonos-gbk.c.o $(LEONOS_HOST_COMMON_OBJS) | $(LEONOS_HOST_BIN)
-	$(Q)$(HOSTCC) $(HOST_CFLAGS) $(HOST_LDFLAGS) $^ -o $@
 
 $(LEONOS_DEPS_TOOL): $(O_HOST)/obj/tools/host/manifest/leonos-deps.c.o $(LEONOS_JSON_OBJ) \
-	$(LEONOS_HOST_COMMON_OBJS) | $(LEONOS_HOST_BIN)
-	$(call LEONOS_LOG,HOSTLD,$@)
-	$(Q)$(HOSTCC) $(HOST_CFLAGS) $(HOST_LDFLAGS) $^ -o $@
-
-$(LEONOS_APK_OWN): $(O_HOST)/obj/tools/host/apk/leonos-apk-own.c.o $(LEONOS_JSON_OBJ) \
 	$(LEONOS_HOST_COMMON_OBJS) | $(LEONOS_HOST_BIN)
 	$(call LEONOS_LOG,HOSTLD,$@)
 	$(Q)$(HOSTCC) $(HOST_CFLAGS) $(HOST_LDFLAGS) $^ -o $@

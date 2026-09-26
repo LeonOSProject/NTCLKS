@@ -42,11 +42,7 @@ else
 endif
 
 # Explicit per-class override variables from the command line remain available
-# for experiments. They no longer feed any parent compile rule (the kernel is
-# built by the ntclks sub-make, see mk/kernel.mk) but they are kept because the
-# command-line form reaches the sub-make through MAKEFLAGS and the regression
-# tests use that pass-through; leaving them unset keeps the profile policy in
-# charge.
+# for experiments; leaving them unset keeps the profile policy in charge.
 KERNEL_CFLAGS ?=
 KERNEL_AFLAGS ?=
 KERNEL_LDFLAGS ?=

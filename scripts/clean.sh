@@ -52,8 +52,10 @@ fi
 # Explicit list rather than a glob: an unknown entry in the tree is not ours to
 # delete, and this is what makes `clean` auditable.
 # third-party holds upstream build directories this configuration owns (see mk/third-party.mk).
-# ntclks is the kernel checkout's own sub-build output directory (mk/kernel.mk).
-products="userland userland-installer userland-installer-policy upstream rootfs resources rpr-apps rpr-pages obj generated host include auth pam system musl installer sdk sysroot stage packages images logs meta third-party kernel-export kernel-install ntclks"
+# kernel-export (headers_install) and kernel-install (install/DESTDIR) are
+# this repository's own outputs and were added when the kernel build was
+# split out; the parent list is kept so a mixed-era tree still cleans.
+products="userland userland-installer userland-installer-policy upstream rootfs resources rpr-apps rpr-pages obj generated host include auth pam system musl installer sdk sysroot stage packages images logs meta third-party kernel-export kernel-install"
 if [ "$keep" = 0 ]; then
     products="$products config"
 fi

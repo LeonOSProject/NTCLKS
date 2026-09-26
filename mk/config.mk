@@ -1,9 +1,11 @@
 # Configuration: the Kconfig front end, the derived build inputs, and the
 # command-line override guard.
 #
-# Kconfig is the authority for feature selection, configs/components.toml for
-# component metadata and PROFILE for compile policy. Nothing here keeps a second
-# copy of the defaults in a C constant or a Make variable (plan section 7).
+# Kconfig is the authority for feature selection and PROFILE for compile policy.
+# Nothing here keeps a second copy of the defaults in a C constant or a Make
+# variable (plan section 7). The parent product configuration has no place
+# here: components.toml and the installed-system (installer) policy header are
+# parent-side concerns and the kernel must not read product config.
 
 KCONFIG_SEED := $(LEONOS_SRC)/configs/default.conf
 KCONFIG_ROOT := $(LEONOS_SRC)/Kconfig
@@ -16,9 +18,7 @@ KCONFIG_CONF := $(KCONFIG_PREFIX)/bin/kconfig-conf
 KCONFIG_MCONF := $(KCONFIG_PREFIX)/bin/kconfig-mconf
 
 AUTOCONF_H := $(O_INCLUDE)/generated/autoconf.h
-AUTOCONF_INSTALLER_H := $(O_INCLUDE)/generated/autoconf-installer.h
 LEONOS_AUTOCONF_MK := $(O_CONFIG)/autoconf.mk
-COMPONENT_SELECTION := $(O_GENERATED)/component-selection.json
 
 # --- command-line override guard --------------------------------------------
 # `make CONFIG_SOMETHING=y` must not be accepted and then ignored. Make has no
@@ -35,15 +35,14 @@ $(if $(leonos_unknown_config_keys),$(error unknown configuration key(s) on the c
 endif
 
 # --- generated headers ------------------------------------------------------
-# The installer root uses a second autoconf header so an installed-system policy
-# can differ from the shipped-image one; both come from the same .config.
-$(AUTOCONF_H) $(AUTOCONF_INSTALLER_H) $(LEONOS_AUTOCONF_MK) &: \
+# One autoconf header for the kernel build; the parent's second
+# installed-system policy header is userland-side and is not generated here.
+$(AUTOCONF_H) $(LEONOS_AUTOCONF_MK) &: \
 	$(LEONOS_CONFIG_FILE) $(LEONOS_CONFIG_TOOL) | $(O_INCLUDE)/generated
 	$(call LEONOS_LOG,GEN,$@)
 	$(Q)$(LEONOS_CONFIG_TOOL) --input $(LEONOS_CONFIG_FILE) \
 		--out-header $(AUTOCONF_H) --guard LEONOS4_AUTOCONF_H \
 		--require-license CONFIG_VMDK_REQUIRE_LICENSE \
-		--out-installer-header $(AUTOCONF_INSTALLER_H) \
 		--make-include $(LEONOS_AUTOCONF_MK)
 
 # --- the .config itself -----------------------------------------------------

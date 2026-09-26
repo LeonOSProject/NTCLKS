@@ -1,8 +1,6 @@
 /* Shared UTS state for uname, hostname syscalls, and procfs. */
 #include <ntclks/uts.h>
 #include <ntclks/lock.h>
-#include <ntclks/storage.h>
-#include <leonos/fs_abi.h>
 
 static struct kernel_spinlock uts_lock = KERNEL_SPINLOCK_INIT;
 static char uts_hostname[65] = "leonos";
@@ -37,26 +35,4 @@ int linux_uts_set(const char *name, uint32_t length, int domain)
     __builtin_memcpy(domain ? uts_domainname : uts_hostname, value, sizeof(value));
     kernel_spin_unlock_irqrestore(&uts_lock, flags);
     return 0;
-}
-
-/** @brief Load a bounded single-line hostname before normal or installer processes start.
- * @return Zero (including absent configuration), EINVAL for invalid content, or storage errno.
- */
-int linux_uts_load_hostname(void)
-{
-    struct storage_node node;
-    char value[66];
-    uint32_t length = 0;
-    int ret = storage_lookup_path("/etc/hostname", &node);
-    if (ret == -2) return 0;
-    if (ret < 0) return ret;
-    if (node.type != LEONOS_FS_TYPE_FILE || node.size > sizeof(value)) return -22;
-    ret = storage_read_node(&node, 0, value, sizeof(value), &length);
-    if (ret < 0) return ret;
-    if (length != node.size) return -5;
-    while (length && (value[length - 1] == '\n' || value[length - 1] == '\r')) --length;
-    if (!length || length > 64) return -22;
-    for (uint32_t i = 0; i < length; ++i)
-        if ((unsigned char)value[i] <= ' ' || (unsigned char)value[i] >= 127) return -22;
-    return linux_uts_set(value, length, 0);
 }

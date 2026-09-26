@@ -87,9 +87,11 @@ int64_t userland_spawn_path_argv_for_user(const char *path,
                                           const struct leonos_user_info *user,
                                           uint32_t session_id);
 /**
- * @brief Yield the CPU to a ready task if one exists.
+ * @brief Return the boot loader kernel command line captured at init time.
+ * @return NUL-terminated raw command line backing /proc/cmdline; never NULL,
+ * an empty string when the boot handoff carried none.
  */
-void userland_yield_if_runnable(void);
+const char *userland_boot_cmdline(void);
 struct task *userland_schedule_from_frame(struct trap_frame *frame);
 /**
  * @brief List up to capacity entries of path into entries; count in out_count.

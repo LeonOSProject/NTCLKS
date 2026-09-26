@@ -41,20 +41,8 @@ static uint32_t desktop_pid;
 static uint32_t windowd_pid;
 static uint32_t imd_pid;
 static uint32_t tty_pid;
-static bool autospawn_hello;
-static bool autospawn_uidemo;
-static bool autospawn_terminal;
-static bool autospawn_memtest;
-static bool autospawn_linuxabi;
-static bool autospawn_ltp;
-static bool autospawn_gcc;
-static bool autospawn_vim;
-/* Diagnostic-only hooks used by the Linux ABI regression ISOs.  They spawn a
- * program with fixed argv on the kernel console so the serial log captures the
- * program's own stdout, exit code and syscall trace without GUI input. */
-static bool autospawn_ioctlcloexec;
-static bool autospawn_python315;
-static bool autospawn_inventory;
+/* Boot loader command line captured at init for the /proc/cmdline mechanism. */
+static const char *boot_cmdline;
 /* elf.c keeps a bounded header scratch buffer and ASLR state at file scope.
  * Serialize lazy image construction so APs cannot overwrite that state while
  * the BSP (or another AP) is mapping a different executable. */
@@ -73,28 +61,6 @@ void userland_loader_unlock(uint64_t flags)
 {
     kernel_spin_unlock(&image_load_lock);
     kernel_irq_restore(flags);
-}
-
-/**
- * @brief Return 1 if name contains the substring needle, else 0.
- */
-static int name_contains(const char *name, const char *needle)
-{
-    if (!name || !needle) {
-        return 0;
-    }
-    for (const char *p = name; *p; ++p) {
-        const char *a = p;
-        const char *b = needle;
-        while (*a && *b && *a == *b) {
-            ++a;
-            ++b;
-        }
-        if (*b == 0) {
-            return 1;
-        }
-    }
-    return 0;
 }
 
 /**
@@ -814,7 +780,6 @@ retry:
         goto retry;
     }
     arch_set_user_fs(next->fs_base);
-    userland_yield_if_runnable();
     arch_fpu_restore(next->fpu_state);
     kernel_execution_unlock_irqrestore(execution_flags);
     return next;
@@ -900,11 +865,11 @@ static int userland_clear_transient_tree(const char *root)
     }
 }
 
-/** @brief Reset boot-scoped state before any process can open an IPC endpoint. */
+/** @brief Reset boot-scoped transient state before any process can open an IPC endpoint. */
 static int userland_prepare_runtime(void)
 {
     static const struct { const char *path; uint32_t mode; } directories[] = {
-        {"/run", 0755}, {"/run/lock", 0755}, {"/run/leonos", 0755},
+        {"/run", 0755}, {"/run/lock", 0755},
         {"/dev/shm", 01777},
     };
     int ret = userland_clear_transient_tree("/run");
@@ -925,10 +890,18 @@ static int userland_prepare_runtime(void)
         ret = storage_inode_permissions(&node, &mode, true);
         if (ret < 0) return ret;
     }
-    ret = linux_uts_load_hostname();
-    if (ret < 0)
-        console_printf("[ntclks] /etc/hostname load failed ret=%d; keeping default hostname\n", ret);
     return 0;
+}
+
+/**
+ * @brief Return the boot loader kernel command line captured at init time.
+ * @return NUL-terminated raw command line for /proc/cmdline; never NULL, an
+ * empty string when the boot handoff carried none. The string lives in boot
+ * loader memory that stays mapped for the kernel lifetime.
+ */
+const char *userland_boot_cmdline(void)
+{
+    return boot_cmdline ? boot_cmdline : "";
 }
 
 /**
@@ -937,33 +910,10 @@ static int userland_prepare_runtime(void)
 void userland_init(const struct boot_info *boot)
 {
     int64_t pid;
-    int installer_tui;
 
     console_printf("[ntclks] userland storage load started modules=%u\n",
                    boot ? boot->module_count : 0);
-    autospawn_hello = boot && name_contains(boot->cmdline, "autospawn=hello");
-    autospawn_uidemo = boot && name_contains(boot->cmdline, "autospawn=uidemo");
-    autospawn_terminal = boot && name_contains(boot->cmdline, "autospawn=terminal");
-    autospawn_memtest = boot && name_contains(boot->cmdline, "autospawn=memtest");
-    autospawn_linuxabi = boot && name_contains(boot->cmdline, "autospawn=linuxabi");
-    autospawn_ltp = boot && name_contains(boot->cmdline, "autospawn=ltp");
-    autospawn_gcc = boot && name_contains(boot->cmdline, "autospawn=gcc");
-    autospawn_vim = boot && name_contains(boot->cmdline, "autospawn=vim");
-    autospawn_ioctlcloexec = boot && name_contains(boot->cmdline, "autospawn=ioctlcloexec");
-    autospawn_python315 = boot && name_contains(boot->cmdline, "autospawn=python315");
-    autospawn_inventory = boot && name_contains(boot->cmdline, "autospawn=inventory");
-    if (autospawn_hello) {
-        console_printf("[ntclks] debug autospawn hello enabled\n");
-    }
-    if (autospawn_uidemo) {
-        console_printf("[ntclks] debug autospawn uidemo enabled\n");
-    }
-    if (autospawn_terminal) {
-        console_printf("[ntclks] debug autospawn terminal enabled\n");
-    }
-    if (autospawn_memtest) {
-        console_printf("[ntclks] debug autospawn memtest enabled\n");
-    }
+    boot_cmdline = boot ? boot->cmdline : 0;
 
     if (!storage_ready()) {
         console_printf("[ntclks] no block-backed root filesystem available for userland\n");
@@ -976,13 +926,8 @@ void userland_init(const struct boot_info *boot)
         kernel_idle_loop();
     }
 
-    /* Installer UI selection changes the tty1 session, never the console
-     * topology or the service runlevel. */
-    installer_tui = boot && name_contains(boot->cmdline, "installer-session=tui");
     const char *env[] = {"PATH=" LEONOS_DEFAULT_PATH, "HOME=/root", "PWD=/",
-                        "TERM=xterm-256color",
-                        installer_tui ? "LEONOS_INSTALLER_SESSION=tui" :
-                                        "LEONOS_INSTALLER_SESSION=graphical", NULL};
+                        "TERM=xterm-256color", NULL};
     char init_path[256] = "/sbin/init";
     if (boot) {
         const char *arg = boot->cmdline;
@@ -1015,8 +960,7 @@ void userland_init(const struct boot_info *boot)
         kernel_idle_loop();
     }
     init_pid = (uint32_t)pid;
-    console_printf("[ntclks] PID 1 path=%s console=tty1 installer-session=%s\n",
-                   init_path, installer_tui ? "tui" : "graphical");
+    console_printf("[ntclks] PID 1 path=%s console=tty1\n", init_path);
     sched_mark_ready(init_pid);
 }
 
@@ -1298,80 +1242,6 @@ int64_t userland_spawn_path_with_pty(const char *path, uint32_t pty_id)
 int64_t userland_spawn_path(const char *path)
 {
     return userland_spawn_path_with_pty(path, 0);
-}
-
-/**
- * @brief One-shot autospawn: launch each requested debug/installer program when the desktop first runs.
- */
-void userland_yield_if_runnable(void)
-{
-    if (autospawn_gcc && sched_current_pid() == desktop_pid) {
-        autospawn_gcc = false;
-        int64_t pid = userland_spawn_path(LEONOS_LAYOUT_LEONOS_TESTS "/gcc-probe.elf");
-        console_printf("[ntclks] GCC probe runner pid=%lld\n", (long long)pid);
-    }
-    if (autospawn_ltp && sched_current_pid() == desktop_pid) {
-        autospawn_ltp = false;
-        int64_t pid = userland_spawn_path(LEONOS_LAYOUT_LEONOS_TESTS "/ltp-runner.elf");
-        console_printf("[ntclks] LTP musl runner pid=%lld\n", (long long)pid);
-    }
-    if (autospawn_linuxabi && sched_current_pid() == desktop_pid) {
-        autospawn_linuxabi = false;
-        int64_t dynamic_pid = userland_spawn_path(LEONOS_LAYOUT_LEONOS_TESTS "/musl-abi-dynamic.elf");
-        int64_t static_pid = userland_spawn_path(LEONOS_LAYOUT_LEONOS_TESTS "/musl-abi-static.elf");
-        console_printf("[ntclks] musl ABI probes dynamic=%lld static=%lld\n",
-                       (long long)dynamic_pid, (long long)static_pid);
-    }
-    if (autospawn_hello && sched_current_pid() == desktop_pid) {
-        autospawn_hello = false;
-        int64_t pid = userland_spawn_path(LEONOS_LAYOUT_LEONOS_APPS "/hello/hello.elf");
-        console_printf("[ntclks] debug autospawn hello pid=%lld\n", (long long)pid);
-    }
-    if (autospawn_uidemo && sched_current_pid() == desktop_pid) {
-        autospawn_uidemo = false;
-        int64_t pid = userland_spawn_path(LEONOS_LAYOUT_LEONOS_APPS "/uidemo/uidemo.elf");
-        console_printf("[ntclks] debug autospawn uidemo pid=%lld\n", (long long)pid);
-    }
-    if (autospawn_terminal && sched_current_pid() == desktop_pid) {
-        autospawn_terminal = false;
-        int64_t pid = userland_spawn_path(LEONOS_LAYOUT_LEONOS_APPS "/terminal/terminal.elf");
-        console_printf("[ntclks] debug autospawn terminal pid=%lld\n", (long long)pid);
-    }
-    if (autospawn_memtest && sched_current_pid() == desktop_pid) {
-        autospawn_memtest = false;
-        int64_t pid = userland_spawn_path(LEONOS_LAYOUT_LEONOS_APPS "/memtest/memtest.elf");
-        console_printf("[ntclks] debug autospawn memtest pid=%lld\n", (long long)pid);
-    }
-    if (autospawn_inventory && sched_current_pid() == desktop_pid) {
-        autospawn_inventory = false;
-        static const char *const argv[] = {"linux-inventory", 0};
-        int64_t pid = userland_spawn_path_argv(LEONOS_LAYOUT_LEONOS_TESTS "/linux-inventory.elf", argv, 0, 0);
-        console_printf("[ntclks] Linux inventory regression pid=%lld\n", (long long)pid);
-    }
-    if (autospawn_ioctlcloexec && sched_current_pid() == desktop_pid) {
-        autospawn_ioctlcloexec = false;
-        /* Diagnostic hook: run the Linux ioctl close-on-exec regression on the
-         * kernel console so its own stdout, exit code and syscall trace land
-         * in the serial log without any GUI interaction. */
-        static const char *const probe_argv[] = {"linux-ioctl-cloexec", 0};
-        int64_t pid = userland_spawn_path_argv(LEONOS_LAYOUT_LEONOS_TESTS "/linux-ioctl-cloexec.elf",
-                                               probe_argv, 0, 0);
-        console_printf("[ntclks] ioctl CLOEXEC regression pid=%lld\n", (long long)pid);
-    }
-    if (autospawn_python315 && sched_current_pid() == desktop_pid) {
-        autospawn_python315 = false;
-        /* Diagnostic hook: the unmodified static musl CPython build with the
-         * same argv a shell passes for "python3 /bin/hello.py".  The real
-         * path is used so syscall-trace=<prefix> can select this binary. */
-        static const char *const python_argv[] = {"python3", "/bin/hello.py", 0};
-        static const char *const python_envp[] = {
-            "PATH=" LEONOS_DEFAULT_PATH,
-            "HOME=/root", "PWD=/", "TERM=xterm-256color", 0
-        };
-        int64_t pid = userland_spawn_path_argv("/opt/python/bin/python3.15", python_argv,
-                                               python_envp, 0);
-        console_printf("[ntclks] Python 3.15 script runner pid=%lld\n", (long long)pid);
-    }
 }
 
 /**

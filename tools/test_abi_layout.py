@@ -60,7 +60,7 @@ CONSTANTS = [
 ]
 
 INCLUDES = ["-I", str(ROOT / "include/uapi"), "-I", str(ROOT / "include"),
-            "-I", str(ROOT / "userland/runtime/include"), "-I", str(ROOT / "include/uapi")]
+            "-I", str(ROOT / "userland/libc/include"), "-I", str(ROOT / "include/uapi")]
 
 
 def wire_header_paths():
@@ -108,6 +108,17 @@ def probe_source(structs):
     return "\n".join(lines) + "\n"
 
 
+# clang names anonymous members after the absolute path of the header they live
+# in ("(unnamed at /abs/path/include/uapi/leonos/net_control.h:18:5)"). That is
+# build-location trivia, not ABI: collapse the directory prefix to the
+# repository-relative include path so the golden file is location independent.
+_DECL_PATH = re.compile(r"/[^() ]*/include/")
+
+
+def normalize_decl(decl):
+    return _DECL_PATH.sub("include/", decl)
+
+
 def parse_record_layouts(dump, wanted):
     """clang -fdump-record-layouts text -> {record: {size, align, members}}."""
     records = {}
@@ -135,7 +146,7 @@ def parse_record_layouts(dump, wanted):
         match = member.match(line)
         if match:
             records[current]["members"].append([int(match.group(1)),
-                                                match.group(2).strip()])
+                                                normalize_decl(match.group(2).strip())])
     return records
 
 
@@ -158,9 +169,6 @@ def collect(structs):
             ["clang", "-fsyntax-only", "-Xclang", "-fdump-record-layouts",
              *INCLUDES, str(source)],
             check=True, capture_output=True, text=True).stdout
-        # Anonymous-member names embed the absolute header path ("unnamed at
-        # /abs/include/..."); normalize so the goldens are location-independent.
-        dump = dump.replace(str(ROOT) + "/", "")
         layout = parse_record_layouts(dump, set(structs))
         missing = sorted(set(structs) - set(layout))
         if missing:
@@ -185,6 +193,11 @@ def main():
     if not GOLDEN.is_file():
         raise SystemExit(f"missing golden {GOLDEN}; run with --update first")
     golden = json.loads(GOLDEN.read_text())
+    # The golden was recorded under a different absolute source path; the
+    # normalization makes both sides comparable regardless of checkout location.
+    for record in golden.get("layout", {}).values():
+        record["members"] = [[offset, normalize_decl(decl)]
+                             for offset, decl in record["members"]]
     failures = []
     for record in sorted(set(golden["layout"]) | set(current["layout"])):
         want, have = golden["layout"].get(record), current["layout"].get(record)

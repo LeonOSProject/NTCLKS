@@ -16,8 +16,4 @@ void linux_uts_names(char hostname[65], char domainname[65]);
  * @return Zero or negative EINVAL. Caller performs capability/user-pointer checks.
  */
 int linux_uts_set(const char *name, uint32_t length, int domain);
-/** @brief Load /etc/hostname before userspace starts; absent config uses leonos.
- * @return Zero or a real I/O/configuration error.
- */
-int linux_uts_load_hostname(void);
 #endif

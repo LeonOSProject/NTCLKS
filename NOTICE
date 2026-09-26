@@ -1,111 +1,50 @@
-LeonOS 4 NOTICE
-===============
+ntclks (LeonOS 4 kernel) NOTICE
+===============================
 
-This NOTICE file records attribution and license information for the LeonOS 4
-distribution. It is not a license and does not change the license of any
-component. LeonOS-owned source is governed by the root LICENSE file. Each
+This NOTICE file records attribution and license information for the ntclks
+repository: the LeonOS 4 Ring-0 kernel, boot loader, UAPI surface and
+bootstrap drivers. It is not a license and does not change the license of any
+component. ntclks-owned source is governed by the root LICENSE file. Each
 third-party component remains governed by its own license.
 
 Complete license texts are kept with the corresponding source, submodule,
-generated SDK, or installed program package. The paths below refer to the
-repository unless an installed path is explicitly shown.
+or fetched build input. The paths below refer to this repository unless an
+installed path is explicitly shown.
 
-LeonOS-owned code
+ntclks-owned code
 -----------------
 
-Copyright and licensing terms for code written for LeonOS 4 are specified by
-the root LICENSE file. Third-party source must not be relicensed under that
-file merely because it is distributed in the same repository or image.
+Copyright and licensing terms for code written for the ntclks kernel are
+specified by the root LICENSE file (Apache License 2.0, with the identifying
+copyright notice at its end). Third-party source must not be relicensed under
+that file merely because it is distributed in the same repository or image.
 
-Runtime, libraries, and applications
-------------------------------------
-
-* GNU GRUB 2: GPL-3.0-or-later. See the GRUB source and boot artifacts.
-* Mbed TLS 2.28.8: Apache-2.0 OR GPL-2.0-or-later. See
-  third_party/mbedtls/LICENSE.
-* musl 1.2.6: MIT and upstream notices; see third_party/musl/COPYRIGHT.
-* mimalloc 3.5.1: MIT; see third_party/mimalloc/LICENSE.
-* zlib 1.3.2: zlib License. See third_party/zlib/LICENSE.
-  Copyright (C) 1995-2026 Jean-loup Gailly and Mark Adler.
-* libpng 1.6.58: libpng License. See third_party/libpng/LICENSE.
-* SQLite 3.46.1: public-domain dedication and blessing. See
-  third_party/sqlite/LICENSE.md.
-* BusyBox 1.36.1: GPL-2.0-only. See third_party/busybox/LICENSE.
-* GNU findutils 4.10.0: GPL-3.0-or-later. The unmodified official Alpine APK
-  and its pinned checksum are recorded in configs/openrc-packages.json.
-* sudo 1.9.17p2: ISC and upstream file-specific terms; see LICENSE.md.
-* Linux-PAM 1.7.2: upstream BSD/GPL alternatives and file-specific terms;
-  see Copyright and the recorded platform patch in patches/linux-pam/.
-* util-linux 2.41.6 (su/runuser and storage utilities/libraries): upstream
-  GPL/LGPL and file-specific terms;
-  see README.licensing.
-* e2fsprogs 1.47.3: upstream GPL/LGPL/BSD/MIT and file-specific terms;
-  see NOTICE. dosfstools 4.2 and exfatprogs 1.4.3: see their COPYING files
-  and individual source headers. Fixed archive references and checksums are
-  in configs/storage-upstream.json; notices are installed under
-  /usr/share/licenses/<package>/.
-* libxcrypt 4.5.2: LGPL-2.1-or-later and file-specific terms; see COPYING.LIB
-  and LICENSING.
-* shadow-utils 4.20.2: BSD-3-Clause and file-specific SPDX terms; see COPYING.
-* libbsd 0.12.2: BSD/ISC/MIT and file-specific terms; see COPYING.
-* libmd 1.2.0: BSD/ISC/Beerware/public-domain and file-specific terms;
-  see COPYING. These authentication dependencies use verified release archives
-  listed in configs/auth-upstream.json; full notices are copied into the
-  isolated staging root's /usr/share/licenses/<package>/ directory.
-* Vim (vim, vim-common, xxd): Vim License. Installed from signed Alpine APKs;
-  versions and archive hashes are recorded in configs/dependencies.lock.json.
-* ncurses 6.6: MIT-style license. See third_party/ncurses/COPYING.
-* Dyne musl 2.2.0 native toolchain: GCC 15.1.0 and GNU binutils 2.44
-  (GPL-3.0-or-later), musl (MIT), and the upstream bundled static libraries.
-  GCC runtime libraries use the GCC Runtime Library Exception where applicable.
-  See userland/musl-gcc/README.md, COPYING3 and COPYING.RUNTIME; installed
-  provenance and upstream file hashes are in /share/licenses/musl-gcc/.
-  Source/build recipes: https://github.com/dyne/musl/tree/2.2.0.
-* less: GPL-3.0-or-later OR BSD-2-Clause. Installed from the signed Alpine APK;
-  package license metadata is in .PKGINFO.
-* ChenPi11/cmd: GPL-3.0-only. See third_party/cmd/LICENSE.
-* Fastfetch 2.68.1 (VasilyZa/fastfetch release): MIT. See userland/fastfetch/LICENSE.
-* file/libmagic: BSD-2-Clause. Installed from signed Alpine APKs; package
-  license metadata is in .PKGINFO.
-* StardustUI: MIT. See third_party/stardustui/LICENSE.
-* PL Editor (LeonOS fork): MIT. See third_party/pl_editor/LICENSE.
-* sl: permissive upstream license. See third_party/sl/LICENSE.
-* litehtml: BSD-3-Clause. See third_party/litehtml/LICENSE.
-* Gumbo HTML Parser: Apache-2.0. See third_party/litehtml/src/gumbo/LICENSE.
-* ab_glyph_rasterizer 0.1.10: Apache-2.0. See the nested StardustUI
-  dependency at third_party/stardustui/third_party/ab_glyph_rasterizer/upstream.
-* minimp3: CC0-1.0/public-domain dedication. See
-  third_party/minimp3/minimp3.h.
-* DoomGeneric: GPL-2.0-only. See third_party/doomgeneric/LICENSE.
-
-Data, dictionaries, and visual resources
+Third-party components in this repository
 -----------------------------------------
 
-* Freedoom IWAD: BSD-3-Clause. See
-  third_party/doomgeneric/FREEDOOM-COPYING.txt. The same notice is bundled in
-  the optional leonos-doom APK.
-* rime-pinyin-simp dictionary: Apache-2.0. See
-  third_party/rime-pinyin-simp/LICENSE and ATTRIBUTION.txt. Both files are
-  bundled in the optional leonos-oschinpt APK.
-* Microsoft font files in system/fonts (Deng.ttf, times.ttf, and simsun.ttc)
-  are subject to the applicable Microsoft license terms. They are not covered
-  by the LeonOS root license; verify redistribution rights before publishing
-  an image containing them.
-* Metro desktop wallpaper: NASA Image and Video Library asset PIA18033.
-  Source and credit are recorded in
-  system/resources/wallpaper-metro.source.txt. Use is subject to NASA media
-  usage guidance and applicable trademark restrictions.
-* Mozilla CA root certificates distributed as the curl CA Extract:
-  system/certs/cacert.pem. The file contains Mozilla certificate data and its
-  source, conversion, date, and checksum comments. See
-  https://curl.se/ca/caextract.html and the links recorded in that file.
+* GNU Unifont 16.0.04 (unifont_all-16.0.04.hex.gz, the pinned build input
+  fetched into cache/downloads by `make fetch` from the URL recorded in
+  configs/dependencies.lock.json): the compiled fonts are covered by the SIL
+  Open Font License 1.1 and by the GNU GPL version 2 or later with the GNU
+  font embedding exception; the rest of the upstream distribution is
+  GPL-2.0-or-later. See resources/licenses/unifont-LICENSE. At build time the
+  glyph data is transformed into the generated cjk_font.h consumed by
+  drivers/bootstrap/framebuffer.c (see mk/resources.mk).
+* zlib 1.3.2 puff (third_party/zlib/contrib/puff/puff.c): zlib License. See
+  third_party/zlib/LICENSE. Copyright (C) 2002-2013 Mark Adler.
+* kconfig-frontends 3.12.0.0 (git submodule at third_party/kconfig-frontends):
+  the Kconfig parser and front ends are extracted from the Linux kernel source
+  tree, which is covered by the GNU General Public License version 2 only.
+  See the COPYING file in the submodule. It is a build-time configuration
+  tool only; no kconfig-frontends code is linked into the kernel products.
 
 Distribution requirements
 -------------------------
 
-When distributing binaries or an ISO containing copyleft components, provide
-the corresponding source and build/porting changes required by that component's
+When distributing binaries built from this repository, provide the
+corresponding source and build/porting changes required by each component's
 license. Preserve copyright notices, license texts, disclaimers, and required
-attribution in the source tree and in the installed image. Do not describe the
-entire distribution as Apache-2.0 unless the statement is explicitly limited
-to LeonOS-owned code and all third-party terms remain visible.
+attribution in the source tree and in the distributed artifacts. Do not
+describe the entire distribution as Apache-2.0 unless the statement is
+explicitly limited to ntclks-owned code and all third-party terms remain
+visible.
