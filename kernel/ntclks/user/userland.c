@@ -36,10 +36,22 @@ struct exec_launch {
     char data[SCHED_EXEC_DATA_MAX];
 };
 
+/*
+ * Service image identity markers: the M1 authority decision. A root executor
+ * running a root-owned, non-group/world-writable image whose gid is one of
+ * these reserved, memberless groups receives TASK_FLAG_SERVICE (plus
+ * TASK_FLAG_WINDOW_SERVER for the window-server role). The path name grants
+ * nothing. Mirrored by the rootfs staging plan and guest /etc/group:
+ *
+ *     leonos-window-server:x:60001:  desktop.elf          role window server
+ *     leonos-service:x:60002:        windowd.elf, imd.elf role service
+ */
+#define LEONOS_GID_WINDOW_SERVER 60001u
+#define LEONOS_GID_SERVICE 60002u
+
 static uint32_t init_pid;
 static uint32_t desktop_pid;
 static uint32_t windowd_pid;
-static uint32_t imd_pid;
 static uint32_t tty_pid;
 /* Boot loader command line captured at init for the /proc/cmdline mechanism. */
 static const char *boot_cmdline;
@@ -61,35 +73,6 @@ void userland_loader_unlock(uint64_t flags)
 {
     kernel_spin_unlock(&image_load_lock);
     kernel_irq_restore(flags);
-}
-
-/**
- * @brief Return 1 if the two NUL-terminated strings are exactly equal, else 0.
- */
-/**
- * @brief Lowercase an ASCII letter, otherwise return the character unchanged.
- */
-static char ascii_tolower(char ch)
-{
-    if (ch >= 'A' && ch <= 'Z') {
-        return (char)(ch - 'A' + 'a');
-    }
-    return ch;
-}
-
-/**
- * @brief Case-insensitive ASCII comparison of two paths; returns 1 on an exact match.
- */
-static int path_eq_ignore_case(const char *a, const char *b)
-{
-    if (!a || !b) {
-        return 0;
-    }
-    while (*a && *b && ascii_tolower(*a) == ascii_tolower(*b)) {
-        ++a;
-        ++b;
-    }
-    return *a == 0 && *b == 0;
 }
 
 /**
@@ -126,27 +109,6 @@ static void task_name_from_path(const char *path, char *dst, uint32_t dst_len)
         }
     }
     copy_text(dst, dst_len, name);
-}
-
-/**
- * @brief Return 1 if path is the desktop.elf window-server path.
- */
-static int path_is_system_desktop(const char *path)
-{
-    return path_eq_ignore_case(path, LEONOS_LAYOUT_LEONOS_APPS "/desktop/desktop.elf");
-}
-
-/**
- * @brief Return 1 if path is the userspace windowd daemon.
- */
-static int path_is_windowd(const char *path)
-{
-    return path_eq_ignore_case(path, LEONOS_LAYOUT_LEONOS_APPS "/windowd/windowd.elf");
-}
-
-static int path_is_imd(const char *path)
-{
-    return path_eq_ignore_case(path, LEONOS_LAYOUT_LEONOS_APPS "/imd/imd.elf");
 }
 
 /**
@@ -642,7 +604,7 @@ static int64_t spawn_pending_image_ex(const char *path, const char *task_name,
 }
 
 /**
- * @brief Tag desktop/service-daemon paths with their flags, reject duplicate instances, then create the task.
+ * @brief Create a pending-image task at path; a TASK_FLAG_SERVICE caller gets its node resolved here, ordinary callers skip the lookup.
  */
 static int64_t spawn_path_internal_ex(const char *path, const char *task_name,
                                       const struct exec_launch *launch,
@@ -970,8 +932,7 @@ void userland_init(const struct boot_info *boot)
 void userland_enter_first(void)
 {
     struct task *first;
-    if (!init_pid && !desktop_pid && !windowd_pid && !imd_pid &&
-        !tty_pid) {
+    if (!init_pid && !desktop_pid && !windowd_pid && !tty_pid) {
         console_printf("[ntclks] no Ring-3 userland loaded\n");
         kernel_idle_loop();
     }
@@ -1084,21 +1045,19 @@ int userland_exec_current_node(const char *path, const struct storage_node *held
  * @brief exec replaces the image and its authority. A child of the desktop is never allowed to retain window-server/service privileges across exec.
  */
     preserved_flags = task->flags & (TASK_FLAG_ELEVATED_ADMIN | TASK_FLAG_WAITABLE_CHILD);
-    /* Authority is tied to a root-owned, non-writable image and root
-     * credentials, never to ancestry, argv, or a user-selected path alone. */
+    /* Authority is tied to a root-owned, non-writable image, root
+     * credentials and the image's reserved role gid, never to ancestry,
+     * argv, or a user-selected path (see LEONOS_GID_* above). */
     struct leonos_permissions permissions;
     if (!task->uid && !task->euid &&
         storage_inode_permissions(&node, &permissions, false) == 0 &&
         permissions.uid == 0 && !(permissions.mode & 0022)) {
-        if (path_is_system_desktop(path)) {
+        if (permissions.gid == LEONOS_GID_WINDOW_SERVER) {
             preserved_flags |= TASK_FLAG_SERVICE | TASK_FLAG_WINDOW_SERVER;
             desktop_pid = task->pid;
-        } else if (path_is_windowd(path)) {
+        } else if (permissions.gid == LEONOS_GID_SERVICE) {
             preserved_flags |= TASK_FLAG_SERVICE;
             windowd_pid = task->pid;
-        } else if (path_is_imd(path)) {
-            preserved_flags |= TASK_FLAG_SERVICE;
-            imd_pid = task->pid;
         }
     }
     task->flags = preserved_flags | TASK_FLAG_STARTED;
