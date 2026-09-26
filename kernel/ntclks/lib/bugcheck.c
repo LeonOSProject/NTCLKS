@@ -9,7 +9,7 @@
 #include <ntclks/time.h>
 #include <leonos/psf_font.h>
 
-#include "../arch/x86_64/port.h"
+#include "../../arch/x86_64/port.h"
 
 /* Set before any diagnostic work.  A second CPU fault must not recurse into
  * the formatter/console while the first fault is already being rendered. */

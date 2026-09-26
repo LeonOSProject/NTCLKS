@@ -30,7 +30,7 @@
 #include <ntclks/userland.h>
 #include <ntclks/version.h>
 
-#include "arch/x86_64/idt.h"
+#include "../arch/x86_64/idt.h"
 
 static uint8_t kernel_ring0_stack[65536] __attribute__((aligned(16)));
 

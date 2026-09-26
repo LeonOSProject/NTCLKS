@@ -3,8 +3,8 @@
 # Object paths keep the component and the source-relative path so two util.c
 # files cannot collide (plan section 6.1).
 
-KERNEL_LD_SCRIPT := $(LEONOS_SRC)/kernel/ntclks/arch/x86_64/linker.ld
-KERNEL_SOURCE_DIRS := kernel/ntclks kernel/ostui drivers/bootstrap
+KERNEL_LD_SCRIPT := $(LEONOS_SRC)/arch/x86_64/linker.ld
+KERNEL_SOURCE_DIRS := kernel/ntclks kernel/ostui drivers/bootstrap arch
 # drivers/bootstrap/storage/*.c are textually included by the storage.c facade
 # and must not also become independent objects.
 KERNEL_SOURCE_EXCLUDE := drivers/bootstrap/storage

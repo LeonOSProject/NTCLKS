@@ -13,7 +13,7 @@
 #include <ntclks/lock.h>
 #include <linux/errno.h>
 
-#include "arch/x86_64/port.h"
+#include "../arch/x86_64/port.h"
 
 #define CMOS_ADDRESS 0x70u
 #define CMOS_DATA 0x71u

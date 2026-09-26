@@ -14,7 +14,7 @@
 #include <ntclks/time.h>
 #include <leonos/layout.h>
 
-#include "arch/x86_64/port.h"
+#include "../arch/x86_64/port.h"
 
 #define EARLY_SERIAL_COM1 0x3f8u
 #define EARLY_SERIAL_LSR  (EARLY_SERIAL_COM1 + 5u)
