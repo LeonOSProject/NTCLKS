@@ -5,7 +5,7 @@
  * for those volumes live in one hidden `LEONACL.SYS` file per directory.  This
  * module owns that representation, including the version-1 access-control
  * records written by older releases, and is the only code that reads or writes
- * those files.  `fs_permissions_*` in kernel/ntclks/permissions.c keeps
+ * those files.  `fs_permissions_*` in fs/permissions.c keeps
  * enforcement; this module only stores and recalls what was stored.
  *
  * On-disk layout, little-endian throughout:
