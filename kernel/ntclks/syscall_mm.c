@@ -838,6 +838,9 @@ int syscall_handle_task_page_fault(struct task *task, uint64_t fault_addr, uint6
     if (error & 0x8ULL) {
         return 0;
     }
+    if (address_space_retry_mapped_user_page(sched_task_as(task), page, error)) {
+        return 1;
+    }
     if (address_space_user_page_phys(sched_task_as(task), page)) {
         return 0;
     }

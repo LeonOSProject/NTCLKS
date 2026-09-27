@@ -569,6 +569,25 @@ uint64_t address_space_user_page_phys(const struct address_space *as, uint64_t v
     return (entry & NTCLKS_PAGE_BACKED) ? (entry & NTCLKS_PHYS_ADDR_MASK) : 0;
 }
 
+bool address_space_retry_mapped_user_page(const struct address_space *as,
+                                          uint64_t vaddr, uint64_t fault_error)
+{
+    if (!as || (fault_error & (1ULL | 8ULL)) ||
+        vaddr < NTCLKS_USER_BASE || vaddr >= NTCLKS_USER_TOP) return false;
+    uint64_t index = (vaddr - NTCLKS_USER_BASE) / PAGE_SIZE;
+    uint64_t table = index / 512;
+    if (table >= NTCLKS_USER_PD_COUNT || !as->user_pt[table]) return false;
+    uint64_t entry = as->user_pt[table][index % 512];
+    if ((entry & (NTCLKS_PAGE_PRESENT | NTCLKS_PAGE_USER)) !=
+        (NTCLKS_PAGE_PRESENT | NTCLKS_PAGE_USER)) return false;
+    if ((fault_error & 2ULL) && !(entry & NTCLKS_PAGE_WRITABLE)) return false;
+    if ((fault_error & 16ULL) && (entry & NTCLKS_PAGE_NOEXEC)) return false;
+    /* A peer sharing this mm may have resolved the same fault before this
+     * CPU acquired the fault lock. Discard its old translation before retry. */
+    x86_64_invlpg(align_down(vaddr, PAGE_SIZE));
+    return true;
+}
+
 bool address_space_user_page_readable(const struct address_space *as, uint64_t vaddr)
 {
     if (!as || vaddr < NTCLKS_USER_BASE || vaddr >= NTCLKS_USER_TOP) return false;

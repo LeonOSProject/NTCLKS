@@ -154,6 +154,12 @@ uint64_t address_space_unmap_user_page(struct address_space *as, uint64_t vaddr)
 uint64_t address_space_user_page_phys(const struct address_space *as, uint64_t vaddr);
 bool address_space_user_page_readable(const struct address_space *as, uint64_t vaddr);
 /**
+ * Retry a non-present fault if another CPU has since installed a user PTE
+ * with the permissions required by the faulting access.
+ */
+bool address_space_retry_mapped_user_page(const struct address_space *as,
+                                          uint64_t vaddr, uint64_t fault_error);
+/**
  * @brief Check a present user mapping's write permission without resolving COW.
  * @param as Address space, or NULL for an invalid mapping.
  * @param vaddr Address within the queried page.
