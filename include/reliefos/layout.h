@@ -121,7 +121,7 @@
 /* Diagnostic-only probe constant.  ReliefOS does not ship or claim a glibc
  * loader; the musl interpreter above is the only supported PT_INTERP. */
 #define RELIEFOS_PATH_GLIBC_INTERP "/lib64/ld-linux-x86-64.so.2"
-#define RELIEFOS_PATH_LIBRELIEFOS RELIEFOS_LAYOUT_RELIEFOS_LIB "/libleonos.so.2"
+#define RELIEFOS_PATH_LIBRELIEFOS RELIEFOS_LAYOUT_RELIEFOS_LIB "/libreliefos.so.2"
 #define RELIEFOS_PATH_LIBRELIEFOS_COMPAT RELIEFOS_LAYOUT_RELIEFOS_LIB "/libleonos.so.1"
 #define RELIEFOS_PATH_OLD_NATIVE_INTERP RELIEFOS_LAYOUT_RELIEFOS_LIB "/ld-leonos.elf"
 #define RELIEFOS_PATH_KERNELDEBUG_MODULE RELIEFOS_LAYOUT_RELIEFOS_LIB "/kerneldebug.sys"
