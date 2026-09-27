@@ -270,7 +270,7 @@ static int driver_load_order_compare(const char *left, const char *right)
 }
 
 /**
- * @brief Build "/usr/lib/leonos/drivers/<file>" into dst, clamped to cap bytes and NUL-terminated.
+ * @brief Build "/usr/lib/reliefos/drivers/<file>" into dst, clamped to cap bytes and NUL-terminated.
  */
 static void driver_make_path(char *dst, uint32_t cap, const char *file)
 {

@@ -19,7 +19,7 @@
     X("/etc/apk/protected_paths.d", 0755) \
     X("/etc/apk/repositories.d", 0755) \
     X("/etc/crontabs", 0755) \
-    X("/etc/leonos", 0755) \
+    X("/etc/reliefos", 0755) \
     X("/etc/modprobe.d", 0755) \
     X("/etc/modules-load.d", 0755) \
     X("/etc/network", 0755) \
@@ -57,7 +57,7 @@
     X("/proc", 0755) \
     X("/root", 0700) \
     X("/run", 0755) \
-    X("/run/leonos", 0755) \
+    X("/run/reliefos", 0755) \
     X("/run/lock", 0755) \
     X("/sbin", 0755) \
     X("/srv", 0755) \
@@ -67,10 +67,11 @@
     X("/usr/bin", 0755) \
     X("/usr/include", 0755) \
     X("/usr/lib", 0755) \
-    X("/usr/lib/leonos", 0755) \
-    X("/usr/lib/leonos/apps", 0755) \
-    X("/usr/lib/leonos/drivers", 0755) \
-    X("/usr/lib/leonos/tests", 0755) \
+    X("/usr/lib/leonos", 0755) /* old SONAME search path */ \
+    X("/usr/lib/reliefos", 0755) \
+    X("/usr/lib/reliefos/apps", 0755) \
+    X("/usr/lib/reliefos/drivers", 0755) \
+    X("/usr/lib/reliefos/tests", 0755) \
     X("/usr/lib/modules-load.d", 0755) \
     X("/usr/lib/sysctl.d", 0755) \
     X("/usr/local", 0755) \
@@ -82,9 +83,10 @@
     X("/usr/local/share/man", 0755) \
     X("/usr/sbin", 0755) \
     X("/usr/share", 0755) \
-    X("/usr/share/doc/leonos", 0755) \
-    X("/usr/share/fonts/leonos", 0755) \
-    X("/usr/share/leonos/resources", 0755) \
+    X("/usr/share/doc/reliefos", 0755) \
+    X("/usr/share/fonts/reliefos", 0755) \
+    X("/usr/share/reliefos", 0755) \
+    X("/usr/share/reliefos/resources", 0755) \
     X("/usr/share/licenses", 0755) \
     X("/usr/share/man", 0755) \
     X("/usr/share/misc", 0755) \
@@ -92,11 +94,11 @@
     X("/var", 0755) \
     X("/var/cache", 0755) \
     X("/var/cache/apk", 0755) \
-    X("/var/cache/leonos", 0755) \
+    X("/var/cache/reliefos", 0755) \
     X("/var/cache/misc", 0755) \
     X("/var/empty", 0555) \
     X("/var/lib", 0755) \
-    X("/var/lib/leonos", 0750) \
+    X("/var/lib/reliefos", 0750) \
     X("/var/lib/misc", 0755) \
     X("/var/local", 0755) \
     X("/var/log", 0755) \

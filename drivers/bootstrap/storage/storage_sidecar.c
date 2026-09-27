@@ -153,7 +153,7 @@ static int sidecar_path_under(const char *path, const char *base)
  * @brief True for locations every account may read and execute.
  * @param path Absolute path being classified.
  *
- * /var/lib/leonos and /root are deliberately absent: accounts, licence state
+ * /var/lib/reliefos and /root are deliberately absent: accounts, licence state
  * and per-user data must not become world-readable through a default.  /home
  * itself is readable, while a user's own directory is not.
  */
