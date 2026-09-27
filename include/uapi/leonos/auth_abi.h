@@ -3,6 +3,7 @@
  * No second layout definition exists behind these names. */
 #ifndef LEONOS_UAPI_AUTH_ABI_H
 #define LEONOS_UAPI_AUTH_ABI_H
+#include <leonos/auth_user.h>
 #include <reliefos/auth_abi.h>
 
 /* Old names are macro aliases to the same declarations. */

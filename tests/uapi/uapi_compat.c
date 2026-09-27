@@ -20,8 +20,29 @@
 #include <leonos/gpu_abi.h>
 #include <reliefos/driver_abi.h>
 #include <leonos/driver_abi.h>
+#include <reliefos/auth_abi.h>
+#include <leonos/auth_abi.h>
 #include <reliefnt/version.h>
 #include <ntclks/version.h>
+
+/* Including only the old auth_abi path historically also exposed auth_user.
+ * Preserve that transitive compatibility for existing <leonos/auth.h>
+ * consumers while keeping the ReliefOS declarations canonical. */
+#ifndef LEONOS_AUTH_PASSWORD_LEN
+#error "leonos/auth_abi.h must preserve auth_user password aliases"
+#endif
+#ifndef LEONOS_AUTH_PASSWORD_MIN_CHARS
+#error "leonos/auth_abi.h must preserve auth_user minimum length alias"
+#endif
+#ifndef LEONOS_AUTH_PASSWORD_MAX_CHARS
+#error "leonos/auth_abi.h must preserve auth_user maximum length alias"
+#endif
+#ifndef LEONOS_AUTH_USERNAME_LEN
+#error "leonos/auth_abi.h must preserve auth_user username length alias"
+#endif
+#ifndef LEONOS_AUTH_HOME_LEN
+#error "leonos/auth_abi.h must preserve auth_user home length alias"
+#endif
 
 /* struct leonos_* names must alias the same struct reliefos_* definition, so
  * equal sizes/offsets catch any attempt to publish a diverging second layout. */
@@ -65,6 +86,22 @@ _Static_assert(sizeof(struct reliefos_time_sync) ==
 _Static_assert(sizeof(struct reliefos_machine_identity) ==
                sizeof(struct leonos_machine_identity),
                "machine identity ABI changed");
+_Static_assert(sizeof(struct reliefos_user_info) ==
+               sizeof(struct leonos_user_info), "user info ABI changed");
+_Static_assert(offsetof(struct reliefos_user_info, username) ==
+               offsetof(struct leonos_user_info, username),
+               "user info username offset changed");
+_Static_assert(offsetof(struct reliefos_user_info, home) ==
+               offsetof(struct leonos_user_info, home),
+               "user info home offset changed");
+_Static_assert(LEONOS_AUTH_PASSWORD_LEN == RELIEFOS_AUTH_PASSWORD_LEN,
+               "auth password length alias changed");
+_Static_assert(LEONOS_AUTH_PASSWORD_MIN_CHARS ==
+               RELIEFOS_AUTH_PASSWORD_MIN_CHARS,
+               "auth password minimum alias changed");
+_Static_assert(LEONOS_AUTH_PASSWORD_MAX_CHARS ==
+               RELIEFOS_AUTH_PASSWORD_MAX_CHARS,
+               "auth password maximum alias changed");
 
 /* Syscall and ioctl constants keep their published values across the rename. */
 _Static_assert(LEONOS_SYS_NICE == RELIEFOS_SYS_NICE, "SYS_NICE value changed");
