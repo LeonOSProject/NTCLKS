@@ -450,7 +450,8 @@ static bool boot_find_module_range(const struct boot_info *boot, const char *nam
  * @brief Mount the root filesystem for this boot.
  * @param boot Parsed Multiboot modules and kernel command line.
  * @param ramdisk_root True for an installer or live session, whose root is the
- *        `leonos-installer-root` module rather than a mounted partition.
+ *        `reliefos-installer-root` module rather than a mounted partition;
+ *        the legacy `leonos-installer-root` tag remains accepted.
  *
  * The physical disks are always probed first: an installer needs the disk and
  * partition inventory even though its own root comes from RAM. When the RAM
@@ -468,7 +469,8 @@ void storage_mount_boot_root(const struct boot_info *boot, bool ramdisk_root)
                        storage_root_filesystem_name());
         return;
     }
-    if (!boot_find_module_range(boot, "leonos-installer-root", &start, &length)) {
+    if (!boot_find_module_range(boot, "reliefos-installer-root", &start, &length) &&
+        !boot_find_module_range(boot, "leonos-installer-root", &start, &length)) {
         /* storage_init() probes a physical root before the installer module is
          * selected.  Do not leave that disk mounted as / when the RAM root is
          * absent: an installer would then operate on its own boot media and
@@ -574,7 +576,8 @@ void storage_init_installer_root(const struct boot_info *boot)
     if (boot) {
         for (uint32_t i = 0; i < boot->module_count; ++i) {
             const struct boot_module *mod = &boot->modules[i];
-            if (storage_text_eq(mod->name, "leonos-installer-root")) {
+            if (storage_text_eq(mod->name, "reliefos-installer-root") ||
+                storage_text_eq(mod->name, "leonos-installer-root")) {
                 found = true;
                 if (mod->end > mod->start) {
                     mount_ret = storage_mount_ramdisk_root(

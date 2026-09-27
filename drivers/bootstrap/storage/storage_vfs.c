@@ -1750,8 +1750,8 @@ int storage_write_boot_esp_file(const char *path, const void *buf, uint32_t len)
     if (!path || !storage_mount_path_matches(path, "/boot")) {
         return -22;
     }
-    (void)storage_mkdir("/boot/leonos");
-    (void)storage_mkdir("/boot/leonos/state");
+    (void)storage_mkdir("/boot/reliefos");
+    (void)storage_mkdir("/boot/reliefos/state");
     return storage_write_file(path, buf, len);
 }
 

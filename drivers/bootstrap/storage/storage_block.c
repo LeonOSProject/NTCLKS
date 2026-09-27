@@ -629,7 +629,8 @@ static int gpt_find_esp(void)
                 basic_data_candidate_found = 1;
                 basic_data_candidate_lba = entry->first_lba;
             }
-            canonical_name = storage_gpt_name_matches(entry->name, "LEONOS4_ROOT");
+            canonical_name = storage_gpt_name_matches(entry->name, "RELIEFOS_ROOT") ||
+                             storage_gpt_name_matches(entry->name, "LEONOS4_ROOT");
             signature_ret = storage_probe_exfat_signature(entry->first_lba);
             is_exfat = signature_ret > 0;
             if (!fat32_candidate_found && storage_probe_fat32_signature(entry->first_lba) > 0) {

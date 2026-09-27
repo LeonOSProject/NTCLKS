@@ -122,7 +122,8 @@ static void boot_import_handoff_modules(struct boot_info *boot,
     }
 
     for (uint32_t i = 0; i < boot->module_count && i < 16; ++i) {
-        if (boot_text_eq(boot->modules[i].name, "leonos-installer-root")) {
+        if (boot_text_eq(boot->modules[i].name, "reliefos-installer-root") ||
+            boot_text_eq(boot->modules[i].name, "leonos-installer-root")) {
             boot->modules[i].start = handoff->installer_root.start;
             boot->modules[i].end = handoff->installer_root.end;
             return;

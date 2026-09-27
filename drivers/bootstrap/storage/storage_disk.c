@@ -1295,7 +1295,7 @@ int storage_disk_create_partition(const struct reliefos_disk_partition_create *r
                       disk, sector_count);
     disk_gpt_set_filesystem_type(&entries[free_index], request->filesystem);
     disk_gpt_set_name(entries[free_index].name,
-                      request->name[0] ? request->name : "LeonOS Data");
+                      request->name[0] ? request->name : "ReliefOS Data");
     ret = disk_gpt_write(disk, &table);
     if (ret < 0) {
         return ret;

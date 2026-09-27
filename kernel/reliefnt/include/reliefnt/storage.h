@@ -263,7 +263,8 @@ void storage_init_installer_root(const struct boot_info *boot);
  * @param boot Parsed Multiboot modules and kernel command line; the installer
  *             RAM disk is located by module name within it.
  * @param ramdisk_root True for an installer or live session, whose root is the
- *                     `leonos-installer-root` module instead of a partition.
+ *                     `reliefos-installer-root` module (or its legacy tag)
+ *                     instead of a partition.
  * @return Nothing. A failed RAM-root mount leaves no root ready; the caller
  *         retries through storage_init_installer_root() to report why.
  * @context Boot phase, before any task can issue storage syscalls. Probes and
