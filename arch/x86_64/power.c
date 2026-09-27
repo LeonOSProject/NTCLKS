@@ -1,10 +1,10 @@
 /*
- * LeonOS x86_64 power control: implements firmware and virtual-machine power.
+ * ReliefOS x86_64 power control: implements firmware and virtual-machine power.
  * Provides shutdown, reboot, and platform-specific fallback mechanisms.
  */
-#include <ntclks/console.h>
-#include <ntclks/multiboot2.h>
-#include <ntclks/power.h>
+#include <reliefnt/console.h>
+#include <reliefnt/multiboot2.h>
+#include <reliefnt/power.h>
 
 #include "port.h"
 
@@ -538,13 +538,13 @@ void power_init(const struct boot_info *boot)
         rsdp = acpi_scan_rsdp();
     }
     if (!rsdp) {
-        console_printf("[ntclks] ACPI RSDP unavailable\n");
+        console_printf("[reliefnt] ACPI RSDP unavailable\n");
         return;
     }
     acpi_root_rsdp = rsdp;
     fadt = acpi_find_table(rsdp, "FACP");
     if (!fadt || fadt->length < 90U) {
-        console_printf("[ntclks] ACPI FADT unavailable\n");
+        console_printf("[reliefnt] ACPI FADT unavailable\n");
         return;
     }
     fadt_bytes = (const uint8_t *)fadt;
@@ -575,7 +575,7 @@ void power_init(const struct boot_info *boot)
         }
     }
     if (!dsdt_address || dsdt_address > 0xffffffffULL) {
-        console_printf("[ntclks] ACPI DSDT unavailable\n");
+        console_printf("[reliefnt] ACPI DSDT unavailable\n");
         return;
     }
     dsdt = (const struct acpi_sdt_header *)(uintptr_t)dsdt_address;
@@ -584,15 +584,15 @@ void power_init(const struct boot_info *boot)
         !acpi_checksum_valid((const uint8_t *)dsdt, dsdt->length) ||
         !acpi_find_sleep_types(dsdt, &acpi_power.sleep_type_a,
                                &acpi_power.sleep_type_b)) {
-        console_printf("[ntclks] ACPI _S5_ sleep object unavailable\n");
+        console_printf("[reliefnt] ACPI _S5_ sleep object unavailable\n");
         return;
     }
     if (!acpi_power.pm1a_control || acpi_power.pm1_control_length < 2U) {
-        console_printf("[ntclks] ACPI PM1 control block unavailable\n");
+        console_printf("[reliefnt] ACPI PM1 control block unavailable\n");
         return;
     }
     acpi_power.available = 1;
-    console_printf("[ntclks] ACPI S5 shutdown ready pm1a=0x%x pm1b=0x%x\n",
+    console_printf("[reliefnt] ACPI S5 shutdown ready pm1a=0x%x pm1b=0x%x\n",
                    acpi_power.pm1a_control, acpi_power.pm1b_control);
 }
 
@@ -629,7 +629,7 @@ static int acpi_enable_power_management(void)
  */
 void power_reboot(void)
 {
-    console_printf("[ntclks] reboot requested\n");
+    console_printf("[reliefnt] reboot requested\n");
     for (;;) {
         while (x86_64_inb(0x64) & 0x02) {
         }
@@ -643,7 +643,7 @@ void power_reboot(void)
  */
 void power_shutdown(void)
 {
-    console_printf("[ntclks] shutdown requested\n");
+    console_printf("[reliefnt] shutdown requested\n");
     if (acpi_enable_power_management()) {
         uint16_t sleep_enable = 1U << 13;
         uint16_t pm1a = x86_64_inw(acpi_power.pm1a_control);

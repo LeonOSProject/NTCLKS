@@ -1,8 +1,8 @@
 /*
- * LeonOS x86_64 entry assembly: establishes the kernel execution environment.
+ * ReliefOS x86_64 entry assembly: establishes the kernel execution environment.
  * Handles early boot, interrupt stubs, register frames, and user returns.
  */
-#ifdef LEONOS_KERNEL_LEGACY_MULTIBOOT
+#ifdef RELIEFOS_KERNEL_LEGACY_MULTIBOOT
 .section .multiboot, "a"
 .align 8
 multiboot2_header:

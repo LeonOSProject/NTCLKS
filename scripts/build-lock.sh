@@ -104,7 +104,9 @@ if [ "$live" = 1 ]; then
     if [ "$owner" = "$self:$target_o" ]; then
         printf '%s\n' "$owner"; exit 0
     fi
-    if [ "${LEONOS_BUILD_OWNER:-}" = "$owner" ] &&
+    # Input compatibility: LEONOS_BUILD_OWNER is the pre-rename spelling of the
+    # inherited ownership token; the new name wins when both are present.
+    if [ "${RELIEFOS_BUILD_OWNER:-${LEONOS_BUILD_OWNER:-}}" = "$owner" ] &&
        [ "${owner#*:}" = "$target_o" ]; then
         while [ "$probe" -gt 1 ] 2>/dev/null; do
             probe=$(proc_field "$probe" 4) || break

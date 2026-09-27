@@ -1,20 +1,20 @@
-ntclks (LeonOS 4 kernel) NOTICE
+ReliefNT (ReliefOS kernel) NOTICE
 ===============================
 
-This NOTICE file records attribution and license information for the ntclks
-repository: the LeonOS 4 Ring-0 kernel, boot loader, UAPI surface and
+This NOTICE file records attribution and license information for the ReliefNT
+repository: the ReliefOS Ring-0 kernel, boot loader, UAPI surface and
 bootstrap drivers. It is not a license and does not change the license of any
-component. ntclks-owned source is governed by the root LICENSE file. Each
+component. reliefnt-owned source is governed by the root LICENSE file. Each
 third-party component remains governed by its own license.
 
 Complete license texts are kept with the corresponding source, submodule,
 or fetched build input. The paths below refer to this repository unless an
 installed path is explicitly shown.
 
-ntclks-owned code
+reliefnt-owned code
 -----------------
 
-Copyright and licensing terms for code written for the ntclks kernel are
+Copyright and licensing terms for code written for the ReliefNT kernel are
 specified by the root LICENSE file (Apache License 2.0, with the identifying
 copyright notice at its end). Third-party source must not be relicensed under
 that file merely because it is distributed in the same repository or image.
@@ -46,5 +46,5 @@ corresponding source and build/porting changes required by each component's
 license. Preserve copyright notices, license texts, disclaimers, and required
 attribution in the source tree and in the distributed artifacts. Do not
 describe the entire distribution as Apache-2.0 unless the statement is
-explicitly limited to ntclks-owned code and all third-party terms remain
+explicitly limited to reliefnt-owned code and all third-party terms remain
 visible.

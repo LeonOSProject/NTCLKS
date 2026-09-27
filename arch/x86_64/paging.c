@@ -1,11 +1,11 @@
 /*
- * LeonOS x86_64 paging: builds kernel and per-process address spaces.
+ * ReliefOS x86_64 paging: builds kernel and per-process address spaces.
  * Maps user pages, enforces NX/W^X permissions, and handles page protection.
  */
-#include <ntclks/mm.h>
-#include <ntclks/page_cache.h>
-#include <ntclks/paging.h>
-#include <ntclks/smp.h>
+#include <reliefnt/mm.h>
+#include <reliefnt/page_cache.h>
+#include <reliefnt/paging.h>
+#include <reliefnt/smp.h>
 
 #define PAGE_SIZE 4096ULL
 #define PAGE_SIZE_2M 0x200000ULL
@@ -101,7 +101,7 @@ static void zero_table(uint64_t *table)
 static uint64_t kernel_page_flags_for(uint64_t addr)
 {
     (void)addr;
-    return NTCLKS_PAGE_PRESENT | NTCLKS_PAGE_WRITABLE | PAGE_SIZE_FLAG;
+    return RELIEFNT_PAGE_PRESENT | RELIEFNT_PAGE_WRITABLE | PAGE_SIZE_FLAG;
 }
 
 /**
@@ -121,15 +121,15 @@ void paging_init_user_identity(void)
         }
     }
 
-    kernel_pml4[0] = (uint64_t)(uintptr_t)kernel_pdpt | NTCLKS_PAGE_PRESENT | NTCLKS_PAGE_WRITABLE;
+    kernel_pml4[0] = (uint64_t)(uintptr_t)kernel_pdpt | RELIEFNT_PAGE_PRESENT | RELIEFNT_PAGE_WRITABLE;
     /* User address spaces replace portions of PML4[0]'s low identity map.
      * Keep a second supervisor-only view at a canonical high address so
      * kernel code can safely read reserved Multiboot modules regardless of
      * where GRUB placed them in low physical memory. */
     kernel_pml4[KERNEL_DIRECT_PML4_INDEX] =
-        (uint64_t)(uintptr_t)kernel_pdpt | NTCLKS_PAGE_PRESENT | NTCLKS_PAGE_WRITABLE;
+        (uint64_t)(uintptr_t)kernel_pdpt | RELIEFNT_PAGE_PRESENT | RELIEFNT_PAGE_WRITABLE;
     for (uint64_t i = 0; i < KERNEL_PD_COUNT; ++i) {
-        kernel_pdpt[i] = (uint64_t)(uintptr_t)kernel_pd[i] | NTCLKS_PAGE_PRESENT | NTCLKS_PAGE_WRITABLE;
+        kernel_pdpt[i] = (uint64_t)(uintptr_t)kernel_pd[i] | RELIEFNT_PAGE_PRESENT | RELIEFNT_PAGE_WRITABLE;
     }
 
     x86_64_load_cr3((uint64_t)(uintptr_t)kernel_pml4);
@@ -160,8 +160,8 @@ void paging_load_cr3(uint64_t cr3)
 
 bool paging_kernel_direct_map_range(uint64_t phys, uint64_t len)
 {
-    return phys < NTCLKS_KERNEL_DIRECT_MAP_SIZE &&
-           len <= NTCLKS_KERNEL_DIRECT_MAP_SIZE - phys;
+    return phys < RELIEFNT_KERNEL_DIRECT_MAP_SIZE &&
+           len <= RELIEFNT_KERNEL_DIRECT_MAP_SIZE - phys;
 }
 
 void *paging_kernel_direct_map(uint64_t phys)
@@ -169,7 +169,7 @@ void *paging_kernel_direct_map(uint64_t phys)
     if (!paging_kernel_direct_map_range(phys, 1)) {
         return NULL;
     }
-    return (void *)(uintptr_t)(NTCLKS_KERNEL_DIRECT_MAP_BASE + phys);
+    return (void *)(uintptr_t)(RELIEFNT_KERNEL_DIRECT_MAP_BASE + phys);
 }
 
 bool paging_mmio_uncached(uint64_t phys, uint64_t len)
@@ -187,7 +187,7 @@ bool paging_mmio_uncached(uint64_t phys, uint64_t len)
      * share these page-directory entries. */
     start = align_down(phys, large);
     end = (phys + len + large - 1ULL) & ~(large - 1ULL);
-    if (end < phys + len || end > NTCLKS_KERNEL_DIRECT_MAP_SIZE) {
+    if (end < phys + len || end > RELIEFNT_KERNEL_DIRECT_MAP_SIZE) {
         return false;
     }
     for (uint64_t addr = start; addr < end; addr += large) {
@@ -196,9 +196,9 @@ bool paging_mmio_uncached(uint64_t phys, uint64_t len)
         if (table >= KERNEL_PD_COUNT) {
             return false;
         }
-        kernel_pd[table][slot] |= NTCLKS_PAGE_PWT | NTCLKS_PAGE_PCD;
+        kernel_pd[table][slot] |= RELIEFNT_PAGE_PWT | RELIEFNT_PAGE_PCD;
         x86_64_invlpg(addr);
-        x86_64_invlpg(NTCLKS_KERNEL_DIRECT_MAP_BASE + addr);
+        x86_64_invlpg(RELIEFNT_KERNEL_DIRECT_MAP_BASE + addr);
     }
     __asm__ volatile("mfence" ::: "memory");
     return true;
@@ -246,7 +246,7 @@ bool address_space_create(struct address_space *as)
         as->pml4[i] = kernel_pml4[i];
         as->pdpt[i] = kernel_pdpt[i];
     }
-    as->pml4[USER_PDPT_INDEX] = pdpt_phys | NTCLKS_PAGE_PRESENT | NTCLKS_PAGE_WRITABLE | NTCLKS_PAGE_USER;
+    as->pml4[USER_PDPT_INDEX] = pdpt_phys | RELIEFNT_PAGE_PRESENT | RELIEFNT_PAGE_WRITABLE | RELIEFNT_PAGE_USER;
 
     uint64_t low_pd_phys = alloc_table();
     if (!low_pd_phys) {
@@ -257,7 +257,7 @@ bool address_space_create(struct address_space *as)
     for (uint32_t i = 0; i < 512; ++i) {
         as->pd[LOW_PD_INDEX][i] = kernel_pd[0][i];
     }
-    as->pdpt[USER_PDPT_INDEX] = low_pd_phys | NTCLKS_PAGE_PRESENT | NTCLKS_PAGE_WRITABLE | NTCLKS_PAGE_USER;
+    as->pdpt[USER_PDPT_INDEX] = low_pd_phys | RELIEFNT_PAGE_PRESENT | RELIEFNT_PAGE_WRITABLE | RELIEFNT_PAGE_USER;
 
     return true;
 }
@@ -278,8 +278,8 @@ bool address_space_clone_cow(struct address_space *source, struct address_space 
     if (!address_space_create(destination)) {
         return false;
     }
-    for (uint32_t table = 0; table < NTCLKS_USER_PD_COUNT; ++table) {
-        uint64_t base = NTCLKS_USER_BASE + (uint64_t)table * NTCLKS_USER_PD_BYTES;
+    for (uint32_t table = 0; table < RELIEFNT_USER_PD_COUNT; ++table) {
+        uint64_t base = RELIEFNT_USER_BASE + (uint64_t)table * RELIEFNT_USER_PD_BYTES;
         if (!source->user_pt[table]) {
             continue;
         }
@@ -289,24 +289,24 @@ bool address_space_clone_cow(struct address_space *source, struct address_space 
             uint64_t phys;
             uint64_t page;
             int cached;
-            if (!(entry & NTCLKS_PAGE_BACKED)) {
+            if (!(entry & RELIEFNT_PAGE_BACKED)) {
                 continue;
             }
-            phys = entry & NTCLKS_PHYS_ADDR_MASK;
-            flags = entry & (NTCLKS_PAGE_WRITABLE | NTCLKS_PAGE_NOEXEC |
-                             NTCLKS_PAGE_COW | NTCLKS_PAGE_DEVICE | NTCLKS_PAGE_PROTNONE |
-                             NTCLKS_PAGE_SHARED |
-                             NTCLKS_PAGE_PWT | NTCLKS_PAGE_PCD | NTCLKS_PAGE_PAT);
+            phys = entry & RELIEFNT_PHYS_ADDR_MASK;
+            flags = entry & (RELIEFNT_PAGE_WRITABLE | RELIEFNT_PAGE_NOEXEC |
+                             RELIEFNT_PAGE_COW | RELIEFNT_PAGE_DEVICE | RELIEFNT_PAGE_PROTNONE |
+                             RELIEFNT_PAGE_SHARED |
+                             RELIEFNT_PAGE_PWT | RELIEFNT_PAGE_PCD | RELIEFNT_PAGE_PAT);
             page = base + (uint64_t)slot * PAGE_SIZE;
-            if (!(entry & (NTCLKS_PAGE_DEVICE | NTCLKS_PAGE_SHARED)) &&
-                ((entry & NTCLKS_PAGE_WRITABLE) || (entry & NTCLKS_PAGE_COW))) {
-                flags &= ~NTCLKS_PAGE_WRITABLE;
-                flags |= NTCLKS_PAGE_COW;
-                source->user_pt[table][slot] = phys | (entry & NTCLKS_PAGE_PRESENT) |
-                                               NTCLKS_PAGE_USER | flags;
+            if (!(entry & (RELIEFNT_PAGE_DEVICE | RELIEFNT_PAGE_SHARED)) &&
+                ((entry & RELIEFNT_PAGE_WRITABLE) || (entry & RELIEFNT_PAGE_COW))) {
+                flags &= ~RELIEFNT_PAGE_WRITABLE;
+                flags |= RELIEFNT_PAGE_COW;
+                source->user_pt[table][slot] = phys | (entry & RELIEFNT_PAGE_PRESENT) |
+                                               RELIEFNT_PAGE_USER | flags;
                 x86_64_invlpg(page);
             }
-            if (entry & NTCLKS_PAGE_DEVICE) {
+            if (entry & RELIEFNT_PAGE_DEVICE) {
                 cached = 0;
             } else {
                 cached = page_cache_retain(phys) == 0;
@@ -315,7 +315,7 @@ bool address_space_clone_cow(struct address_space *source, struct address_space 
                 }
             }
             if (!address_space_map_user_page(destination, page, phys, flags)) {
-                if (entry & NTCLKS_PAGE_DEVICE) {
+                if (entry & RELIEFNT_PAGE_DEVICE) {
                     /* Device pages are borrowed from the framebuffer. */
                 } else if (cached) {
                     page_cache_release(phys);
@@ -345,17 +345,17 @@ void address_space_destroy(struct address_space *as)
     if (!as) {
         return;
     }
-    for (uint32_t table = 0; table < NTCLKS_USER_PD_COUNT; ++table) {
+    for (uint32_t table = 0; table < RELIEFNT_USER_PD_COUNT; ++table) {
         if (as->user_pt[table]) {
             for (uint32_t i = 0; i < 512; ++i) {
                 uint64_t entry = as->user_pt[table][i];
-                if (entry & NTCLKS_PAGE_BACKED) {
-                    if (entry & NTCLKS_PAGE_DEVICE) {
+                if (entry & RELIEFNT_PAGE_BACKED) {
+                    if (entry & RELIEFNT_PAGE_DEVICE) {
                         /* Device mappings refer to reserved physical memory. */
-                    } else if (page_cache_owns(entry & NTCLKS_PHYS_ADDR_MASK)) {
-                        page_cache_release(entry & NTCLKS_PHYS_ADDR_MASK);
+                    } else if (page_cache_owns(entry & RELIEFNT_PHYS_ADDR_MASK)) {
+                        page_cache_release(entry & RELIEFNT_PHYS_ADDR_MASK);
                     } else {
-                        mm_free_page(entry & NTCLKS_PHYS_ADDR_MASK);
+                        mm_free_page(entry & RELIEFNT_PHYS_ADDR_MASK);
                     }
                 }
             }
@@ -391,15 +391,15 @@ bool address_space_prepare_user_range(struct address_space *as, uint64_t start,
     uint64_t first_table;
     uint64_t last_table;
 
-    if (!as || start < NTCLKS_USER_BASE || start >= end || end > NTCLKS_USER_TOP ||
-        (start < NTCLKS_KERNEL_HOLE_END && end > NTCLKS_KERNEL_HOLE_START)) {
+    if (!as || start < RELIEFNT_USER_BASE || start >= end || end > RELIEFNT_USER_TOP ||
+        (start < RELIEFNT_KERNEL_HOLE_END && end > RELIEFNT_KERNEL_HOLE_START)) {
         return false;
     }
     first_page = align_down(start, PAGE_SIZE);
     last_page = align_down(end - 1ULL, PAGE_SIZE);
-    first_table = (first_page - NTCLKS_USER_BASE) / PAGE_SIZE / 512ULL;
-    last_table = (last_page - NTCLKS_USER_BASE) / PAGE_SIZE / 512ULL;
-    if (last_table >= NTCLKS_USER_PD_COUNT) {
+    first_table = (first_page - RELIEFNT_USER_BASE) / PAGE_SIZE / 512ULL;
+    last_table = (last_page - RELIEFNT_USER_BASE) / PAGE_SIZE / 512ULL;
+    if (last_table >= RELIEFNT_USER_PD_COUNT) {
         return false;
     }
     for (uint64_t table = first_table; table <= last_table; ++table) {
@@ -409,9 +409,9 @@ bool address_space_prepare_user_range(struct address_space *as, uint64_t start,
                 return false;
             }
             as->user_pt[table] = (uint64_t *)(uintptr_t)pt_phys;
-            as->pd[LOW_PD_INDEX][NTCLKS_USER_PD_START + table] =
-                pt_phys | NTCLKS_PAGE_PRESENT | NTCLKS_PAGE_WRITABLE | NTCLKS_PAGE_USER;
-            x86_64_invlpg(NTCLKS_USER_BASE + table * NTCLKS_USER_PD_BYTES);
+            as->pd[LOW_PD_INDEX][RELIEFNT_USER_PD_START + table] =
+                pt_phys | RELIEFNT_PAGE_PRESENT | RELIEFNT_PAGE_WRITABLE | RELIEFNT_PAGE_USER;
+            x86_64_invlpg(RELIEFNT_USER_BASE + table * RELIEFNT_USER_PD_BYTES);
         }
     }
     return true;
@@ -432,24 +432,24 @@ bool address_space_map_user_page(struct address_space *as, uint64_t vaddr,
         return false;
     }
     uint64_t page = align_down(vaddr, PAGE_SIZE);
-    if (page < NTCLKS_USER_BASE || page >= NTCLKS_USER_TOP ||
-        (page >= NTCLKS_KERNEL_HOLE_START && page < NTCLKS_KERNEL_HOLE_END)) {
+    if (page < RELIEFNT_USER_BASE || page >= RELIEFNT_USER_TOP ||
+        (page >= RELIEFNT_KERNEL_HOLE_START && page < RELIEFNT_KERNEL_HOLE_END)) {
         return false;
     }
-    uint64_t index = (page - NTCLKS_USER_BASE) / PAGE_SIZE;
+    uint64_t index = (page - RELIEFNT_USER_BASE) / PAGE_SIZE;
     uint64_t table = index / 512;
     uint64_t slot = index % 512;
-    if (table >= NTCLKS_USER_PD_COUNT) {
+    if (table >= RELIEFNT_USER_PD_COUNT) {
         return false;
     }
     if (!as->user_pt[table] &&
         !address_space_prepare_user_range(as, page, page + PAGE_SIZE)) {
         return false;
     }
-    if (as->user_pt[table][slot] & NTCLKS_PAGE_BACKED) {
+    if (as->user_pt[table][slot] & RELIEFNT_PAGE_BACKED) {
         return false;
     }
-    if ((flags & NTCLKS_PAGE_WRITABLE) && !(flags & NTCLKS_PAGE_NOEXEC)) {
+    if ((flags & RELIEFNT_PAGE_WRITABLE) && !(flags & RELIEFNT_PAGE_NOEXEC)) {
         return false;
     }
     if (!nx_enabled) {
@@ -457,8 +457,8 @@ bool address_space_map_user_page(struct address_space *as, uint64_t vaddr,
          * cannot enforce W^X.  Refuse the process rather than weaken it. */
         return false;
     }
-    as->user_pt[table][slot] = phys | NTCLKS_PAGE_USER | flags |
-        ((flags & NTCLKS_PAGE_PROTNONE) ? 0 : NTCLKS_PAGE_PRESENT);
+    as->user_pt[table][slot] = phys | RELIEFNT_PAGE_USER | flags |
+        ((flags & RELIEFNT_PAGE_PROTNONE) ? 0 : RELIEFNT_PAGE_PRESENT);
     ++as->user_page_count;
     x86_64_invlpg(page);
     return true;
@@ -479,34 +479,34 @@ bool address_space_protect_user_page(struct address_space *as, uint64_t vaddr,
     uint64_t table;
     uint64_t slot;
     uint64_t entry;
-    if (!as || ((flags & NTCLKS_PAGE_WRITABLE) && !(flags & NTCLKS_PAGE_NOEXEC))) {
+    if (!as || ((flags & RELIEFNT_PAGE_WRITABLE) && !(flags & RELIEFNT_PAGE_NOEXEC))) {
         return false;
     }
     page = align_down(vaddr, PAGE_SIZE);
-    if (page < NTCLKS_USER_BASE || page >= NTCLKS_USER_TOP) {
+    if (page < RELIEFNT_USER_BASE || page >= RELIEFNT_USER_TOP) {
         return false;
     }
-    index = (page - NTCLKS_USER_BASE) / PAGE_SIZE;
+    index = (page - RELIEFNT_USER_BASE) / PAGE_SIZE;
     table = index / 512;
     slot = index % 512;
-    if (table >= NTCLKS_USER_PD_COUNT || !as->user_pt[table]) {
+    if (table >= RELIEFNT_USER_PD_COUNT || !as->user_pt[table]) {
         return false;
     }
     entry = as->user_pt[table][slot];
-    if (!(entry & NTCLKS_PAGE_BACKED)) {
+    if (!(entry & RELIEFNT_PAGE_BACKED)) {
         return false;
     }
     /* Read-only and inaccessible pages can still be shared after fork, or
      * borrowed from the file cache. An upgrade must copy before writing. */
-    if ((flags & NTCLKS_PAGE_WRITABLE) && !(entry & NTCLKS_PAGE_WRITABLE) &&
-        !(entry & (NTCLKS_PAGE_DEVICE | NTCLKS_PAGE_SHARED))) {
-        flags = (flags & ~NTCLKS_PAGE_WRITABLE) | NTCLKS_PAGE_COW;
+    if ((flags & RELIEFNT_PAGE_WRITABLE) && !(entry & RELIEFNT_PAGE_WRITABLE) &&
+        !(entry & (RELIEFNT_PAGE_DEVICE | RELIEFNT_PAGE_SHARED))) {
+        flags = (flags & ~RELIEFNT_PAGE_WRITABLE) | RELIEFNT_PAGE_COW;
     }
-    flags |= entry & (NTCLKS_PAGE_DEVICE | NTCLKS_PAGE_SHARED | NTCLKS_PAGE_PWT |
-                      NTCLKS_PAGE_PCD | NTCLKS_PAGE_PAT);
-    as->user_pt[table][slot] = (entry & NTCLKS_PHYS_ADDR_MASK) |
-        NTCLKS_PAGE_USER | flags |
-        ((flags & NTCLKS_PAGE_PROTNONE) ? 0 : NTCLKS_PAGE_PRESENT);
+    flags |= entry & (RELIEFNT_PAGE_DEVICE | RELIEFNT_PAGE_SHARED | RELIEFNT_PAGE_PWT |
+                      RELIEFNT_PAGE_PCD | RELIEFNT_PAGE_PAT);
+    as->user_pt[table][slot] = (entry & RELIEFNT_PHYS_ADDR_MASK) |
+        RELIEFNT_PAGE_USER | flags |
+        ((flags & RELIEFNT_PAGE_PROTNONE) ? 0 : RELIEFNT_PAGE_PRESENT);
     x86_64_invlpg(page);
     return true;
 }
@@ -523,17 +523,17 @@ uint64_t address_space_unmap_user_page(struct address_space *as, uint64_t vaddr)
         return 0;
     }
     uint64_t page = align_down(vaddr, PAGE_SIZE);
-    if (page < NTCLKS_USER_BASE || page >= NTCLKS_USER_TOP) {
+    if (page < RELIEFNT_USER_BASE || page >= RELIEFNT_USER_TOP) {
         return 0;
     }
-    uint64_t index = (page - NTCLKS_USER_BASE) / PAGE_SIZE;
+    uint64_t index = (page - RELIEFNT_USER_BASE) / PAGE_SIZE;
     uint64_t table = index / 512;
     uint64_t slot = index % 512;
-    if (table >= NTCLKS_USER_PD_COUNT || !as->user_pt[table]) {
+    if (table >= RELIEFNT_USER_PD_COUNT || !as->user_pt[table]) {
         return 0;
     }
     uint64_t entry = as->user_pt[table][slot];
-    if (!(entry & NTCLKS_PAGE_BACKED)) {
+    if (!(entry & RELIEFNT_PAGE_BACKED)) {
         return 0;
     }
     as->user_pt[table][slot] = 0;
@@ -541,7 +541,7 @@ uint64_t address_space_unmap_user_page(struct address_space *as, uint64_t vaddr)
         --as->user_page_count;
     }
     x86_64_invlpg(page);
-    return entry & NTCLKS_PHYS_ADDR_MASK;
+    return entry & RELIEFNT_PHYS_ADDR_MASK;
 }
 
 /**
@@ -556,32 +556,32 @@ uint64_t address_space_user_page_phys(const struct address_space *as, uint64_t v
         return 0;
     }
     uint64_t page = align_down(vaddr, PAGE_SIZE);
-    if (page < NTCLKS_USER_BASE || page >= NTCLKS_USER_TOP) {
+    if (page < RELIEFNT_USER_BASE || page >= RELIEFNT_USER_TOP) {
         return 0;
     }
-    uint64_t index = (page - NTCLKS_USER_BASE) / PAGE_SIZE;
+    uint64_t index = (page - RELIEFNT_USER_BASE) / PAGE_SIZE;
     uint64_t table = index / 512;
     uint64_t slot = index % 512;
-    if (table >= NTCLKS_USER_PD_COUNT || !as->user_pt[table]) {
+    if (table >= RELIEFNT_USER_PD_COUNT || !as->user_pt[table]) {
         return 0;
     }
     uint64_t entry = as->user_pt[table][slot];
-    return (entry & NTCLKS_PAGE_BACKED) ? (entry & NTCLKS_PHYS_ADDR_MASK) : 0;
+    return (entry & RELIEFNT_PAGE_BACKED) ? (entry & RELIEFNT_PHYS_ADDR_MASK) : 0;
 }
 
 bool address_space_retry_mapped_user_page(const struct address_space *as,
                                           uint64_t vaddr, uint64_t fault_error)
 {
     if (!as || (fault_error & (1ULL | 8ULL)) ||
-        vaddr < NTCLKS_USER_BASE || vaddr >= NTCLKS_USER_TOP) return false;
-    uint64_t index = (vaddr - NTCLKS_USER_BASE) / PAGE_SIZE;
+        vaddr < RELIEFNT_USER_BASE || vaddr >= RELIEFNT_USER_TOP) return false;
+    uint64_t index = (vaddr - RELIEFNT_USER_BASE) / PAGE_SIZE;
     uint64_t table = index / 512;
-    if (table >= NTCLKS_USER_PD_COUNT || !as->user_pt[table]) return false;
+    if (table >= RELIEFNT_USER_PD_COUNT || !as->user_pt[table]) return false;
     uint64_t entry = as->user_pt[table][index % 512];
-    if ((entry & (NTCLKS_PAGE_PRESENT | NTCLKS_PAGE_USER)) !=
-        (NTCLKS_PAGE_PRESENT | NTCLKS_PAGE_USER)) return false;
-    if ((fault_error & 2ULL) && !(entry & NTCLKS_PAGE_WRITABLE)) return false;
-    if ((fault_error & 16ULL) && (entry & NTCLKS_PAGE_NOEXEC)) return false;
+    if ((entry & (RELIEFNT_PAGE_PRESENT | RELIEFNT_PAGE_USER)) !=
+        (RELIEFNT_PAGE_PRESENT | RELIEFNT_PAGE_USER)) return false;
+    if ((fault_error & 2ULL) && !(entry & RELIEFNT_PAGE_WRITABLE)) return false;
+    if ((fault_error & 16ULL) && (entry & RELIEFNT_PAGE_NOEXEC)) return false;
     /* A peer sharing this mm may have resolved the same fault before this
      * CPU acquired the fault lock. Discard its old translation before retry. */
     x86_64_invlpg(align_down(vaddr, PAGE_SIZE));
@@ -590,11 +590,11 @@ bool address_space_retry_mapped_user_page(const struct address_space *as,
 
 bool address_space_user_page_readable(const struct address_space *as, uint64_t vaddr)
 {
-    if (!as || vaddr < NTCLKS_USER_BASE || vaddr >= NTCLKS_USER_TOP) return false;
-    uint64_t index = (vaddr - NTCLKS_USER_BASE) / PAGE_SIZE;
+    if (!as || vaddr < RELIEFNT_USER_BASE || vaddr >= RELIEFNT_USER_TOP) return false;
+    uint64_t index = (vaddr - RELIEFNT_USER_BASE) / PAGE_SIZE;
     uint64_t table = index / 512;
-    if (table >= NTCLKS_USER_PD_COUNT || !as->user_pt[table]) return false;
-    uint64_t required = NTCLKS_PAGE_PRESENT | NTCLKS_PAGE_USER;
+    if (table >= RELIEFNT_USER_PD_COUNT || !as->user_pt[table]) return false;
+    uint64_t required = RELIEFNT_PAGE_PRESENT | RELIEFNT_PAGE_USER;
     return (as->user_pt[table][index % 512] & required) == required;
 }
 
@@ -606,11 +606,11 @@ bool address_space_user_page_readable(const struct address_space *as, uint64_t v
  */
 bool address_space_user_page_writable(const struct address_space *as, uint64_t vaddr)
 {
-    if (!as || vaddr < NTCLKS_USER_BASE || vaddr >= NTCLKS_USER_TOP) return false;
-    uint64_t index = (vaddr - NTCLKS_USER_BASE) / PAGE_SIZE;
+    if (!as || vaddr < RELIEFNT_USER_BASE || vaddr >= RELIEFNT_USER_TOP) return false;
+    uint64_t index = (vaddr - RELIEFNT_USER_BASE) / PAGE_SIZE;
     uint64_t table = index / 512;
-    if (table >= NTCLKS_USER_PD_COUNT || !as->user_pt[table]) return false;
-    uint64_t required = NTCLKS_PAGE_PRESENT | NTCLKS_PAGE_USER | NTCLKS_PAGE_WRITABLE;
+    if (table >= RELIEFNT_USER_PD_COUNT || !as->user_pt[table]) return false;
+    uint64_t required = RELIEFNT_PAGE_PRESENT | RELIEFNT_PAGE_USER | RELIEFNT_PAGE_WRITABLE;
     return (as->user_pt[table][index % 512] & required) == required;
 }
 
@@ -620,17 +620,17 @@ bool address_space_user_page_is_device(const struct address_space *as, uint64_t 
         return false;
     }
     uint64_t page = align_down(vaddr, PAGE_SIZE);
-    if (page < NTCLKS_USER_BASE || page >= NTCLKS_USER_TOP) {
+    if (page < RELIEFNT_USER_BASE || page >= RELIEFNT_USER_TOP) {
         return false;
     }
-    uint64_t index = (page - NTCLKS_USER_BASE) / PAGE_SIZE;
+    uint64_t index = (page - RELIEFNT_USER_BASE) / PAGE_SIZE;
     uint64_t table = index / 512;
     uint64_t slot = index % 512;
-    if (table >= NTCLKS_USER_PD_COUNT || !as->user_pt[table]) {
+    if (table >= RELIEFNT_USER_PD_COUNT || !as->user_pt[table]) {
         return false;
     }
     uint64_t entry = as->user_pt[table][slot];
-    return (entry & NTCLKS_PAGE_BACKED) && (entry & NTCLKS_PAGE_DEVICE);
+    return (entry & RELIEFNT_PAGE_BACKED) && (entry & RELIEFNT_PAGE_DEVICE);
 }
 
 /**
@@ -651,11 +651,11 @@ uint32_t address_space_user_resident_kib(const struct address_space *as)
 {
     uint32_t pages = 0;
     if (!as) return 0;
-    for (uint32_t table = 0; table < NTCLKS_USER_PD_COUNT; ++table) {
+    for (uint32_t table = 0; table < RELIEFNT_USER_PD_COUNT; ++table) {
         if (!as->user_pt[table]) continue;
         for (uint32_t slot = 0; slot < 512; ++slot) {
             uint64_t entry = as->user_pt[table][slot];
-            if ((entry & NTCLKS_PAGE_BACKED) && !(entry & NTCLKS_PAGE_DEVICE)) ++pages;
+            if ((entry & RELIEFNT_PAGE_BACKED) && !(entry & RELIEFNT_PAGE_DEVICE)) ++pages;
         }
     }
     return pages * 4U;
@@ -669,15 +669,15 @@ uint32_t address_space_user_resident_kib(const struct address_space *as)
  */
 bool address_space_map_user_stack(struct address_space *as, uint64_t stack_top)
 {
-    if (!as || stack_top <= (uint64_t)NTCLKS_USER_STACK_PAGES * PAGE_SIZE ||
-        stack_top > NTCLKS_USER_TOP) {
+    if (!as || stack_top <= (uint64_t)RELIEFNT_USER_STACK_PAGES * PAGE_SIZE ||
+        stack_top > RELIEFNT_USER_TOP) {
         return false;
     }
-    uint64_t first = stack_top - (uint64_t)NTCLKS_USER_STACK_PAGES * PAGE_SIZE;
-    for (uint32_t i = 0; i < NTCLKS_USER_STACK_PAGES; ++i) {
+    uint64_t first = stack_top - (uint64_t)RELIEFNT_USER_STACK_PAGES * PAGE_SIZE;
+    for (uint32_t i = 0; i < RELIEFNT_USER_STACK_PAGES; ++i) {
         uint64_t phys = mm_alloc_page();
         if (!phys || !address_space_map_user_page(as, first + (uint64_t)i * PAGE_SIZE,
-                                                  phys, NTCLKS_PAGE_WRITABLE | NTCLKS_PAGE_NOEXEC)) {
+                                                  phys, RELIEFNT_PAGE_WRITABLE | RELIEFNT_PAGE_NOEXEC)) {
             if (phys) {
                 mm_free_page(phys);
             }
@@ -690,8 +690,8 @@ bool address_space_map_user_stack(struct address_space *as, uint64_t stack_top)
 bool address_space_map_user_stack_page(struct address_space *as, uint64_t page)
 {
     uint64_t phys;
-    if (!as || (page & (PAGE_SIZE - 1ULL)) || page < NTCLKS_USER_BASE ||
-        page >= NTCLKS_USER_TOP) {
+    if (!as || (page & (PAGE_SIZE - 1ULL)) || page < RELIEFNT_USER_BASE ||
+        page >= RELIEFNT_USER_TOP) {
         return false;
     }
     if (address_space_user_page_phys(as, page)) {
@@ -702,7 +702,7 @@ bool address_space_map_user_stack_page(struct address_space *as, uint64_t page)
         return false;
     }
     if (!address_space_map_user_page(as, page, phys,
-                                     NTCLKS_PAGE_WRITABLE | NTCLKS_PAGE_NOEXEC)) {
+                                     RELIEFNT_PAGE_WRITABLE | RELIEFNT_PAGE_NOEXEC)) {
         mm_free_page(phys);
         return false;
     }
@@ -728,29 +728,29 @@ bool address_space_handle_cow_fault(struct address_space *as, uint64_t vaddr)
         return false;
     }
     page = align_down(vaddr, PAGE_SIZE);
-    if (page < NTCLKS_USER_BASE || page >= NTCLKS_USER_TOP) {
+    if (page < RELIEFNT_USER_BASE || page >= RELIEFNT_USER_TOP) {
         return false;
     }
-    index = (page - NTCLKS_USER_BASE) / PAGE_SIZE;
+    index = (page - RELIEFNT_USER_BASE) / PAGE_SIZE;
     table = index / 512;
     slot = index % 512;
-    if (table >= NTCLKS_USER_PD_COUNT || !as->user_pt[table]) {
+    if (table >= RELIEFNT_USER_PD_COUNT || !as->user_pt[table]) {
         return false;
     }
     entry = as->user_pt[table][slot];
-    if (!(entry & NTCLKS_PAGE_PRESENT) || !(entry & NTCLKS_PAGE_COW)) {
+    if (!(entry & RELIEFNT_PAGE_PRESENT) || !(entry & RELIEFNT_PAGE_COW)) {
         return false;
     }
-    old_phys = entry & NTCLKS_PHYS_ADDR_MASK;
+    old_phys = entry & RELIEFNT_PHYS_ADDR_MASK;
     new_phys = mm_alloc_page();
     if (!new_phys) {
         return false;
     }
     copy_page(new_phys, old_phys);
-    as->user_pt[table][slot] = new_phys | NTCLKS_PAGE_PRESENT | NTCLKS_PAGE_USER |
-                               NTCLKS_PAGE_WRITABLE | NTCLKS_PAGE_NOEXEC |
-                               (entry & (NTCLKS_PAGE_PWT | NTCLKS_PAGE_PCD |
-                                         NTCLKS_PAGE_PAT));
+    as->user_pt[table][slot] = new_phys | RELIEFNT_PAGE_PRESENT | RELIEFNT_PAGE_USER |
+                               RELIEFNT_PAGE_WRITABLE | RELIEFNT_PAGE_NOEXEC |
+                               (entry & (RELIEFNT_PAGE_PWT | RELIEFNT_PAGE_PCD |
+                                         RELIEFNT_PAGE_PAT));
     x86_64_invlpg(page);
     if (page_cache_owns(old_phys)) page_cache_release(old_phys);
     else mm_free_page(old_phys);

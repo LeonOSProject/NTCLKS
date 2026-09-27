@@ -1,5 +1,5 @@
-#include <ntclks/page_cache.h>
-#include <ntclks/permissions.h>
+#include <reliefnt/page_cache.h>
+#include <reliefnt/permissions.h>
 
 /* Reference ext2 inodes independently of directory links. The storage execution
  * lock protects this list as well as lookup, unlink and inode allocation. */
@@ -93,7 +93,7 @@ int storage_inode_put(struct storage_inode_ref *reference)
         ret = storage_select_node_volume(&reference->node, &previous);
         if (!ret) ret = ext2_read_inode(reference->node.first_cluster, &inode);
         if (!ret && !inode.links_count)
-            ret = ext2_destroy_inode(reference->node.first_cluster, reference->node.type == LEONOS_FS_TYPE_DIR);
+            ret = ext2_destroy_inode(reference->node.first_cluster, reference->node.type == RELIEFOS_FS_TYPE_DIR);
         storage_io_async_context = saved_async;
     }
     storage_restore_volume(previous);

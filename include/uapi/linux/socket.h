@@ -1,5 +1,5 @@
-#ifndef LEONOS_UAPI_LINUX_SOCKET_H
-#define LEONOS_UAPI_LINUX_SOCKET_H
+#ifndef RELIEFOS_UAPI_LINUX_SOCKET_H
+#define RELIEFOS_UAPI_LINUX_SOCKET_H
 
 #include <linux/types.h>
 #include <linux/uio.h>
@@ -114,7 +114,7 @@ _Static_assert(__builtin_offsetof(struct mmsghdr, msg_len) == 56, "native msg_le
 #define CMSG_LEN(len) (CMSG_ALIGN(sizeof(struct cmsghdr)) + (len))
 #define CMSG_DATA(cmsg) ((void *)((uint8_t *)(cmsg) + CMSG_ALIGN(sizeof(struct cmsghdr))))
 #define CMSG_FIRSTHDR(msg) ((msg)->msg_controllen >= sizeof(struct cmsghdr) ? (struct cmsghdr *)(msg)->msg_control : 0)
-static inline struct cmsghdr *leonos_cmsg_nxthdr(const struct msghdr *message,
+static inline struct cmsghdr *reliefos_cmsg_nxthdr(const struct msghdr *message,
                                                 const struct cmsghdr *header)
 {
     uintptr_t offset = (uintptr_t)header - (uintptr_t)message->msg_control;
@@ -124,7 +124,7 @@ static inline struct cmsghdr *leonos_cmsg_nxthdr(const struct msghdr *message,
     if (offset > message->msg_controllen || sizeof(*header) > message->msg_controllen - offset) return 0;
     return (struct cmsghdr *)((uint8_t *)message->msg_control + offset);
 }
-#define CMSG_NXTHDR(msg, cmsg) leonos_cmsg_nxthdr((msg), (cmsg))
+#define CMSG_NXTHDR(msg, cmsg) reliefos_cmsg_nxthdr((msg), (cmsg))
 
 #define SHUT_RD 0
 #define SHUT_WR 1

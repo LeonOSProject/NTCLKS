@@ -36,15 +36,23 @@ if [ -n "$src" ]; then
     [ "$resolved" != "$source_root" ] || refuse 'resolved O is the source root'
 fi
 target=$resolved
-[ ! -L "$target/.leonos-out" ] || refuse 'ownership marker is a symlink'
-marker="$target/.leonos-out"
-if [ ! -f "$marker" ]; then
+# Transitional: trees built before the rename carry .leonos-out with the old
+# marker text; both are recognized and neither is trusted beyond the checks.
+marker="$target/.reliefos-out"
+old_marker="$target/.leonos-out"
+[ ! -L "$marker" ] || refuse 'ownership marker is a symlink'
+[ ! -L "$old_marker" ] || refuse 'ownership marker is a symlink'
+if [ -f "$marker" ]; then
+    :
+elif [ -f "$old_marker" ]; then
+    marker=$old_marker
+else
     refuse "no ownership marker at $marker (not a build output directory created by this Makefile)"
 fi
-if ! grep -q '^leonos4-build-out version=1 ' "$marker"; then
-    refuse "ownership marker in $target is not a LeonOS build output marker"
+if ! grep -q -e '^reliefos-build-out version=1 ' -e '^leonos4-build-out version=1 ' "$marker"; then
+    refuse "ownership marker in $target is not a ReliefOS build output marker"
 fi
-marker_root=$(sed -n 's/^leonos4-build-out version=1 root=//p' "$marker" | head -n1)
+marker_root=$(sed -n -e 's/^reliefos-build-out version=1 root=//p' -e 's/^leonos4-build-out version=1 root=//p' "$marker" | head -n1)
 if [ -n "$src" ] && [ -n "$marker_root" ] && [ "$marker_root" != "$src" ]; then
     refuse "output directory belongs to a different source root ($marker_root)"
 fi
@@ -67,8 +75,12 @@ for entry in $products; do
         rm -rf -- "$resolved/$entry" || exit 1
     fi
 done
-if [ "$keep" = 0 ] && [ -e "$resolved/.leonos-out" ]; then
-    printf '  remove .leonos-out\n'
-    rm -f -- "$resolved/.leonos-out"
+if [ "$keep" = 0 ]; then
+    for marker_entry in .reliefos-out .leonos-out; do
+        if [ -e "$resolved/$marker_entry" ] || [ -L "$resolved/$marker_entry" ]; then
+            printf '  remove %s\n' "$marker_entry"
+            rm -f -- "$resolved/$marker_entry"
+        fi
+    done
 fi
 printf 'clean: the shared download cache under cache/downloads was not touched\n'

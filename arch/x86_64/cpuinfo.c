@@ -1,6 +1,6 @@
-#include <ntclks/inventory.h>
-#include <ntclks/smp.h>
-#include <ntclks/text_stream.h>
+#include <reliefnt/inventory.h>
+#include <reliefnt/smp.h>
+#include <reliefnt/text_stream.h>
 
 static struct cpu_inventory inventory[SMP_MAX_CPUS];
 /** @brief Read CPUID leaf/subleaf on this CPU; only used during CPU bring-up. */

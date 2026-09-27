@@ -1,11 +1,11 @@
 #include "device.h"
 #ifndef SVGA_HOST_TEST
-#include <ntclks/lock.h>
-#include <ntclks/mm.h>
-#include <ntclks/paging.h>
-#include <ntclks/port.h>
-#include <ntclks/framebuffer.h>
-#include <ntclks/console.h>
+#include <reliefnt/lock.h>
+#include <reliefnt/mm.h>
+#include <reliefnt/paging.h>
+#include <reliefnt/port.h>
+#include <reliefnt/framebuffer.h>
+#include <reliefnt/console.h>
 static struct kernel_spinlock device_lock = KERNEL_SPINLOCK_INIT;
 static uint16_t io_port;
 #endif

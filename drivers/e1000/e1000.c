@@ -1,9 +1,9 @@
-#include <leonos/driver.h>
+#include <reliefos/driver.h>
 
-#include <ntclks/mm.h>
-#include <ntclks/pci.h>
+#include <reliefnt/mm.h>
+#include <reliefnt/pci.h>
 
-static const struct leonos_driver_kernel_api *kernel_api;
+static const struct reliefos_driver_kernel_api *kernel_api;
 
 static void e1000_log(const char *message)
 {
@@ -161,7 +161,7 @@ static int e1000_find(struct pci_device *out)
         E1000_DEVICE_82544GC,
     };
     for (uint32_t index = 0; index < sizeof(supported) / sizeof(supported[0]); ++index) {
-        struct leonos_driver_pci_device found;
+        struct reliefos_driver_pci_device found;
         if (kernel_api->pci_find(E1000_VENDOR_INTEL, supported[index], &found) == 0) {
             if (out) {
                 *out = (struct pci_device){
@@ -326,7 +326,7 @@ static void e1000_hardware_init(void)
     e1000_memzero(&g_e1000, sizeof(g_e1000));
 
     if (e1000_find(&dev) < 0) {
-        struct leonos_driver_pci_device other;
+        struct reliefos_driver_pci_device other;
         if (kernel_api->pci_find(0x1022, 0x2000, &other) == 0)
             e1000_log("VMware PCnet detected; select ethernet0.virtualDev = e1000 in the powered-off VM configuration");
         else e1000_log("no supported Intel PCI device found");
@@ -481,14 +481,14 @@ static void e1000_get_info(struct module_e1000_info *info)
     }
 }
 
-static void e1000_driver_get_info(struct leonos_driver_e1000_info *out)
+static void e1000_driver_get_info(struct reliefos_driver_e1000_info *out)
 {
     struct module_e1000_info info;
     if (!out) {
         return;
     }
     e1000_get_info(&info);
-    *out = (struct leonos_driver_e1000_info){
+    *out = (struct reliefos_driver_e1000_info){
         .present = info.present,
         .active = info.active,
         .vendor_id = info.vendor_id,
@@ -527,16 +527,16 @@ static void e1000_release_rings(void)
 
 static void e1000_driver_fini(void);
 
-static int e1000_driver_init(const struct leonos_driver_kernel_api *api)
+static int e1000_driver_init(const struct reliefos_driver_kernel_api *api)
 {
-    static const struct leonos_driver_e1000_ops ops = {
+    static const struct reliefos_driver_e1000_ops ops = {
         .is_ready = e1000_is_ready,
         .mac = e1000_mac,
         .send = e1000_send,
         .poll = e1000_poll,
         .get_info = e1000_driver_get_info,
     };
-    if (!api || api->abi_version != LEONOS_DRIVER_ABI_VERSION ||
+    if (!api || api->abi_version != RELIEFOS_DRIVER_ABI_VERSION ||
         api->struct_size < sizeof(*api)) {
         return -22;
     }
@@ -563,11 +563,11 @@ static void e1000_driver_fini(void)
     e1000_release_rings();
 }
 
-struct leonos_driver_module leonos_driver_module = {
-    .magic = LEONOS_DRIVER_MODULE_MAGIC,
-    .abi_version = LEONOS_DRIVER_ABI_VERSION,
-    .struct_size = sizeof(struct leonos_driver_module),
-    .kind = LEONOS_DRIVER_KIND_NETWORK,
+struct reliefos_driver_module reliefos_driver_module = {
+    .magic = RELIEFOS_DRIVER_MODULE_MAGIC,
+    .abi_version = RELIEFOS_DRIVER_ABI_VERSION,
+    .struct_size = sizeof(struct reliefos_driver_module),
+    .kind = RELIEFOS_DRIVER_KIND_NETWORK,
     .name = "e1000",
     .version = 1U,
     .reserved = 0,

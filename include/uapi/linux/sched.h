@@ -1,5 +1,5 @@
-#ifndef LEONOS_UAPI_LINUX_SCHED_H
-#define LEONOS_UAPI_LINUX_SCHED_H
+#ifndef RELIEFOS_UAPI_LINUX_SCHED_H
+#define RELIEFOS_UAPI_LINUX_SCHED_H
 
 #include <stdint.h>
 

@@ -1,22 +1,22 @@
 /* Read-only procfs implementation for the Unix migration. */
-#include <ntclks/mm.h>
-#include <ntclks/driver_manager.h>
-#include <ntclks/sched.h>
-#include <ntclks/smp.h>
-#include <ntclks/storage.h>
-#include <ntclks/syscall.h>
-#include <ntclks/syscall_internal.h>
-#include <ntclks/time.h>
-#include <ntclks/userland.h>
-#include <ntclks/version.h>
-#include <ntclks/uts.h>
-#include <ntclks/inventory.h>
-#include <ntclks/text_stream.h>
-#include <ntclks/pty.h>
-#include <leonos/fs_abi.h>
+#include <reliefnt/mm.h>
+#include <reliefnt/driver_manager.h>
+#include <reliefnt/sched.h>
+#include <reliefnt/smp.h>
+#include <reliefnt/storage.h>
+#include <reliefnt/syscall.h>
+#include <reliefnt/syscall_internal.h>
+#include <reliefnt/time.h>
+#include <reliefnt/userland.h>
+#include <reliefnt/version.h>
+#include <reliefnt/uts.h>
+#include <reliefnt/inventory.h>
+#include <reliefnt/text_stream.h>
+#include <reliefnt/pty.h>
+#include <reliefos/fs_abi.h>
 #include <linux/capability.h>
 
-#define PROCFS_PATH_MAX LEONOS_FS_PATH_LEN
+#define PROCFS_PATH_MAX RELIEFOS_FS_PATH_LEN
 #define PROCFS_CONTENT_MAX 1024u
 
 static int proc_text_eq(const char *a, const char *b)
@@ -127,9 +127,9 @@ static int proc_fill_content(const char *path, char *buffer, uint32_t capacity)
         proc_append_text(buffer, &pos, capacity, ".");
         proc_append_u64(buffer, &pos, capacity, (ms % 1000u) / 100u);
         proc_append_text(buffer, &pos, capacity, " ");
-        proc_append_u64(buffer, &pos, capacity, idle / NTCLKS_TICK_HZ);
+        proc_append_u64(buffer, &pos, capacity, idle / RELIEFNT_TICK_HZ);
         proc_append_text(buffer, &pos, capacity, ".");
-        uint64_t fraction = (idle % NTCLKS_TICK_HZ) * 100 / NTCLKS_TICK_HZ;
+        uint64_t fraction = (idle % RELIEFNT_TICK_HZ) * 100 / RELIEFNT_TICK_HZ;
         if (fraction < 10) proc_append_text(buffer, &pos, capacity, "0");
         proc_append_u64(buffer, &pos, capacity, fraction);
         proc_append_text(buffer, &pos, capacity, "\n");
@@ -148,7 +148,7 @@ static int proc_fill_content(const char *path, char *buffer, uint32_t capacity)
         return 0;
     }
     if (proc_text_eq(path, "/proc/version")) {
-        const struct leonos_system_info *info = ntclks_system_info();
+        const struct reliefos_system_info *info = reliefnt_system_info();
         if (info) proc_append_text(buffer, &pos, capacity, info->kernel_name);
         proc_append_text(buffer, &pos, capacity, " version ");
         if (info) proc_append_text(buffer, &pos, capacity, info->kernel_version);
@@ -174,7 +174,7 @@ static int proc_fill_content(const char *path, char *buffer, uint32_t capacity)
     if (proc_text_eq(path, "/proc/sys/kernel/ostype") ||
         proc_text_eq(path, "/proc/sys/kernel/osrelease") ||
         proc_text_eq(path, "/proc/sys/kernel/version")) {
-        const struct leonos_system_info *info = ntclks_system_info();
+        const struct reliefos_system_info *info = reliefnt_system_info();
         const char *value = proc_text_eq(path, "/proc/sys/kernel/ostype") ? LINUX_UTS_SYSNAME :
             !info ? "" :
             proc_text_eq(path, "/proc/sys/kernel/version") ? info->build_time :
@@ -283,7 +283,7 @@ static int proc_fd_number(const char *file)
  * @brief Resolve named file and terminal descriptors for procfs readlink.
  * @param task Existing task whose descriptor table is protected by the execution lock.
  * @param fd Descriptor number.
- * @param target Kernel buffer with LEONOS_FS_PATH_LEN bytes.
+ * @param target Kernel buffer with RELIEFOS_FS_PATH_LEN bytes.
  * @return Zero on success, negative ENOENT for closed or unnamed descriptors.
  */
 static int proc_fd_target(struct task *task, int fd, char *target)
@@ -292,17 +292,17 @@ static int proc_fd_target(struct task *task, int fd, char *target)
     if (pty && pty->pty_id && pty->endpoint) {
         const char *prefix = pty->endpoint == TASK_PTY_ENDPOINT_MASTER ? "/dev/ptmx" :
             pty_vt_number(pty->pty_id) ? "/dev/tty" : "/dev/pts/";
-        proc_copy(target, LEONOS_FS_PATH_LEN, prefix);
+        proc_copy(target, RELIEFOS_FS_PATH_LEN, prefix);
         if (pty->endpoint == TASK_PTY_ENDPOINT_SLAVE) {
             uint32_t pos = 0;
             while (target[pos]) ++pos;
-            proc_append_u64(target, &pos, LEONOS_FS_PATH_LEN, pty->pty_id);
+            proc_append_u64(target, &pos, RELIEFOS_FS_PATH_LEN, pty->pty_id);
         }
         return 0;
     }
     struct task_file *file = task_file_for_fd(task, fd);
     if (!file || !file->path[0]) return -2;
-    proc_copy(target, LEONOS_FS_PATH_LEN, file->path);
+    proc_copy(target, RELIEFOS_FS_PATH_LEN, file->path);
     return 0;
 }
 
@@ -400,7 +400,7 @@ static void proc_task_stat(struct task *task, struct text_stream *s)
     values[5] = task->process_group;
     values[6] = task->process_session;
     values[8] = values[7] ? foreground : (uint64_t)-1;
-    values[14] = ticks * 100 / NTCLKS_TICK_HZ;
+    values[14] = ticks * 100 / RELIEFNT_TICK_HZ;
     values[18] = 20 + task->priority;
     values[19] = task->priority;
     values[20] = threads;
@@ -462,7 +462,7 @@ int proc_lookup(const char *path, struct storage_node *out)
     if (!path || (path[0] != '/' || path[1] != 'p' || path[2] != 'r' ||
                   path[3] != 'o' || path[4] != 'c' || (path[5] && path[5] != '/'))) return -2;
     if (proc_text_eq(path, "/proc/mounts")) {
-        if (out) *out = (struct storage_node){.type = LEONOS_FS_TYPE_SYMLINK,
+        if (out) *out = (struct storage_node){.type = RELIEFOS_FS_TYPE_SYMLINK,
             .flags = STORAGE_NODE_FLAG_PROC, .size = 11};
         return 0;
     }
@@ -470,7 +470,7 @@ int proc_lookup(const char *path, struct storage_node *out)
         proc_text_eq(path, "/proc/sys/kernel")) {
         if (out) {
             *out = (struct storage_node){
-                .type = LEONOS_FS_TYPE_DIR,
+                .type = RELIEFOS_FS_TYPE_DIR,
                 .flags = STORAGE_NODE_FLAG_PROC,
                 .first_cluster = 0x50524f43u, /* PROC */
                 .volume_id = 0,
@@ -481,7 +481,7 @@ int proc_lookup(const char *path, struct storage_node *out)
     }
     if (proc_mount_view(path) || proc_text_eq(path,"/proc/cpuinfo") || proc_text_eq(path,"/proc/leonos-drivers")) {
         if (out) *out = (struct storage_node){
-            .type = LEONOS_FS_TYPE_FILE, .flags = STORAGE_NODE_FLAG_PROC,
+            .type = RELIEFOS_FS_TYPE_FILE, .flags = STORAGE_NODE_FLAG_PROC,
             .first_cluster = 0x50524f43u, .size = 0,
         };
         return 0;
@@ -503,7 +503,7 @@ int proc_lookup(const char *path, struct storage_node *out)
         while (content[len]) ++len;
         if (out) {
             *out = (struct storage_node){
-                .type = LEONOS_FS_TYPE_FILE,
+                .type = RELIEFOS_FS_TYPE_FILE,
                 .flags = STORAGE_NODE_FLAG_PROC,
                 .first_cluster = 0x50524f43u,
                 .volume_id = 0,
@@ -518,16 +518,16 @@ int proc_lookup(const char *path, struct storage_node *out)
         int kind = proc_path_kind(path, &file, &pid);
         if ((kind == 2 || kind == 3) && file && proc_text_eq(file, "fd")) {
             struct task *task = kind == 3 ? sched_current_task() : sched_find(pid);
-            if (!task) return -LEONOS_ENOENT;
-            if (out) *out = (struct storage_node){.type = LEONOS_FS_TYPE_DIR,
+            if (!task) return -RELIEFOS_ENOENT;
+            if (out) *out = (struct storage_node){.type = RELIEFOS_FS_TYPE_DIR,
                 .flags = STORAGE_NODE_FLAG_PROC};
             return 0;
         }
         if ((kind == 2 || kind == 3) && proc_fd_number(file) >= 0) {
-            char target[LEONOS_FS_PATH_LEN];
+            char target[RELIEFOS_FS_PATH_LEN];
             int ret = proc_readlink(path, target, sizeof(target));
             if (ret < 0) return ret;
-            if (out) *out = (struct storage_node){.type = LEONOS_FS_TYPE_SYMLINK,
+            if (out) *out = (struct storage_node){.type = RELIEFOS_FS_TYPE_SYMLINK,
                 .flags = STORAGE_NODE_FLAG_PROC};
             return 0;
         }
@@ -535,7 +535,7 @@ int proc_lookup(const char *path, struct storage_node *out)
             (proc_text_eq(file, "exe") || proc_text_eq(file, "cwd") || proc_text_eq(file, "root"))) {
             if (kind == 3) pid = sched_current_pid();
             if (!pid || !sched_find(pid)) return -2;
-            if (out) *out = (struct storage_node){.type = LEONOS_FS_TYPE_SYMLINK,
+            if (out) *out = (struct storage_node){.type = RELIEFOS_FS_TYPE_SYMLINK,
                 .flags = STORAGE_NODE_FLAG_PROC};
             return 0;
         }
@@ -543,7 +543,7 @@ int proc_lookup(const char *path, struct storage_node *out)
             if (kind == 3) pid = sched_current_pid();
             if (!pid || !sched_find(pid)) return -2;
             if (out) *out = (struct storage_node){
-                .type = kind == 3 ? LEONOS_FS_TYPE_SYMLINK : LEONOS_FS_TYPE_DIR,
+                .type = kind == 3 ? RELIEFOS_FS_TYPE_SYMLINK : RELIEFOS_FS_TYPE_DIR,
                 .flags = STORAGE_NODE_FLAG_PROC,
                 .first_cluster = 0x50524f43u,
             };
@@ -554,7 +554,7 @@ int proc_lookup(const char *path, struct storage_node *out)
             if (kind == 2 && !sched_find(pid)) return -2;
             if (out) {
                 *out = (struct storage_node){
-                    .type = LEONOS_FS_TYPE_FILE,
+                    .type = RELIEFOS_FS_TYPE_FILE,
                     .flags = STORAGE_NODE_FLAG_PROC,
                     .first_cluster = 0x50524f43u,
                     .volume_id = 0,
@@ -585,8 +585,8 @@ int proc_read(const char *path, uint64_t offset, void *buffer, uint32_t length,
     /* Read-only, versioned driver records from the actual driver manager;
      * no user pointer reaches driver_manager_list. */
     if (proc_text_eq(path, "/proc/leonos-drivers")) {
-        struct leonos_driver_info drivers[LEONOS_DRIVER_MAX];
-        struct leonos_driver_list query = {.drivers = drivers, .capacity = LEONOS_DRIVER_MAX};
+        struct reliefos_driver_info drivers[RELIEFOS_DRIVER_MAX];
+        struct reliefos_driver_list query = {.drivers = drivers, .capacity = RELIEFOS_DRIVER_MAX};
         int ret = driver_manager_list(&query);
         if (ret < 0) return ret;
         uint64_t bytes = (uint64_t)query.count * sizeof(drivers[0]);
@@ -603,7 +603,7 @@ int proc_read(const char *path, uint64_t offset, void *buffer, uint32_t length,
         struct text_stream stream={.offset=offset,.buffer=buffer,.capacity=length};
         int ret=0;
         if(proc_text_eq(file,"environ")) {
-            if (!proc_stat_mm_visible(sched_current_task(), task)) return -LEONOS_EACCES;
+            if (!proc_stat_mm_visible(sched_current_task(), task)) return -RELIEFOS_EACCES;
             ret=proc_mm_strings(task,&stream,true);
         }
         else if(proc_text_eq(file,"cmdline")) ret=proc_mm_strings(task,&stream,false);
@@ -645,7 +645,7 @@ int proc_readlink(const char *path, char *buffer, uint32_t capacity)
     struct task *caller = sched_current_task();
     struct task *task;
     uint32_t length = 0;
-    if (!path || !buffer || !capacity) return -LEONOS_EINVAL;
+    if (!path || !buffer || !capacity) return -RELIEFOS_EINVAL;
     if (!__builtin_strncmp(path,"/sys",4) && (!path[4] || path[4]=='/')) return sysfs_readlink(path,buffer,capacity);
     if (proc_text_eq(path, "/proc/mounts")) {
         const char *target = "self/mounts";
@@ -654,34 +654,34 @@ int proc_readlink(const char *path, char *buffer, uint32_t capacity)
         return (int)length;
     }
     int kind = proc_path_kind(path, &file, &pid);
-    if (kind != 2 && kind != 3) return -LEONOS_ENOENT;
+    if (kind != 2 && kind != 3) return -RELIEFOS_ENOENT;
     if (kind == 3 && !file) {
         char target[16] = {0};
-        if (!caller) return -LEONOS_ENOENT;
+        if (!caller) return -RELIEFOS_ENOENT;
         proc_append_u64(target, &length, sizeof(target), sched_task_tgid(caller));
         if (length > capacity) length = capacity;
         for (uint32_t i = 0; i < length; ++i) buffer[i] = target[i];
         return (int)length;
     }
     task = kind == 3 ? caller : sched_find(pid);
-    if (!task) return -LEONOS_ENOENT;
+    if (!task) return -RELIEFOS_ENOENT;
     if (!file || (!proc_text_eq(file, "exe") && !proc_text_eq(file, "cwd") && !proc_text_eq(file, "root") && proc_fd_number(file) < 0))
-        return proc_lookup(path, NULL) == 0 ? -LEONOS_EINVAL : -LEONOS_ENOENT;
+        return proc_lookup(path, NULL) == 0 ? -RELIEFOS_EINVAL : -RELIEFOS_ENOENT;
     /* Match the available FSCREDS/dumpable policy. Capability namespaces and
      * executable inode tracking still need the common ptrace/VFS machinery. */
-    if (!caller) return -LEONOS_EACCES;
+    if (!caller) return -RELIEFOS_EACCES;
     if (sched_task_tgid(caller) != sched_task_tgid(task) && caller->euid &&
         (caller->fsuid != task->uid || caller->fsuid != task->euid ||
          caller->fsuid != task->suid || caller->fsgid != task->gid ||
          caller->fsgid != task->egid || caller->fsgid != task->sgid ||
-         sched_task_mm(task)->nondumpable)) return -LEONOS_EACCES;
-    char fd_target[LEONOS_FS_PATH_LEN];
+         sched_task_mm(task)->nondumpable)) return -RELIEFOS_EACCES;
+    char fd_target[RELIEFOS_FS_PATH_LEN];
     if (proc_fd_number(file) >= 0 && proc_fd_target(task, proc_fd_number(file), fd_target) < 0)
-        return -LEONOS_ENOENT;
+        return -RELIEFOS_ENOENT;
     const char *target = proc_fd_number(file) >= 0 ? fd_target :
         proc_text_eq(file, "exe") ? task->path :
         proc_text_eq(file, "cwd") ? sched_task_cwd(task) : "/";
-    if (!target[0]) return -LEONOS_ENOENT;
+    if (!target[0]) return -RELIEFOS_ENOENT;
     while (length < capacity && target[length]) {
         buffer[length] = target[length];
         ++length;
@@ -696,7 +696,7 @@ int proc_readlink(const char *path, char *buffer, uint32_t capacity)
  * @param entry Writable returned directory entry.
  * @return One entry, zero at EOF, or negative errno.
  */
-int proc_readdir(const char *path, uint64_t *offset, struct leonos_dir_entry *entry)
+int proc_readdir(const char *path, uint64_t *offset, struct reliefos_dir_entry *entry)
 {
     uint32_t index;
     static const char *files[] = {"uptime", "meminfo", "version", "filesystems", "stat", "mounts", "self", "sys", "cpuinfo", "leonos-drivers", "cmdline"};
@@ -706,7 +706,7 @@ int proc_readdir(const char *path, uint64_t *offset, struct leonos_dir_entry *en
         static const char *values[] = {"hostname", "domainname", "ostype", "osrelease", "version"};
         int parent = proc_text_eq(path, "/proc/sys");
         if (*offset >= (parent ? 1 : sizeof(values) / sizeof(values[0]))) return 0;
-        entry->type = parent ? LEONOS_FS_TYPE_DIR : LEONOS_FS_TYPE_FILE;
+        entry->type = parent ? RELIEFOS_FS_TYPE_DIR : RELIEFOS_FS_TYPE_FILE;
         proc_copy(entry->name, sizeof(entry->name), parent ? "kernel" : values[*offset]);
         ++*offset;
         return 1;
@@ -719,14 +719,14 @@ int proc_readdir(const char *path, uint64_t *offset, struct leonos_dir_entry *en
         if ((kind == 2 || kind == 3) && file && proc_text_eq(file, "fd")) {
             struct task *task = sched_find(pid);
             struct task *caller = sched_current_task();
-            if (!task) return -LEONOS_ENOENT;
+            if (!task) return -RELIEFOS_ENOENT;
             if (!caller || (caller->euid && sched_task_tgid(caller) != sched_task_tgid(task)))
-                return -LEONOS_EACCES;
-            char target[LEONOS_FS_PATH_LEN];
+                return -RELIEFOS_EACCES;
+            char target[RELIEFOS_FS_PATH_LEN];
             while (*offset < SCHED_TASK_FILE_LIMIT) {
                 uint32_t fd = (uint32_t)(*offset)++;
                 if (proc_fd_target(task, (int)fd, target) < 0) continue;
-                *entry = (struct leonos_dir_entry){.type = LEONOS_FS_TYPE_SYMLINK};
+                *entry = (struct reliefos_dir_entry){.type = RELIEFOS_FS_TYPE_SYMLINK};
                 uint32_t pos = 0;
                 proc_append_u64(entry->name, &pos, sizeof(entry->name), fd);
                 return 1;
@@ -737,15 +737,15 @@ int proc_readdir(const char *path, uint64_t *offset, struct leonos_dir_entry *en
         if (!sched_find(pid)) return -2;
         static const char *task_files[] = {"stat", "cmdline", "status", "mounts", "mountinfo", "exe", "cwd", "root", "comm", "environ", "fd"};
         if (*offset >= sizeof(task_files) / sizeof(task_files[0])) return 0;
-        *entry = (struct leonos_dir_entry){.type = *offset == 10 ? LEONOS_FS_TYPE_DIR : *offset >= 5 && *offset <= 7 ? LEONOS_FS_TYPE_SYMLINK : LEONOS_FS_TYPE_FILE};
+        *entry = (struct reliefos_dir_entry){.type = *offset == 10 ? RELIEFOS_FS_TYPE_DIR : *offset >= 5 && *offset <= 7 ? RELIEFOS_FS_TYPE_SYMLINK : RELIEFOS_FS_TYPE_FILE};
         proc_copy(entry->name, sizeof(entry->name), task_files[(*offset)++]);
         return 1;
     }
     if (*offset > UINT32_MAX) return 0;
     index = (uint32_t)*offset;
     if (index < sizeof(files) / sizeof(files[0])) {
-        entry->type = index == 5 || index == 6 ? LEONOS_FS_TYPE_SYMLINK :
-            index == 7 ? LEONOS_FS_TYPE_DIR : LEONOS_FS_TYPE_FILE;
+        entry->type = index == 5 || index == 6 ? RELIEFOS_FS_TYPE_SYMLINK :
+            index == 7 ? RELIEFOS_FS_TYPE_DIR : RELIEFOS_FS_TYPE_FILE;
         proc_copy(entry->name, sizeof(entry->name), files[index]);
         *offset = index + 1u;
         return 1;
@@ -761,7 +761,7 @@ int proc_readdir(const char *path, uint64_t *offset, struct leonos_dir_entry *en
             uint32_t pos = 0;
             proc_copy(name, sizeof(name), "");
             proc_append_u64(name, &pos, sizeof(name), snapshots[task_index].pid);
-            entry->type = LEONOS_FS_TYPE_DIR;
+            entry->type = RELIEFOS_FS_TYPE_DIR;
             proc_copy(entry->name, sizeof(entry->name), name);
             return 1;
         }

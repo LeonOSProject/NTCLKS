@@ -1,8 +1,8 @@
 /*
- * LeonOS x86_64 PCI access: enumerates and configures PCI devices.
+ * ReliefOS x86_64 PCI access: enumerates and configures PCI devices.
  * Provides low-level configuration-space reads and writes for drivers.
  */
-#include <ntclks/pci.h>
+#include <reliefnt/pci.h>
 
 #include "port.h"
 

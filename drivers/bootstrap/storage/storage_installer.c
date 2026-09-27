@@ -498,7 +498,7 @@ static uint32_t install_exfat_upcase_checksum(uint32_t sum, uint8_t value)
 }
 
 /*
- * Create the standard single-FAT exFAT subset used by LeonOS.  The upcase
+ * Create the standard single-FAT exFAT subset used by ReliefOS.  The upcase
  * file is the Microsoft-recommended compressed UTF-16 table embedded by the
  * storage backend. It is the same standard table used by host mkfs.exfat.
  */

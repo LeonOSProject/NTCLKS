@@ -148,7 +148,7 @@ rollback:
     }
     ext2_cache_reset(g_active_volume);
     if (undo < 0)
-        console_printf("[ntclks] ext2 write rollback failed inode=%u ret=%d; filesystem needs checking\n",
+        console_printf("[reliefnt] ext2 write rollback failed inode=%u ret=%d; filesystem needs checking\n",
                        inode_no, undo);
     return ret;
 }

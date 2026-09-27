@@ -1,5 +1,5 @@
-#ifndef LEONOS_UAPI_LINUX_ARCH_PRCTL_H
-#define LEONOS_UAPI_LINUX_ARCH_PRCTL_H
+#ifndef RELIEFOS_UAPI_LINUX_ARCH_PRCTL_H
+#define RELIEFOS_UAPI_LINUX_ARCH_PRCTL_H
 
 /* Linux v6.12 arch/x86/include/uapi/asm/prctl.h; native x86-64 commands. */
 #define LINUX_ARCH_SET_GS 0x1001

@@ -1,13 +1,13 @@
 /* Read-only Linux sysfs inventory. Attributes describe measured hardware and
  * actual kernel objects; no writable control files or DRM ioctls are implied. */
-#include <leonos/fs_abi.h>
-#include <ntclks/framebuffer.h>
-#include <ntclks/inventory.h>
-#include <ntclks/pci.h>
-#include <ntclks/platform.h>
-#include <ntclks/smp.h>
-#include <ntclks/storage.h>
-#include <ntclks/text_stream.h>
+#include <reliefos/fs_abi.h>
+#include <reliefnt/framebuffer.h>
+#include <reliefnt/inventory.h>
+#include <reliefnt/pci.h>
+#include <reliefnt/platform.h>
+#include <reliefnt/smp.h>
+#include <reliefnt/storage.h>
+#include <reliefnt/text_stream.h>
 
 #define SYSFS_PCI_MAX 256u
 static struct pci_device pci_devices[SYSFS_PCI_MAX];
@@ -78,9 +78,9 @@ static int sys_pci_init(void)
     return 0;
 }
 /** @brief Build a bounded path from a prefix, optional decimal index and suffix. */
-static void sys_path(char out[LEONOS_FS_PATH_LEN], const char *prefix, int index, const char *suffix)
+static void sys_path(char out[RELIEFOS_FS_PATH_LEN], const char *prefix, int index, const char *suffix)
 {
-    struct text_stream s = {.buffer = out, .capacity = LEONOS_FS_PATH_LEN - 1};
+    struct text_stream s = {.buffer = out, .capacity = RELIEFOS_FS_PATH_LEN - 1};
     text_string(&s, prefix);
     if (index >= 0)
         text_unsigned(&s, (uint32_t)index);
@@ -88,11 +88,11 @@ static void sys_path(char out[LEONOS_FS_PATH_LEN], const char *prefix, int index
     out[s.written] = 0;
 }
 /** @brief Format the Linux domain:bus:slot.function identity of an enumerated device. */
-static void sys_pci_path(char out[LEONOS_FS_PATH_LEN], const char *prefix, uint32_t index,
+static void sys_pci_path(char out[RELIEFOS_FS_PATH_LEN], const char *prefix, uint32_t index,
                          const char *suffix)
 {
     const struct pci_device *p = &pci_devices[index];
-    struct text_stream s = {.buffer = out, .capacity = LEONOS_FS_PATH_LEN - 1};
+    struct text_stream s = {.buffer = out, .capacity = RELIEFOS_FS_PATH_LEN - 1};
     text_string(&s, prefix);
     text_string(&s, "0000:");
     text_hex(&s, p->bus, 2);
@@ -114,7 +114,7 @@ static void sys_block_name(char *out, uint32_t disk, int32_t part)
 {
     sys_path(out, "disk", (int)disk, "");
     if (part >= 0) {
-        char suffix[LEONOS_FS_PATH_LEN];
+        char suffix[RELIEFOS_FS_PATH_LEN];
         sys_path(suffix, "p", part + 1, "");
         sys_path(out, "disk", (int)disk, suffix);
     }
@@ -123,23 +123,23 @@ static void sys_block_name(char *out, uint32_t disk, int32_t part)
 /* Use the same registered disks/GPT extents and dev_t encoding as devfs. */
 static int sys_blocks(sys_visit visit, void *ctx)
 {
-    struct leonos_install_disk disks[LEONOS_INSTALL_MAX_DISKS];
+    struct reliefos_install_disk disks[RELIEFOS_INSTALL_MAX_DISKS];
     uint32_t count = 0;
-    int ret = storage_install_list_disks(disks, LEONOS_INSTALL_MAX_DISKS, &count);
+    int ret = storage_install_list_disks(disks, RELIEFOS_INSTALL_MAX_DISKS, &count);
     if (ret < 0) return ret;
-    if (count > LEONOS_INSTALL_MAX_DISKS) return -5;
+    if (count > RELIEFOS_INSTALL_MAX_DISKS) return -5;
     for (uint32_t i = 0; i < count; ++i) {
-        char diskpath[LEONOS_FS_PATH_LEN];
+        char diskpath[RELIEFOS_FS_PATH_LEN];
         sys_path(diskpath, "/sys/devices/platform/leonos-block/disk", disks[i].id, "");
-        for (int32_t part = -1; part < (int32_t)LEONOS_DISK_MAX_PARTITIONS; ++part) {
+        for (int32_t part = -1; part < (int32_t)RELIEFOS_DISK_MAX_PARTITIONS; ++part) {
             uint64_t start = 0, sectors = disks[i].sector_count;
             if (part >= 0) {
                 ret = storage_disk_block_info(disks[i].id, part, &start, &sectors);
                 if (ret == -2 || ret == -22) continue; /* No GPT entry/table. */
                 if (ret < 0) return ret;
             }
-            char name[LEONOS_FS_PATH_LEN], base[LEONOS_FS_PATH_LEN];
-            char path[LEONOS_FS_PATH_LEN], target[LEONOS_FS_PATH_LEN], number[64], event[256];
+            char name[RELIEFOS_FS_PATH_LEN], base[RELIEFOS_FS_PATH_LEN];
+            char path[RELIEFOS_FS_PATH_LEN], target[RELIEFOS_FS_PATH_LEN], number[64], event[256];
             sys_block_name(name, disks[i].id, part);
             sys_path(base, diskpath, -1, part < 0 ? "" : "/");
             if (part >= 0) {
@@ -215,7 +215,7 @@ static int sys_walk(sys_visit visit, void *ctx)
     if ((ret = sys_emit(visit, ctx, "/sys/class/dmi/id", A_LINK, 0, "../../devices/virtual/dmi/id")))
         return ret;
     const struct platform_dmi_info *dmi = platform_dmi();
-    char path[LEONOS_FS_PATH_LEN], target[LEONOS_FS_PATH_LEN];
+    char path[RELIEFOS_FS_PATH_LEN], target[RELIEFOS_FS_PATH_LEN];
     for (uint32_t i = 0; i < PLATFORM_DMI_FIELDS; ++i)
         if (dmi->values[i][0]) {
             sys_path(path, "/sys/devices/virtual/dmi/id/", -1, dmi_fields[i]);
@@ -484,14 +484,14 @@ static int sys_match(const struct sys_node *n, void *context)
     struct sys_request *r = context;
     if (__builtin_strcmp(n->path, r->path))
         return 0;
-    uint32_t type = n->attr == A_DIR    ? LEONOS_FS_TYPE_DIR
-                    : n->attr == A_LINK ? LEONOS_FS_TYPE_SYMLINK
-                                        : LEONOS_FS_TYPE_FILE;
+    uint32_t type = n->attr == A_DIR    ? RELIEFOS_FS_TYPE_DIR
+                    : n->attr == A_LINK ? RELIEFOS_FS_TYPE_SYMLINK
+                                        : RELIEFOS_FS_TYPE_FILE;
     if (r->node)
         *r->node = (struct storage_node){.type = type,
                                          .flags = STORAGE_NODE_FLAG_PROC | STORAGE_NODE_FLAG_SYSFS,
                                          .size = n->attr == A_PCI_CONFIG       ? 256
-                                                 : type == LEONOS_FS_TYPE_FILE ? 4096
+                                                 : type == RELIEFOS_FS_TYPE_FILE ? 4096
                                                  : n->attr == A_LINK ? __builtin_strlen(n->target)
                                                                      : 0};
     if (r->link) {
@@ -542,7 +542,7 @@ struct sys_directory {
     const char *path;
     uint32_t length;
     uint64_t skip;
-    struct leonos_dir_entry *entry;
+    struct reliefos_dir_entry *entry;
 };
 /** @brief Select one immediate child, excluding grandchildren and the parent itself. */
 static int sys_child(const struct sys_node *n, void *context)
@@ -560,14 +560,14 @@ static int sys_child(const struct sys_node *n, void *context)
         --d->skip;
         return 0;
     }
-    *d->entry = (struct leonos_dir_entry){.type = n->attr == A_DIR    ? LEONOS_FS_TYPE_DIR
-                                                  : n->attr == A_LINK ? LEONOS_FS_TYPE_SYMLINK
-                                                                      : LEONOS_FS_TYPE_FILE};
+    *d->entry = (struct reliefos_dir_entry){.type = n->attr == A_DIR    ? RELIEFOS_FS_TYPE_DIR
+                                                  : n->attr == A_LINK ? RELIEFOS_FS_TYPE_SYMLINK
+                                                                      : RELIEFOS_FS_TYPE_FILE};
     __builtin_memcpy(d->entry->name, name, __builtin_strlen(name) + 1);
     return 1;
 }
 /** @brief Enumerate exactly the same immediate children visible to lookup. */
-int sysfs_readdir(const char *path, uint64_t *offset, struct leonos_dir_entry *entry)
+int sysfs_readdir(const char *path, uint64_t *offset, struct reliefos_dir_entry *entry)
 {
     if (!path || !offset || !entry)
         return -22;
@@ -575,7 +575,7 @@ int sysfs_readdir(const char *path, uint64_t *offset, struct leonos_dir_entry *e
     int ret = sysfs_lookup(path, &node);
     if (ret < 0)
         return ret;
-    if (node.type != LEONOS_FS_TYPE_DIR)
+    if (node.type != RELIEFOS_FS_TYPE_DIR)
         return -20;
     struct sys_directory d = {path, (uint32_t)__builtin_strlen(path), *offset, entry};
     ret = sys_walk(sys_child, &d);

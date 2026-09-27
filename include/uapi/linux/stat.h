@@ -1,5 +1,5 @@
-#ifndef LEONOS_UAPI_LINUX_STAT_H
-#define LEONOS_UAPI_LINUX_STAT_H
+#ifndef RELIEFOS_UAPI_LINUX_STAT_H
+#define RELIEFOS_UAPI_LINUX_STAT_H
 
 #include <stdint.h>
 

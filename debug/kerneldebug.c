@@ -3,13 +3,13 @@
  * It proves the ET_REL loader and fixed API boundary without pulling libc or
  * arbitrary kernel symbols into the early diagnostic path.
  */
-#include <ntclks/kernel_debug.h>
+#include <reliefnt/kernel_debug.h>
 
 /**
- * @brief Keep the module contract in a real ELF note. The loader checks both the ABI and the entry-name hash before it maps any executable section.
+ * @brief Keep the module contract in a real ELF note. The loader checks both the ABI and the entry-name hash before it maps any executable section. The hash covers the entry name reliefos_kernel_debug_module_entry; the kernel still accepts the legacy note name and hash from old modules.
  */
 __asm__(
-    ".pushsection .note.leonos.kerneldebug,\"a\",@note\n"
+    ".pushsection .note.reliefos.kerneldebug,\"a\",@note\n"
     ".balign 4\n"
     ".long 9\n"
     ".long 8\n"
@@ -17,14 +17,14 @@ __asm__(
     ".asciz \"LEONKDBG\"\n"
     ".balign 4\n"
     ".long 1\n"
-    ".long 0xac053713\n"
+    ".long 0x4c624598\n"
     ".balign 4\n"
     ".popsection\n");
 
-static struct leonos_kernel_debug_benchmark debug_reports[192];
+static struct reliefos_kernel_debug_benchmark debug_reports[192];
 
 __attribute__((noinline, used))
-int leonos_kernel_debug_module_entry(const struct leonos_kernel_debug_api *api)
+int reliefos_kernel_debug_module_entry(const struct reliefos_kernel_debug_api *api)
 {
     uint32_t selected = 0;
     static const char *items[] = {
@@ -34,14 +34,14 @@ int leonos_kernel_debug_module_entry(const struct leonos_kernel_debug_api *api)
         "[4] Shutdown\n",
         "[5] Continue normal startup\n",
     };
-    if (!api || api->version != LEONOS_KERNEL_DEBUG_MODULE_ABI ||
+    if (!api || api->version != RELIEFOS_KERNEL_DEBUG_MODULE_ABI ||
         !api->tui_init || !api->tui_clear || !api->tui_write || !api->tui_key) {
         return -22;
     }
     api->tui_init();
     for (;;) {
         api->tui_clear();
-        api->tui_write("\033[1;36mLeonOS 4 Kernel Debugger\033[0m\n\n");
+        api->tui_write("\033[1;36mReliefOS Kernel Debugger\033[0m\n\n");
         api->tui_write("Running from kerneldebug.sys in Ring-0.\n");
         api->tui_write("Use Up/Down, Enter, or number keys 1-5.\n\n");
         for (uint32_t index = 0; index < 5U; ++index) {
@@ -82,7 +82,7 @@ int leonos_kernel_debug_module_entry(const struct leonos_kernel_debug_api *api)
                         api->tui_write("Diagnostic registry failed.\n");
                     } else {
                         for (uint32_t index = 0; index < report_count; ++index) {
-                            struct leonos_kernel_debug_benchmark *report = &debug_reports[index];
+                            struct reliefos_kernel_debug_benchmark *report = &debug_reports[index];
                             if (page_lines >= 16U) {
                                 api->tui_write("\nPress Enter for the next page.");
                                 while (api->tui_key() != 28) {
@@ -92,23 +92,23 @@ int leonos_kernel_debug_module_entry(const struct leonos_kernel_debug_api *api)
                                 api->tui_write("System API diagnostics (continued)\n\n");
                                 page_lines = 0;
                             }
-                            api->tui_write(report->kind == LEONOS_KERNEL_DEBUG_BENCH_IOCTL
+                            api->tui_write(report->kind == RELIEFOS_KERNEL_DEBUG_BENCH_IOCTL
                                                ? "IOCTL  " : "SYSCALL ");
                             api->tui_write(report->name);
                             api->tui_write("  ");
-                            if (report->status == LEONOS_KERNEL_DEBUG_BENCH_SKIPPED) {
+                            if (report->status == RELIEFOS_KERNEL_DEBUG_BENCH_SKIPPED) {
                                 api->tui_write("SKIPPED (side effects)\n");
                                 ++skipped;
                                 ++page_lines;
                                 continue;
                             }
-                            if (report->status == LEONOS_KERNEL_DEBUG_BENCH_FAILED) {
+                            if (report->status == RELIEFOS_KERNEL_DEBUG_BENCH_FAILED) {
                                 api->tui_write("FAILED\n");
                                 ++failed;
                                 ++page_lines;
                                 continue;
                             }
-                            api->tui_write(report->status == LEONOS_KERNEL_DEBUG_BENCH_OK
+                            api->tui_write(report->status == RELIEFOS_KERNEL_DEBUG_BENCH_OK
                                                ? "OK" : "EXPECTED ERROR");
                             api->tui_write("; min=");
                             if (api->tui_write_u64) api->tui_write_u64(report->minimum_cycles);

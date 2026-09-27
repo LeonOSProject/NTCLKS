@@ -1,17 +1,17 @@
 /*
- * LeonOS x86_64 IRQ handling: services hardware interrupt requests.
+ * ReliefOS x86_64 IRQ handling: services hardware interrupt requests.
  * Routes timer, input, storage, and device interrupts to kernel subsystems.
  */
-#include <ntclks/console.h>
-#include <ntclks/apic.h>
-#include <ntclks/driver_manager.h>
-#include <ntclks/input.h>
-#include <ntclks/lock.h>
-#include <ntclks/sched.h>
-#include <ntclks/smp.h>
-#include <ntclks/time.h>
-#include <ntclks/trap.h>
-#include <ntclks/userland.h>
+#include <reliefnt/console.h>
+#include <reliefnt/apic.h>
+#include <reliefnt/driver_manager.h>
+#include <reliefnt/input.h>
+#include <reliefnt/lock.h>
+#include <reliefnt/sched.h>
+#include <reliefnt/smp.h>
+#include <reliefnt/time.h>
+#include <reliefnt/trap.h>
+#include <reliefnt/userland.h>
 
 #include "port.h"
 #include "keyboard_led.h"
@@ -108,7 +108,7 @@ static void irq_send_eoi(uint8_t irq)
  */
 static void pit_init_100hz(void)
 {
-    uint16_t divisor = (uint16_t)(1193182 / NTCLKS_TICK_HZ);
+    uint16_t divisor = (uint16_t)(1193182 / RELIEFNT_TICK_HZ);
     x86_64_outb(0x36, PIT_COMMAND);
     x86_64_outb((uint8_t)(divisor & 0xff), PIT_CHANNEL0);
     x86_64_outb((uint8_t)(divisor >> 8), PIT_CHANNEL0);
@@ -139,20 +139,20 @@ void irq_init(void)
         if (routed) {
             pic_mask_all();
             irq_uses_ioapic = true;
-            console_printf("[ntclks] IOAPIC owns PIT/keyboard/mouse, PIT=%uHz BSP=%u\n",
-                           (unsigned)NTCLKS_TICK_HZ, (unsigned)apic_bsp_id());
+            console_printf("[reliefnt] IOAPIC owns PIT/keyboard/mouse, PIT=%uHz BSP=%u\n",
+                           (unsigned)RELIEFNT_TICK_HZ, (unsigned)apic_bsp_id());
             return;
         }
         /* Fall back to the LAPIC virtual-wire bridge.  This keeps legacy PIC
          * delivery alive after SMP enables the BSP local APIC. */
         apic_enable_legacy_pic();
         irq_uses_local_apic = apic_enabled();
-        console_printf("[ntclks] PIC virtual-wire owns IRQ0/1/12, PIT=%uHz\n",
-                       (unsigned)NTCLKS_TICK_HZ);
+        console_printf("[reliefnt] PIC virtual-wire owns IRQ0/1/12, PIT=%uHz\n",
+                       (unsigned)RELIEFNT_TICK_HZ);
         return;
     }
-    console_printf("[ntclks] PIC remapped, PIT=%uHz, IRQ0/1/12 enabled\n",
-                   (unsigned)NTCLKS_TICK_HZ);
+    console_printf("[reliefnt] PIC remapped, PIT=%uHz, IRQ0/1/12 enabled\n",
+                   (unsigned)RELIEFNT_TICK_HZ);
 }
 
 /**

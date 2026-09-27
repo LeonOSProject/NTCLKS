@@ -1,40 +1,40 @@
 {
  "consts": {
-  "LEONOS_AUTH_ROLE_ADMIN": 2,
-  "LEONOS_AUTH_ROLE_NONE": 0,
-  "LEONOS_AUTH_ROLE_USER": 1,
-  "LEONOS_AUTH_UPDATE_FLAGS": 2,
-  "LEONOS_AUTH_UPDATE_ROLE": 1,
-  "LEONOS_AUTH_USER_DISABLED": 1,
-  "LEONOS_BOOT_HANDOFF_VERSION": 7,
-  "LEONOS_DRIVER_ABI_VERSION": 1,
-  "LEONOS_DRIVER_CONTROL_IOCTL": 3226487908,
-  "LEONOS_DRIVER_MODULE_MAGIC": 1279545942,
-  "LEONOS_EVIOCSVT": 1074021872,
-  "LEONOS_FS_TYPE_DIR": 2,
-  "LEONOS_FS_TYPE_FILE": 1,
-  "LEONOS_INPUTM_MAX_CANDIDATES": 5,
-  "LEONOS_INPUTM_MAX_PROVIDERS": 8,
-  "LEONOS_IOCTL_GPU_CREATE": 1279741954,
-  "LEONOS_IOCTL_GPU_DESTROY": 1279741956,
-  "LEONOS_IOCTL_GPU_DIAGNOSTICS": 1279741957,
-  "LEONOS_IOCTL_GPU_INFO": 1279741953,
-  "LEONOS_IOCTL_GPU_RENDER": 1279741955,
-  "LEONOS_KERNEL_DEBUG_CONTROL_ARM_NEXT_BOOT": 3,
-  "LEONOS_KERNEL_DEBUG_CONTROL_CLEAR": 4,
-  "LEONOS_KERNEL_DEBUG_CONTROL_GET_STATE": 1,
-  "LEONOS_KERNEL_DEBUG_CONTROL_SET_ENABLED": 2,
-  "LEONOS_NET_CONTROL_IOCTL": 3268955248,
-  "LEONOS_PERF_MAX_CPUS": 64,
-  "LEONOS_PTY_NCCS": 19,
-  "LEONOS_PTY_PATH_LEN": 160,
-  "LEONOS_SYS_NICE": 65536,
-  "LEONOS_TASK_AFFINITY_GET": 0,
-  "LEONOS_TASK_AFFINITY_SET": 1,
-  "LEONOS_VT_GETGENERATION": 2148030192
+  "RELIEFOS_AUTH_ROLE_ADMIN": 2,
+  "RELIEFOS_AUTH_ROLE_NONE": 0,
+  "RELIEFOS_AUTH_ROLE_USER": 1,
+  "RELIEFOS_AUTH_UPDATE_FLAGS": 2,
+  "RELIEFOS_AUTH_UPDATE_ROLE": 1,
+  "RELIEFOS_AUTH_USER_DISABLED": 1,
+  "RELIEFOS_BOOT_HANDOFF_VERSION": 7,
+  "RELIEFOS_DRIVER_ABI_VERSION": 1,
+  "RELIEFOS_DRIVER_CONTROL_IOCTL": 3226487908,
+  "RELIEFOS_DRIVER_MODULE_MAGIC": 1279545942,
+  "RELIEFOS_EVIOCSVT": 1074021872,
+  "RELIEFOS_FS_TYPE_DIR": 2,
+  "RELIEFOS_FS_TYPE_FILE": 1,
+  "RELIEFOS_INPUTM_MAX_CANDIDATES": 5,
+  "RELIEFOS_INPUTM_MAX_PROVIDERS": 8,
+  "RELIEFOS_IOCTL_GPU_CREATE": 1279741954,
+  "RELIEFOS_IOCTL_GPU_DESTROY": 1279741956,
+  "RELIEFOS_IOCTL_GPU_DIAGNOSTICS": 1279741957,
+  "RELIEFOS_IOCTL_GPU_INFO": 1279741953,
+  "RELIEFOS_IOCTL_GPU_RENDER": 1279741955,
+  "RELIEFOS_KERNEL_DEBUG_CONTROL_ARM_NEXT_BOOT": 3,
+  "RELIEFOS_KERNEL_DEBUG_CONTROL_CLEAR": 4,
+  "RELIEFOS_KERNEL_DEBUG_CONTROL_GET_STATE": 1,
+  "RELIEFOS_KERNEL_DEBUG_CONTROL_SET_ENABLED": 2,
+  "RELIEFOS_NET_CONTROL_IOCTL": 3268955248,
+  "RELIEFOS_PERF_MAX_CPUS": 64,
+  "RELIEFOS_PTY_NCCS": 19,
+  "RELIEFOS_PTY_PATH_LEN": 160,
+  "RELIEFOS_SYS_NICE": 65536,
+  "RELIEFOS_TASK_AFFINITY_GET": 0,
+  "RELIEFOS_TASK_AFFINITY_SET": 1,
+  "RELIEFOS_VT_GETGENERATION": 2148030192
  },
  "layout": {
-  "leonos_audio_format": {
+  "reliefos_audio_format": {
    "align": 4,
    "members": [
     [
@@ -56,7 +56,7 @@
    ],
    "size": 12
   },
-  "leonos_audio_state": {
+  "reliefos_audio_state": {
    "align": 4,
    "members": [
     [
@@ -114,7 +114,7 @@
    ],
    "size": 32
   },
-  "leonos_audio_write": {
+  "reliefos_audio_write": {
    "align": 8,
    "members": [
     [
@@ -136,7 +136,7 @@
    ],
    "size": 24
   },
-  "leonos_auth_status": {
+  "reliefos_auth_status": {
    "align": 4,
    "members": [
     [
@@ -158,7 +158,7 @@
    ],
    "size": 16
   },
-  "leonos_boot_handoff": {
+  "reliefos_boot_handoff": {
    "align": 8,
    "members": [
     [
@@ -271,7 +271,7 @@
     ],
     [
      120,
-     "struct leonos_boot_module_info loader"
+     "struct reliefos_boot_module_info loader"
     ],
     [
      120,
@@ -291,7 +291,7 @@
     ],
     [
      152,
-     "struct leonos_boot_module_info kernel"
+     "struct reliefos_boot_module_info kernel"
     ],
     [
      152,
@@ -311,7 +311,7 @@
     ],
     [
      184,
-     "struct leonos_boot_module_info installer_root"
+     "struct reliefos_boot_module_info installer_root"
     ],
     [
      184,
@@ -331,7 +331,7 @@
     ],
     [
      216,
-     "struct leonos_boot_log_state boot_log"
+     "struct reliefos_boot_log_state boot_log"
     ],
     [
      216,
@@ -376,7 +376,7 @@
    ],
    "size": 264
   },
-  "leonos_boot_log_state": {
+  "reliefos_boot_log_state": {
    "align": 4,
    "members": [
     [
@@ -410,7 +410,7 @@
    ],
    "size": 28
   },
-  "leonos_boot_module_info": {
+  "reliefos_boot_module_info": {
    "align": 8,
    "members": [
     [
@@ -432,7 +432,7 @@
    ],
    "size": 32
   },
-  "leonos_device_info": {
+  "reliefos_device_info": {
    "align": 8,
    "members": [
     [
@@ -474,7 +474,7 @@
    ],
    "size": 192
   },
-  "leonos_device_list": {
+  "reliefos_device_list": {
    "align": 8,
    "members": [
     [
@@ -487,12 +487,12 @@
     ],
     [
      8,
-     "struct leonos_device_info * devices"
+     "struct reliefos_device_info * devices"
     ]
    ],
    "size": 16
   },
-  "leonos_dir_entry": {
+  "reliefos_dir_entry": {
    "align": 4,
    "members": [
     [
@@ -506,7 +506,7 @@
    ],
    "size": 132
   },
-  "leonos_dir_list": {
+  "reliefos_dir_list": {
    "align": 8,
    "members": [
     [
@@ -523,12 +523,12 @@
     ],
     [
      16,
-     "struct leonos_dir_entry * entries"
+     "struct reliefos_dir_entry * entries"
     ]
    ],
    "size": 24
   },
-  "leonos_driver_audio_ops": {
+  "reliefos_driver_audio_ops": {
    "align": 8,
    "members": [
     [
@@ -537,7 +537,7 @@
     ],
     [
      8,
-     "int (*)(const struct leonos_audio_format *) configure"
+     "int (*)(const struct reliefos_audio_format *) configure"
     ],
     [
      16,
@@ -545,12 +545,12 @@
     ],
     [
      24,
-     "void (*)(struct leonos_audio_state *) get_state"
+     "void (*)(struct reliefos_audio_state *) get_state"
     ]
    ],
    "size": 32
   },
-  "leonos_driver_control": {
+  "reliefos_driver_control": {
    "align": 4,
    "members": [
     [
@@ -576,7 +576,7 @@
    ],
    "size": 80
   },
-  "leonos_driver_e1000_info": {
+  "reliefos_driver_e1000_info": {
    "align": 4,
    "members": [
     [
@@ -622,7 +622,7 @@
    ],
    "size": 24
   },
-  "leonos_driver_e1000_ops": {
+  "reliefos_driver_e1000_ops": {
    "align": 8,
    "members": [
     [
@@ -643,12 +643,12 @@
     ],
     [
      32,
-     "void (*)(struct leonos_driver_e1000_info *) get_info"
+     "void (*)(struct reliefos_driver_e1000_info *) get_info"
     ]
    ],
    "size": 40
   },
-  "leonos_driver_info": {
+  "reliefos_driver_info": {
    "align": 8,
    "members": [
     [
@@ -698,7 +698,7 @@
    ],
    "size": 232
   },
-  "leonos_driver_kernel_api": {
+  "reliefos_driver_kernel_api": {
    "align": 8,
    "members": [
     [
@@ -751,7 +751,7 @@
     ],
     [
      88,
-     "int (*)(uint16_t, uint16_t, struct leonos_driver_pci_device *) pci_find"
+     "int (*)(uint16_t, uint16_t, struct reliefos_driver_pci_device *) pci_find"
     ],
     [
      96,
@@ -775,24 +775,24 @@
     ],
     [
      136,
-     "int (*)(const struct leonos_driver_mouse_ops *) register_mouse"
+     "int (*)(const struct reliefos_driver_mouse_ops *) register_mouse"
     ],
     [
      144,
-     "int (*)(const struct leonos_driver_serial_ops *) register_serial"
+     "int (*)(const struct reliefos_driver_serial_ops *) register_serial"
     ],
     [
      152,
-     "int (*)(const struct leonos_driver_e1000_ops *) register_e1000"
+     "int (*)(const struct reliefos_driver_e1000_ops *) register_e1000"
     ],
     [
      160,
-     "int (*)(const struct leonos_driver_audio_ops *) register_audio"
+     "int (*)(const struct reliefos_driver_audio_ops *) register_audio"
     ]
    ],
    "size": 168
   },
-  "leonos_driver_list": {
+  "reliefos_driver_list": {
    "align": 8,
    "members": [
     [
@@ -805,12 +805,12 @@
     ],
     [
      8,
-     "struct leonos_driver_info * drivers"
+     "struct reliefos_driver_info * drivers"
     ]
    ],
    "size": 16
   },
-  "leonos_driver_module": {
+  "reliefos_driver_module": {
    "align": 8,
    "members": [
     [
@@ -843,7 +843,7 @@
     ],
     [
      56,
-     "int (*)(const struct leonos_driver_kernel_api *) init"
+     "int (*)(const struct reliefos_driver_kernel_api *) init"
     ],
     [
      64,
@@ -852,7 +852,7 @@
    ],
    "size": 72
   },
-  "leonos_driver_mouse_ops": {
+  "reliefos_driver_mouse_ops": {
    "align": 8,
    "members": [
     [
@@ -861,12 +861,12 @@
     ],
     [
      8,
-     "void (*)(struct leonos_driver_mouse_state *) get_state"
+     "void (*)(struct reliefos_driver_mouse_state *) get_state"
     ]
    ],
    "size": 16
   },
-  "leonos_driver_mouse_state": {
+  "reliefos_driver_mouse_state": {
    "align": 4,
    "members": [
     [
@@ -916,7 +916,7 @@
    ],
    "size": 20
   },
-  "leonos_driver_pci_device": {
+  "reliefos_driver_pci_device": {
    "align": 2,
    "members": [
     [
@@ -962,7 +962,7 @@
    ],
    "size": 12
   },
-  "leonos_driver_serial_ops": {
+  "reliefos_driver_serial_ops": {
    "align": 8,
    "members": [
     [
@@ -976,7 +976,7 @@
    ],
    "size": 16
   },
-  "leonos_dynamic_launch": {
+  "reliefos_dynamic_launch": {
    "align": 8,
    "members": [
     [
@@ -1018,7 +1018,7 @@
    ],
    "size": 328
   },
-  "leonos_elf_abi_note": {
+  "reliefos_elf_abi_note": {
    "align": 4,
    "members": [
     [
@@ -1032,7 +1032,7 @@
    ],
    "size": 8
   },
-  "leonos_fs_acl": {
+  "reliefos_fs_acl": {
    "align": 4,
    "members": [
     [
@@ -1053,12 +1053,12 @@
     ],
     [
      16,
-     "struct leonos_fs_acl_ace[16] aces"
+     "struct reliefos_fs_acl_ace[16] aces"
     ]
    ],
    "size": 272
   },
-  "leonos_fs_acl_ace": {
+  "reliefos_fs_acl_ace": {
    "align": 4,
    "members": [
     [
@@ -1080,7 +1080,7 @@
    ],
    "size": 16
   },
-  "leonos_gpu_context": {
+  "reliefos_gpu_context": {
    "align": 8,
    "members": [
     [
@@ -1114,7 +1114,7 @@
    ],
    "size": 32
   },
-  "leonos_gpu_destroy": {
+  "reliefos_gpu_destroy": {
    "align": 8,
    "members": [
     [
@@ -1132,7 +1132,7 @@
    ],
    "size": 16
   },
-  "leonos_gpu_diagnostics": {
+  "reliefos_gpu_diagnostics": {
    "align": 8,
    "members": [
     [
@@ -1198,7 +1198,7 @@
    ],
    "size": 72
   },
-  "leonos_gpu_draw": {
+  "reliefos_gpu_draw": {
    "align": 4,
    "members": [
     [
@@ -1216,7 +1216,7 @@
    ],
    "size": 72
   },
-  "leonos_gpu_frame": {
+  "reliefos_gpu_frame": {
    "align": 8,
    "members": [
     [
@@ -1270,7 +1270,7 @@
    ],
    "size": 64
   },
-  "leonos_gpu_info": {
+  "reliefos_gpu_info": {
    "align": 8,
    "members": [
     [
@@ -1332,7 +1332,7 @@
    ],
    "size": 88
   },
-  "leonos_gpu_vertex": {
+  "reliefos_gpu_vertex": {
    "align": 4,
    "members": [
     [
@@ -1354,7 +1354,7 @@
    ],
    "size": 16
   },
-  "leonos_inputm_active_request": {
+  "reliefos_inputm_active_request": {
    "align": 4,
    "members": [
     [
@@ -1368,7 +1368,7 @@
    ],
    "size": 36
   },
-  "leonos_inputm_config_request": {
+  "reliefos_inputm_config_request": {
    "align": 4,
    "members": [
     [
@@ -1378,7 +1378,7 @@
    ],
    "size": 4
   },
-  "leonos_inputm_context": {
+  "reliefos_inputm_context": {
    "align": 4,
    "members": [
     [
@@ -1408,7 +1408,7 @@
    ],
    "size": 24
   },
-  "leonos_inputm_key_event": {
+  "reliefos_inputm_key_event": {
    "align": 4,
    "members": [
     [
@@ -1462,7 +1462,7 @@
    ],
    "size": 36
   },
-  "leonos_inputm_provider": {
+  "reliefos_inputm_provider": {
    "align": 4,
    "members": [
     [
@@ -1492,7 +1492,7 @@
    ],
    "size": 116
   },
-  "leonos_inputm_provider_list": {
+  "reliefos_inputm_provider_list": {
    "align": 8,
    "members": [
     [
@@ -1513,12 +1513,12 @@
     ],
     [
      16,
-     "struct leonos_inputm_provider * providers"
+     "struct reliefos_inputm_provider * providers"
     ]
    ],
    "size": 24
   },
-  "leonos_inputm_result": {
+  "reliefos_inputm_result": {
    "align": 4,
    "members": [
     [
@@ -1572,7 +1572,7 @@
    ],
    "size": 796
   },
-  "leonos_inputm_state": {
+  "reliefos_inputm_state": {
    "align": 4,
    "members": [
     [
@@ -1630,7 +1630,7 @@
    ],
    "size": 840
   },
-  "leonos_kernel_debug_control": {
+  "reliefos_kernel_debug_control": {
    "align": 4,
    "members": [
     [
@@ -1652,7 +1652,7 @@
    ],
    "size": 16
   },
-  "leonos_machine_identity": {
+  "reliefos_machine_identity": {
    "align": 4,
    "members": [
     [
@@ -1694,7 +1694,7 @@
    ],
    "size": 208
   },
-  "leonos_net_config": {
+  "reliefos_net_config": {
    "align": 4,
    "members": [
     [
@@ -1740,7 +1740,7 @@
    ],
    "size": 40
   },
-  "leonos_net_connection_info": {
+  "reliefos_net_connection_info": {
    "align": 4,
    "members": [
     [
@@ -1790,7 +1790,7 @@
    ],
    "size": 44
   },
-  "leonos_net_connection_list": {
+  "reliefos_net_connection_list": {
    "align": 8,
    "members": [
     [
@@ -1803,12 +1803,12 @@
     ],
     [
      8,
-     "struct leonos_net_connection_info * entries"
+     "struct reliefos_net_connection_info * entries"
     ]
    ],
    "size": 16
   },
-  "leonos_net_control": {
+  "reliefos_net_control": {
    "align": 4,
    "members": [
     [
@@ -1829,11 +1829,11 @@
     ],
     [
      16,
-     "union leonos_net_control::(unnamed at /home/leon/projects/c/LeonOS-4-ntclks-separation/include/uapi/leonos/net_control.h:18:5) data"
+     "union reliefos_net_control::(unnamed at include/uapi/reliefos/net_control.h:18:5) data"
     ],
     [
      16,
-     "struct leonos_net_config config"
+     "struct reliefos_net_config config"
     ],
     [
      16,
@@ -1877,7 +1877,7 @@
     ],
     [
      16,
-     "struct leonos_net_dns_policy dns_policy"
+     "struct reliefos_net_dns_policy dns_policy"
     ],
     [
      16,
@@ -1897,7 +1897,7 @@
     ],
     [
      32,
-     "struct leonos_net_config config"
+     "struct reliefos_net_config config"
     ],
     [
      32,
@@ -1941,7 +1941,7 @@
     ],
     [
      16,
-     "struct leonos_net_dhcp dhcp"
+     "struct reliefos_net_dhcp dhcp"
     ],
     [
      16,
@@ -1953,7 +1953,7 @@
     ],
     [
      24,
-     "struct leonos_net_config config"
+     "struct reliefos_net_config config"
     ],
     [
      24,
@@ -1997,7 +1997,7 @@
     ],
     [
      16,
-     "struct leonos_net_ping ping"
+     "struct reliefos_net_ping ping"
     ],
     [
      16,
@@ -2033,7 +2033,7 @@
     ],
     [
      16,
-     "struct leonos_net_control::(unnamed union)::(unnamed at /home/leon/projects/c/LeonOS-4-ntclks-separation/include/uapi/leonos/net_control.h:23:9) connections"
+     "struct reliefos_net_control::(unnamed union)::(unnamed at include/uapi/reliefos/net_control.h:23:9) connections"
     ],
     [
      16,
@@ -2045,12 +2045,12 @@
     ],
     [
      24,
-     "struct leonos_net_connection_info[16] entries"
+     "struct reliefos_net_connection_info[16] entries"
     ]
    ],
    "size": 728
   },
-  "leonos_net_dhcp": {
+  "reliefos_net_dhcp": {
    "align": 4,
    "members": [
     [
@@ -2063,7 +2063,7 @@
     ],
     [
      8,
-     "struct leonos_net_config config"
+     "struct reliefos_net_config config"
     ],
     [
      8,
@@ -2108,7 +2108,7 @@
    ],
    "size": 48
   },
-  "leonos_net_dns": {
+  "reliefos_net_dns": {
    "align": 4,
    "members": [
     [
@@ -2134,7 +2134,7 @@
    ],
    "size": 156
   },
-  "leonos_net_dns_policy": {
+  "reliefos_net_dns_policy": {
    "align": 4,
    "members": [
     [
@@ -2155,7 +2155,7 @@
     ],
     [
      16,
-     "struct leonos_net_config config"
+     "struct reliefos_net_config config"
     ],
     [
      16,
@@ -2200,7 +2200,7 @@
    ],
    "size": 56
   },
-  "leonos_net_http_get": {
+  "reliefos_net_http_get": {
    "align": 4,
    "members": [
     [
@@ -2242,7 +2242,7 @@
    ],
    "size": 4504
   },
-  "leonos_net_ping": {
+  "reliefos_net_ping": {
    "align": 4,
    "members": [
     [
@@ -2280,7 +2280,7 @@
    ],
    "size": 32
   },
-  "leonos_net_socket_close": {
+  "reliefos_net_socket_close": {
    "align": 4,
    "members": [
     [
@@ -2294,7 +2294,7 @@
    ],
    "size": 8
   },
-  "leonos_net_socket_connect": {
+  "reliefos_net_socket_connect": {
    "align": 4,
    "members": [
     [
@@ -2332,7 +2332,7 @@
    ],
    "size": 156
   },
-  "leonos_net_socket_io": {
+  "reliefos_net_socket_io": {
    "align": 8,
    "members": [
     [
@@ -2362,7 +2362,7 @@
    ],
    "size": 32
   },
-  "leonos_net_socket_open": {
+  "reliefos_net_socket_open": {
    "align": 4,
    "members": [
     [
@@ -2392,7 +2392,7 @@
    ],
    "size": 24
   },
-  "leonos_perf_cpu_info": {
+  "reliefos_perf_cpu_info": {
    "align": 8,
    "members": [
     [
@@ -2422,7 +2422,7 @@
    ],
    "size": 32
   },
-  "leonos_perf_info": {
+  "reliefos_perf_info": {
    "align": 8,
    "members": [
     [
@@ -2483,12 +2483,12 @@
     ],
     [
      80,
-     "struct leonos_perf_cpu_info[64] cpus"
+     "struct reliefos_perf_cpu_info[64] cpus"
     ]
    ],
    "size": 2128
   },
-  "leonos_pty_winsize": {
+  "reliefos_pty_winsize": {
    "align": 2,
    "members": [
     [
@@ -2502,7 +2502,7 @@
    ],
    "size": 4
   },
-  "leonos_startup_command": {
+  "reliefos_startup_command": {
    "align": 4,
    "members": [
     [
@@ -2524,7 +2524,7 @@
    ],
    "size": 712
   },
-  "leonos_startup_dialog_request": {
+  "reliefos_startup_dialog_request": {
    "align": 4,
    "members": [
     [
@@ -2541,7 +2541,7 @@
     ],
     [
      264,
-     "struct leonos_startup_command command"
+     "struct reliefos_startup_command command"
     ],
     [
      264,
@@ -2562,7 +2562,7 @@
    ],
    "size": 976
   },
-  "leonos_startup_dialog_resolution": {
+  "reliefos_startup_dialog_resolution": {
    "align": 4,
    "members": [
     [
@@ -2576,7 +2576,7 @@
    ],
    "size": 8
   },
-  "leonos_startup_entry": {
+  "reliefos_startup_entry": {
    "align": 4,
    "members": [
     [
@@ -2589,7 +2589,7 @@
     ],
     [
      8,
-     "struct leonos_startup_command command"
+     "struct reliefos_startup_command command"
     ],
     [
      8,
@@ -2610,7 +2610,7 @@
    ],
    "size": 720
   },
-  "leonos_startup_list": {
+  "reliefos_startup_list": {
    "align": 8,
    "members": [
     [
@@ -2631,17 +2631,17 @@
     ],
     [
      16,
-     "struct leonos_startup_entry * entries"
+     "struct reliefos_startup_entry * entries"
     ]
    ],
    "size": 24
   },
-  "leonos_startup_request": {
+  "reliefos_startup_request": {
    "align": 4,
    "members": [
     [
      0,
-     "struct leonos_startup_command command"
+     "struct reliefos_startup_command command"
     ],
     [
      0,
@@ -2670,7 +2670,7 @@
    ],
    "size": 720
   },
-  "leonos_startup_request_status": {
+  "reliefos_startup_request_status": {
    "align": 4,
    "members": [
     [
@@ -2684,7 +2684,7 @@
    ],
    "size": 8
   },
-  "leonos_startup_update": {
+  "reliefos_startup_update": {
    "align": 4,
    "members": [
     [
@@ -2706,7 +2706,7 @@
    ],
    "size": 16
   },
-  "leonos_stat": {
+  "reliefos_stat": {
    "align": 8,
    "members": [
     [
@@ -2724,7 +2724,7 @@
    ],
    "size": 16
   },
-  "leonos_system_info": {
+  "reliefos_system_info": {
    "align": 4,
    "members": [
     [
@@ -2774,7 +2774,7 @@
    ],
    "size": 260
   },
-  "leonos_task_affinity": {
+  "reliefos_task_affinity": {
    "align": 8,
    "members": [
     [
@@ -2796,7 +2796,7 @@
    ],
    "size": 24
   },
-  "leonos_time_info": {
+  "reliefos_time_info": {
    "align": 8,
    "members": [
     [
@@ -2842,7 +2842,7 @@
    ],
    "size": 48
   },
-  "leonos_time_sync": {
+  "reliefos_time_sync": {
    "align": 8,
    "members": [
     [
@@ -2872,7 +2872,7 @@
    ],
    "size": 152
   },
-  "leonos_user_info": {
+  "reliefos_user_info": {
    "align": 4,
    "members": [
     [

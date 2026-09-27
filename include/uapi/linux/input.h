@@ -1,5 +1,5 @@
-#ifndef LEONOS_UAPI_LINUX_INPUT_H
-#define LEONOS_UAPI_LINUX_INPUT_H
+#ifndef RELIEFOS_UAPI_LINUX_INPUT_H
+#define RELIEFOS_UAPI_LINUX_INPUT_H
 
 #include <stdint.h>
 #include <linux/ioctl.h>
@@ -41,7 +41,7 @@ struct input_absinfo {
 #define SYN_REPORT 0
 
 /* The keyboard stream uses Linux input key codes, not the historical
- * LeonOS GUI scan-code constants. */
+ * ReliefOS GUI scan-code constants. */
 #define KEY_ESC 1
 #define KEY_1 2
 #define KEY_0 11

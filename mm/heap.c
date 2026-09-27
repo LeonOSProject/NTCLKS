@@ -1,9 +1,9 @@
 /*
- * LeonOS kernel heap implementation.
+ * ReliefOS kernel heap implementation.
  * Uses the physical page allocator while the kernel remains identity mapped.
  */
-#include <ntclks/heap.h>
-#include <ntclks/mm.h>
+#include <reliefnt/heap.h>
+#include <reliefnt/mm.h>
 
 #define KERNEL_HEAP_MAGIC 0x4c484541u
 #define KERNEL_PAGE_SIZE 4096u

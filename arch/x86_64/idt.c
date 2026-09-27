@@ -1,16 +1,16 @@
 /*
- * LeonOS x86_64 interrupt handling: configures the IDT and trap dispatch.
+ * ReliefOS x86_64 interrupt handling: configures the IDT and trap dispatch.
  * Handles faults, system calls, hardware IRQs, and user page faults.
  */
-#include <ntclks/bugcheck.h>
-#include <ntclks/arch.h>
-#include <ntclks/console.h>
-#include <ntclks/lock.h>
-#include <ntclks/pty.h>
-#include <ntclks/sched.h>
-#include <ntclks/syscall.h>
-#include <ntclks/time.h>
-#include <ntclks/userland.h>
+#include <reliefnt/bugcheck.h>
+#include <reliefnt/arch.h>
+#include <reliefnt/console.h>
+#include <reliefnt/lock.h>
+#include <reliefnt/pty.h>
+#include <reliefnt/sched.h>
+#include <reliefnt/syscall.h>
+#include <reliefnt/time.h>
+#include <reliefnt/userland.h>
 
 struct __attribute__((packed)) idt_entry {
     uint16_t offset_low;
@@ -99,7 +99,7 @@ static void idt_set(uint8_t vector, void *handler, uint8_t dpl)
 {
     uint64_t addr = (uint64_t)(uintptr_t)handler;
     idt[vector].offset_low = addr & 0xffff;
-    idt[vector].selector = NTCLKS_KERNEL_CS;
+    idt[vector].selector = RELIEFNT_KERNEL_CS;
     idt[vector].ist = 0;
     idt[vector].type_attr = (uint8_t)(0x8e | ((dpl & 3) << 5));
     idt[vector].offset_mid = (addr >> 16) & 0xffff;
@@ -225,7 +225,7 @@ void exception_dispatch(uint64_t vector, uint64_t error, uint64_t rip, uint64_t 
     if (vector == 2 || vector == 8 || vector == 18) {
         bugcheck_exception(vector, error, rip, cs, rflags, rsp, ss, cr2);
     }
-    console_printf("[ntclks] exception vector=%llu error=0x%llx rip=0x%llx cs=0x%llx rflags=0x%llx rsp=0x%llx ss=0x%llx\n",
+    console_printf("[reliefnt] exception vector=%llu error=0x%llx rip=0x%llx cs=0x%llx rflags=0x%llx rsp=0x%llx ss=0x%llx\n",
                    (unsigned long long)vector,
                    (unsigned long long)error,
                    (unsigned long long)rip,
@@ -233,12 +233,12 @@ void exception_dispatch(uint64_t vector, uint64_t error, uint64_t rip, uint64_t 
                    (unsigned long long)rflags,
                    (unsigned long long)rsp,
                    (unsigned long long)ss);
-    console_printf("[ntclks] exception mode=%s cr2=0x%llx ticks=%llu\n",
+    console_printf("[reliefnt] exception mode=%s cr2=0x%llx ticks=%llu\n",
                    mode,
                    (unsigned long long)cr2,
                    (unsigned long long)time_ticks());
     if (vector == 14) {
-        console_printf("[ntclks] page fault flags present=%u write=%u user=%u reserved=%u fetch=%u\n",
+        console_printf("[reliefnt] page fault flags present=%u write=%u user=%u reserved=%u fetch=%u\n",
                        (unsigned)(error & 1u),
                        (unsigned)((error >> 1) & 1u),
                        (unsigned)((error >> 2) & 1u),
@@ -360,7 +360,7 @@ static void format_user_page_fault_report(char *buf, uint32_t cap,
     pf_append_u64_dec(buf, &pos, cap, task ? task->uid : 0);
     pf_append_text(buf, &pos, cap, "  Role: ");
     pf_append_text(buf, &pos, cap,
-                   task && task->role == LEONOS_AUTH_ROLE_ADMIN ? "Administrator" : "User");
+                   task && task->role == RELIEFOS_AUTH_ROLE_ADMIN ? "Administrator" : "User");
     pf_append_char(buf, &pos, cap, '\n');
     pf_append_text(buf, &pos, cap, "Fault address: ");
     pf_append_u64_hex(buf, &pos, cap, cr2);
@@ -415,13 +415,13 @@ static void format_user_page_fault_report(char *buf, uint32_t cap,
 static void signal_user_page_fault(struct trap_frame *frame, uint64_t cr2)
 {
     struct task *task = sched_current_task();
-    char report[LEONOS_FS_PATH_LEN];
+    char report[RELIEFOS_FS_PATH_LEN];
     if (!task || task->kind != TASK_KIND_USER) {
         bugcheck_trap("Unhandled Page Fault", frame, cr2);
     }
     format_user_page_fault_report(report, sizeof(report), task, frame, cr2);
     uint32_t signal = task->page_fault_signal == 7 ? 7 : 11;
-    console_printf("[ntclks] user page fault signal=%u pid=%u name=%s cr2=0x%llx rip=0x%llx error=0x%llx\n",
+    console_printf("[reliefnt] user page fault signal=%u pid=%u name=%s cr2=0x%llx rip=0x%llx error=0x%llx\n",
                    signal,
                    task->pid,
                    task->name,
@@ -482,12 +482,12 @@ struct task *page_fault_dispatch(struct trap_frame *frame)
         kernel_execution_unlock_irqrestore(execution_flags);
         bugcheck_exception(14, 0, 0, 0, 0, 0, 0, cr2);
     }
-    console_printf("[ntclks] page fault unhandled cr2=0x%llx error=0x%llx rip=0x%llx cs=0x%llx\n",
+    console_printf("[reliefnt] page fault unhandled cr2=0x%llx error=0x%llx rip=0x%llx cs=0x%llx\n",
                    (unsigned long long)cr2,
                    (unsigned long long)frame->error,
                    (unsigned long long)frame->rip,
                    (unsigned long long)frame->cs);
-    console_printf("[ntclks] page fault flags present=%u write=%u user=%u reserved=%u fetch=%u\n",
+    console_printf("[reliefnt] page fault flags present=%u write=%u user=%u reserved=%u fetch=%u\n",
                    (unsigned)(frame->error & 1u),
                    (unsigned)((frame->error >> 1) & 1u),
                    (unsigned)((frame->error >> 2) & 1u),

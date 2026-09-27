@@ -1,5 +1,5 @@
-#ifndef LEONOS_UAPI_LINUX_TTY_H
-#define LEONOS_UAPI_LINUX_TTY_H
+#ifndef RELIEFOS_UAPI_LINUX_TTY_H
+#define RELIEFOS_UAPI_LINUX_TTY_H
 
 #include <stdint.h>
 

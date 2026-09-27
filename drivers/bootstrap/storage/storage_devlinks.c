@@ -9,9 +9,9 @@
  */
 static int storage_devlink_next(uint64_t *cursor, char uuid[37], char target[48])
 {
-    while (*cursor < (uint64_t)g_install_disk_count * LEONOS_DISK_MAX_PARTITIONS) {
-        uint32_t disk = *cursor / LEONOS_DISK_MAX_PARTITIONS;
-        uint32_t part = *cursor % LEONOS_DISK_MAX_PARTITIONS;
+    while (*cursor < (uint64_t)g_install_disk_count * RELIEFOS_DISK_MAX_PARTITIONS) {
+        uint32_t disk = *cursor / RELIEFOS_DISK_MAX_PARTITIONS;
+        uint32_t part = *cursor % RELIEFOS_DISK_MAX_PARTITIONS;
         int ret = storage_disk_partition_uuid(disk, part, uuid);
         if (ret < 0 && ret != -2 && ret != -22) return ret;
         ++*cursor;

@@ -1,64 +1,31 @@
+/* Transitional compatibility forwarder (ReliefOS / ReliefNT rename).
+ * Canonical declarations: <reliefos/driver_abi.h>.
+ * No second layout definition exists behind these names. */
 #ifndef LEONOS_UAPI_DRIVER_ABI_H
 #define LEONOS_UAPI_DRIVER_ABI_H
-/*
- * Driver-control wire ABI between ntclks and userland (/dev/driverctl).
- * Userland wrappers live in <leonos/driver.h>; the Ring-0 module API stays
- * there too until it moves to its own domain.
- * UAPI only: nothing here may include a non-UAPI header.
- */
+#include <reliefos/driver_abi.h>
 
-#include <stdint.h>
-
-
-/* Native ioctl on /dev/driverctl, fixed-size leonos_driver_control argument. */
-#define LEONOS_DRIVER_CONTROL_IOCTL 0xc0504c64U
-#define LEONOS_DRIVER_FILE_LEN 64U
-#define LEONOS_DRIVER_NAME_LEN 32U
-#define LEONOS_DRIVER_ERROR_LEN 96U
-
-#define LEONOS_DRIVER_STATE_UNLOADED 0U
-#define LEONOS_DRIVER_STATE_LOADING 1U
-#define LEONOS_DRIVER_STATE_LOADED 2U
-#define LEONOS_DRIVER_STATE_DISABLED 3U
-#define LEONOS_DRIVER_STATE_FAILED 4U
-
-#define LEONOS_DRIVER_FLAG_AUTOSTART 0x00000001U
-#define LEONOS_DRIVER_FLAG_DISABLED 0x00000002U
-#define LEONOS_DRIVER_FLAG_BUILTIN 0x00000004U
-
-#define LEONOS_DRIVER_CONTROL_LOAD 1U
-#define LEONOS_DRIVER_CONTROL_UNLOAD 2U
-#define LEONOS_DRIVER_CONTROL_FORCE_UNLOAD 3U
-#define LEONOS_DRIVER_CONTROL_RESCAN 4U
-#define LEONOS_DRIVER_CONTROL_ENABLE_BOOT 5U
-#define LEONOS_DRIVER_CONTROL_DISABLE_BOOT 6U
-
-struct leonos_driver_info {
-    uint32_t id;
-    uint32_t state;
-    uint32_t kind;
-    uint32_t flags;
-    uint32_t abi_version;
-    uint32_t version;
-    uint64_t load_address;
-    uint64_t image_size;
-    char file[LEONOS_DRIVER_FILE_LEN];
-    char name[LEONOS_DRIVER_NAME_LEN];
-    char error[LEONOS_DRIVER_ERROR_LEN];
-};
-
-struct leonos_driver_list {
-    uint32_t capacity;
-    uint32_t count;
-    struct leonos_driver_info *drivers;
-};
-
-struct leonos_driver_control {
-    uint32_t action;
-    uint32_t flags;
-    int32_t status;
-    uint32_t reserved;
-    char file[LEONOS_DRIVER_FILE_LEN];
-};
+/* Old names are macro aliases to the same declarations. */
+#define LEONOS_DRIVER_CONTROL_DISABLE_BOOT RELIEFOS_DRIVER_CONTROL_DISABLE_BOOT
+#define LEONOS_DRIVER_CONTROL_ENABLE_BOOT RELIEFOS_DRIVER_CONTROL_ENABLE_BOOT
+#define LEONOS_DRIVER_CONTROL_FORCE_UNLOAD RELIEFOS_DRIVER_CONTROL_FORCE_UNLOAD
+#define LEONOS_DRIVER_CONTROL_IOCTL RELIEFOS_DRIVER_CONTROL_IOCTL
+#define LEONOS_DRIVER_CONTROL_LOAD RELIEFOS_DRIVER_CONTROL_LOAD
+#define LEONOS_DRIVER_CONTROL_RESCAN RELIEFOS_DRIVER_CONTROL_RESCAN
+#define LEONOS_DRIVER_CONTROL_UNLOAD RELIEFOS_DRIVER_CONTROL_UNLOAD
+#define LEONOS_DRIVER_ERROR_LEN RELIEFOS_DRIVER_ERROR_LEN
+#define LEONOS_DRIVER_FILE_LEN RELIEFOS_DRIVER_FILE_LEN
+#define LEONOS_DRIVER_FLAG_AUTOSTART RELIEFOS_DRIVER_FLAG_AUTOSTART
+#define LEONOS_DRIVER_FLAG_BUILTIN RELIEFOS_DRIVER_FLAG_BUILTIN
+#define LEONOS_DRIVER_FLAG_DISABLED RELIEFOS_DRIVER_FLAG_DISABLED
+#define LEONOS_DRIVER_NAME_LEN RELIEFOS_DRIVER_NAME_LEN
+#define LEONOS_DRIVER_STATE_DISABLED RELIEFOS_DRIVER_STATE_DISABLED
+#define LEONOS_DRIVER_STATE_FAILED RELIEFOS_DRIVER_STATE_FAILED
+#define LEONOS_DRIVER_STATE_LOADED RELIEFOS_DRIVER_STATE_LOADED
+#define LEONOS_DRIVER_STATE_LOADING RELIEFOS_DRIVER_STATE_LOADING
+#define LEONOS_DRIVER_STATE_UNLOADED RELIEFOS_DRIVER_STATE_UNLOADED
+#define leonos_driver_control reliefos_driver_control
+#define leonos_driver_info reliefos_driver_info
+#define leonos_driver_list reliefos_driver_list
 
 #endif /* LEONOS_UAPI_DRIVER_ABI_H */

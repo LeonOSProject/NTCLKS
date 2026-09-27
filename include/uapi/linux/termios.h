@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 /* Linux v6.12 asm-generic/termbits{,-common}.h, native x86-64 wire ABI. */
-#ifndef LEONOS_UAPI_LINUX_TERMIOS_H
-#define LEONOS_UAPI_LINUX_TERMIOS_H
+#ifndef RELIEFOS_UAPI_LINUX_TERMIOS_H
+#define RELIEFOS_UAPI_LINUX_TERMIOS_H
 
 #include <stdint.h>
 

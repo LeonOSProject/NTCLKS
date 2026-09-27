@@ -1,8 +1,8 @@
-#include <leonos/psf_font.h>
-#include <ntclks/console.h>
-#include <ntclks/framebuffer.h>
-#include <ntclks/pci.h>
-#include <ntclks/port.h>
+#include <reliefos/psf_font.h>
+#include <reliefnt/console.h>
+#include <reliefnt/framebuffer.h>
+#include <reliefnt/pci.h>
+#include <reliefnt/port.h>
 #include "svga/device.h"
 #include <generated/cjk_font.h>
 
@@ -42,7 +42,7 @@ void framebuffer_codepoint(uint32_t x, uint32_t y, uint32_t cp, uint32_t fg, uin
 {
     unsigned index = framebuffer_glyph_index(cp);
     unsigned width = framebuffer_codepoint_width(cp);
-    const uint8_t *bits = cp < 128U ? leonos_psf_glyph((char)cp) : cjk_glyphs[index].bits;
+    const uint8_t *bits = cp < 128U ? reliefos_psf_glyph((char)cp) : cjk_glyphs[index].bits;
     for (unsigned row = 0; row < 16U; row++)
         for (unsigned col = 0; col < width * 8U; col++)
             framebuffer_rect(x + col, y + row, 1, 1,
@@ -515,7 +515,7 @@ static void framebuffer_vmware_fifo_init(void)
         mem_size > FRAMEBUFFER_MAX_VRAM_BYTES ||
         (mem_start & (sizeof(uint32_t) - 1u)) != 0u ||
         !framebuffer_range_valid(mem_start, mem_size)) {
-        console_printf("[ntclks] VMware SVGA FIFO unavailable mem=%p size=%u\n",
+        console_printf("[reliefnt] VMware SVGA FIFO unavailable mem=%p size=%u\n",
                        (void *)(uintptr_t)mem_start, mem_size);
         return;
     }
@@ -538,7 +538,7 @@ static void framebuffer_vmware_fifo_init(void)
         vmware_svga.fifo[VMWARE_SVGA_FIFO_NEXT_CMD] != vmware_svga.fifo_min ||
         vmware_svga.fifo[VMWARE_SVGA_FIFO_STOP] != vmware_svga.fifo_min) {
         vmware_svga.fifo = 0;
-        console_printf("[ntclks] VMware SVGA FIFO header validation failed\n");
+        console_printf("[reliefnt] VMware SVGA FIFO header validation failed\n");
         return;
     }
     vmware_svga.fifo_full_logged = false;
@@ -568,7 +568,7 @@ static int framebuffer_vmware_fifo_update(uint32_t x, uint32_t y,
     if (next < fifo_min || next >= vmware_svga.fifo_max ||
         stop < fifo_min || stop >= vmware_svga.fifo_max) {
         vmware_svga.fifo_present = false;
-        console_printf("[ntclks] VMware SVGA FIFO state invalid next=%u stop=%u\n",
+        console_printf("[reliefnt] VMware SVGA FIFO state invalid next=%u stop=%u\n",
                        next, stop);
         return 0;
     }
@@ -594,7 +594,7 @@ static int framebuffer_vmware_fifo_update(uint32_t x, uint32_t y,
 
 full:
     if (!vmware_svga.fifo_full_logged) {
-        console_printf("[ntclks] VMware SVGA FIFO full; update will retry on next frame\n");
+        console_printf("[reliefnt] VMware SVGA FIFO full; update will retry on next frame\n");
         vmware_svga.fifo_full_logged = true;
     }
     return 0;
@@ -625,7 +625,7 @@ static void framebuffer_vmware_sync(void)
         }
     }
     if (!vmware_svga.sync_timeout_logged) {
-        console_printf("[ntclks] VMware SVGA sync timed out; continuing asynchronously\n");
+        console_printf("[reliefnt] VMware SVGA sync timed out; continuing asynchronously\n");
         vmware_svga.sync_timeout_logged = true;
     }
 }
@@ -676,7 +676,7 @@ static int framebuffer_vmware_probe(void)
      * with the mode, whereas FB_MAX_SIZE is the SVGA II VRAM capacity. */
     usable_bytes = (uint64_t)fb_max_size - fb_offset;
     if (usable_bytes < framebuffer_current_bytes()) {
-        console_printf("[ntclks] VMware SVGA framebuffer too small fb=%p offset=%u "
+        console_printf("[reliefnt] VMware SVGA framebuffer too small fb=%p offset=%u "
                        "size=%u max=%u current=%u\n",
                        (void *)(uintptr_t)fb_start, fb_offset, fb_size, fb_max_size,
                        (uint32_t)framebuffer_current_bytes());
@@ -704,7 +704,7 @@ static int framebuffer_vmware_probe(void)
     fb.capabilities = FRAMEBUFFER_CAP_MODE_SET;
     fb.reservation_start = fb_start;
     fb.reservation_bytes = fb_max_size;
-    console_printf("[ntclks] VMware SVGA detected io=0x%x fb=%p offset=%u size=%u "
+    console_printf("[reliefnt] VMware SVGA detected io=0x%x fb=%p offset=%u size=%u "
                    "max=%u limits=%ux%u fifo=%p\n",
                    vmware_svga.io_port, (void *)(uintptr_t)fb_start, fb_offset,
                    fb_size, fb_max_size, vmware_svga.max_width,
@@ -855,7 +855,7 @@ static int framebuffer_vmware_set_mode(uint32_t width, uint32_t height)
         !fb_max_size || fb_max_size > FRAMEBUFFER_MAX_VRAM_BYTES ||
         fb_offset >= fb_max_size || pitch < width * 4u ||
         !framebuffer_range_valid(fb_start, fb_max_size)) {
-        console_printf("[ntclks] VMware SVGA rejected mode req=%ux%u got=%ux%u "
+        console_printf("[reliefnt] VMware SVGA rejected mode req=%ux%u got=%ux%u "
                        "depth=%u bpp=%u pseudo=%u pitch=%u fb=%p offset=%u size=%u max=%u\n",
                        width, height, actual_width, actual_height, depth, bpp,
                        pseudocolor, pitch, (void *)(uintptr_t)fb_start, fb_offset,
@@ -881,7 +881,7 @@ static int framebuffer_vmware_set_mode(uint32_t width, uint32_t height)
     fb.reservation_bytes = fb_max_size;
     framebuffer_set_default_format();
     fb.available = true;
-    console_printf("[ntclks] VMware SVGA mode=%ux%u depth=%u bpp=%u pseudo=%u "
+    console_printf("[reliefnt] VMware SVGA mode=%ux%u depth=%u bpp=%u pseudo=%u "
                    "pitch=%u fb=%p offset=%u size=%u max=%u\n",
                    fb.width, fb.height, depth, bpp, pseudocolor,
                    fb.pitch, (void *)(uintptr_t)fb_start, fb_offset, fb_size,
@@ -955,7 +955,7 @@ static void framebuffer_init_from_gop(uint64_t system_table_addr)
     efi_handle_t *handles = 0;
     efi_status_t status = st->boot_services->locate_handle_buffer(2, &gop_guid, 0, &handle_count, &handles);
     if (status || handle_count == 0 || !handles) {
-        console_printf("[ntclks] GOP locate failed status=0x%llx handles=%llu\n",
+        console_printf("[reliefnt] GOP locate failed status=0x%llx handles=%llu\n",
                        (unsigned long long)status,
                        (unsigned long long)handle_count);
         return;
@@ -1007,7 +1007,7 @@ static void framebuffer_init_from_gop(uint64_t system_table_addr)
             framebuffer_set_default_format();
         }
         fb.available = framebuffer_color_format_valid(&fb);
-        console_printf("[ntclks] GOP framebuffer base=%p size=%llu format=%u "
+        console_printf("[reliefnt] GOP framebuffer base=%p size=%llu format=%u "
                        "R=%u/%u G=%u/%u B=%u/%u\n",
                        (void *)(uintptr_t)gop->mode->framebuffer_base,
                        (unsigned long long)gop->mode->framebuffer_size,
@@ -1018,7 +1018,7 @@ static void framebuffer_init_from_gop(uint64_t system_table_addr)
         return;
     }
 
-    console_printf("[ntclks] GOP protocol present but no usable mode\n");
+    console_printf("[reliefnt] GOP protocol present but no usable mode\n");
     (void)guid_equal;
 }
 
@@ -1055,19 +1055,19 @@ void framebuffer_init(const struct boot_info *boot)
     }
 
     if (fb.available) {
-        console_printf("[ntclks] framebuffer %ux%u pitch=%u bpp=%u bytespp=%u type=%u "
+        console_printf("[reliefnt] framebuffer %ux%u pitch=%u bpp=%u bytespp=%u type=%u "
                        "R=%u/%u G=%u/%u B=%u/%u\n",
                        fb.width, fb.height, fb.pitch, fb.bpp, fb.bytes_per_pixel, fb.type,
                        fb.red_field_position, fb.red_mask_size,
                        fb.green_field_position, fb.green_mask_size,
                        fb.blue_field_position, fb.blue_mask_size);
         if (fb.capabilities & FRAMEBUFFER_CAP_MODE_SET) {
-            console_printf("[ntclks] dynamic framebuffer backend=%u max=%ux%u vram=%u KiB\n",
+            console_printf("[reliefnt] dynamic framebuffer backend=%u max=%ux%u vram=%u KiB\n",
                            fb.backend, fb.max_width, fb.max_height,
                            fb.max_bytes / 1024u);
         }
     } else {
-        console_printf("[ntclks] framebuffer unavailable, VGA fallback active\n");
+        console_printf("[reliefnt] framebuffer unavailable, VGA fallback active\n");
     }
 }
 
@@ -1103,7 +1103,7 @@ int framebuffer_set_mode(uint32_t width, uint32_t height)
         return -1;
     }
     if (changed) {
-        console_printf("[ntclks] framebuffer mode changed backend=%u %ux%u pitch=%u\n",
+        console_printf("[reliefnt] framebuffer mode changed backend=%u %ux%u pitch=%u\n",
                        fb.backend, fb.width, fb.height, fb.pitch);
         return 0;
     }
@@ -1199,9 +1199,9 @@ void framebuffer_put_pixel_public(uint32_t x, uint32_t y, uint32_t color)
 
 static void framebuffer_char(uint32_t x, uint32_t y, char ch, uint32_t fg, uint32_t bg)
 {
-    const uint8_t *glyph = leonos_psf_glyph(ch);
-    for (uint32_t row = 0; row < LEONOS_FONT_H; ++row) {
-        for (uint32_t col = 0; col < LEONOS_FONT_W; ++col) {
+    const uint8_t *glyph = reliefos_psf_glyph(ch);
+    for (uint32_t row = 0; row < RELIEFOS_FONT_H; ++row) {
+        for (uint32_t col = 0; col < RELIEFOS_FONT_W; ++col) {
             uint32_t color = (glyph[row] & (uint8_t)(0x80u >> col)) ? fg : bg;
             framebuffer_rect(x + col, y + row, 1, 1, color);
         }
@@ -1255,9 +1255,9 @@ void framebuffer_present(void)
 
 static void framebuffer_char_transparent(uint32_t x, uint32_t y, char ch, uint32_t fg)
 {
-    const uint8_t *glyph = leonos_psf_glyph(ch);
-    for (uint32_t row = 0; row < LEONOS_FONT_H; ++row) {
-        for (uint32_t col = 0; col < LEONOS_FONT_W; ++col) {
+    const uint8_t *glyph = reliefos_psf_glyph(ch);
+    for (uint32_t row = 0; row < RELIEFOS_FONT_H; ++row) {
+        for (uint32_t col = 0; col < RELIEFOS_FONT_W; ++col) {
             if (glyph[row] & (uint8_t)(0x80u >> col)) {
                 framebuffer_rect(x + col, y + row, 1, 1, fg);
             }
@@ -1268,14 +1268,14 @@ static void framebuffer_char_transparent(uint32_t x, uint32_t y, char ch, uint32
 void framebuffer_text(uint32_t x, uint32_t y, const char *text, uint32_t fg, uint32_t bg)
 {
     for (uint32_t i = 0; text && text[i]; ++i) {
-        framebuffer_char(x + i * LEONOS_FONT_W, y, text[i], fg, bg);
+        framebuffer_char(x + i * RELIEFOS_FONT_W, y, text[i], fg, bg);
     }
 }
 
 static void framebuffer_text_transparent(uint32_t x, uint32_t y, const char *text, uint32_t fg)
 {
     for (uint32_t i = 0; text && text[i]; ++i) {
-        framebuffer_char_transparent(x + i * LEONOS_FONT_W, y, text[i], fg);
+        framebuffer_char_transparent(x + i * RELIEFOS_FONT_W, y, text[i], fg);
     }
 }
 
@@ -1385,7 +1385,7 @@ static void beveled_rect(uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint32_
 
 static uint32_t text_fit_chars(uint32_t pixel_width)
 {
-    return pixel_width / LEONOS_FONT_W;
+    return pixel_width / RELIEFOS_FONT_W;
 }
 
 static void draw_window_button(uint32_t x, uint32_t y, char label, int pressed)
@@ -1454,7 +1454,7 @@ static void draw_window(uint8_t id)
     } else {
         framebuffer_text(body_x + 16, body_y + 18, "Settings", black, w->body_color);
         framebuffer_text(body_x + 16, body_y + 42, "Win98 style controls", black, w->body_color);
-        framebuffer_text(body_x + 16, body_y + 66, "GUI state lives in ntclks", black, w->body_color);
+        framebuffer_text(body_x + 16, body_y + 66, "GUI state lives in ReliefNT", black, w->body_color);
     }
 
     framebuffer_rect((uint32_t)w->x + w->width - 13, (uint32_t)w->y + w->height - 13, 9, 1, dark);

@@ -1,8 +1,8 @@
 /*
- * LeonOS kernel object table implementation.
+ * ReliefOS kernel object table implementation.
  * Handles are index plus generation values, preventing stale descriptor reuse.
  */
-#include <ntclks/object.h>
+#include <reliefnt/object.h>
 
 static struct kernel_object_table global_objects;
 

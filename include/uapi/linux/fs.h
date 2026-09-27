@@ -1,10 +1,10 @@
-#ifndef LEONOS_UAPI_LINUX_FS_H
-#define LEONOS_UAPI_LINUX_FS_H
+#ifndef RELIEFOS_UAPI_LINUX_FS_H
+#define RELIEFOS_UAPI_LINUX_FS_H
 
 #include <linux/ioctl.h>
 #include <linux/types.h>
 
-/* Linux block-device ioctls supported by the LeonOS block layer. */
+/* Linux block-device ioctls supported by the ReliefOS block layer. */
 #define BLKROSET      _IO(0x12, 93)
 #define BLKROGET      _IOR(0x12, 94, int)
 #define BLKRRPART     _IO(0x12, 95)

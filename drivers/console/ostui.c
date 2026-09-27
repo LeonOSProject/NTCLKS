@@ -1,14 +1,14 @@
 /*
- * LeonOS ostui implementation.
+ * ReliefOS ostui implementation.
  * Parses the common VT100/xterm control sequences needed by kernel diagnostics
  * while mirroring the original byte stream to the serial console.
  */
-#include <leonos/psf_font.h>
-#include <leonos/utf8_stream.h>
-#include <ntclks/console.h>
-#include <ntclks/framebuffer.h>
-#include <ntclks/input.h>
-#include <ntclks/ostui.h>
+#include <reliefos/psf_font.h>
+#include <reliefos/utf8_stream.h>
+#include <reliefnt/console.h>
+#include <reliefnt/framebuffer.h>
+#include <reliefnt/input.h>
+#include <reliefnt/ostui.h>
 
 #define OSTUI_MAX_PARAMS 16U
 #define OSTUI_ESC 1U
@@ -32,7 +32,7 @@ struct ostui_state {
 
 static struct ostui_state state;
 
-static struct leonos_utf8_stream utf8;
+static struct reliefos_utf8_stream utf8;
 
 static int ostui_wide(uint32_t cp)
 {
@@ -57,13 +57,13 @@ static const uint32_t palette[16] = {
 static uint32_t ostui_cols(void)
 {
     const struct framebuffer *fb = framebuffer_get();
-    return fb->available && LEONOS_FONT_W ? fb->width / LEONOS_FONT_W : 80U;
+    return fb->available && RELIEFOS_FONT_W ? fb->width / RELIEFOS_FONT_W : 80U;
 }
 
 static uint32_t ostui_rows(void)
 {
     const struct framebuffer *fb = framebuffer_get();
-    return fb->available && LEONOS_FONT_H ? fb->height / LEONOS_FONT_H : 25U;
+    return fb->available && RELIEFOS_FONT_H ? fb->height / RELIEFOS_FONT_H : 25U;
 }
 
 static uint32_t color_index(uint32_t value)
@@ -95,16 +95,16 @@ static void ostui_scroll(void)
         state.col = 0;
         return;
     }
-    uint32_t copy_h = (rows - 1U) * LEONOS_FONT_H;
+    uint32_t copy_h = (rows - 1U) * RELIEFOS_FONT_H;
     for (uint32_t y = 0; y < copy_h; ++y) {
         uint8_t *dst = (uint8_t *)fb->pixels + (uint64_t)y * fb->pitch;
         const uint8_t *src = (const uint8_t *)fb->pixels +
-                             (uint64_t)(y + LEONOS_FONT_H) * fb->pitch;
+                             (uint64_t)(y + RELIEFOS_FONT_H) * fb->pitch;
         for (uint32_t x = 0; x < fb->width * fb->bytes_per_pixel; ++x) {
             dst[x] = src[x];
         }
     }
-    framebuffer_rect(0, copy_h, fb->width, LEONOS_FONT_H, state.bg);
+    framebuffer_rect(0, copy_h, fb->width, RELIEFOS_FONT_H, state.bg);
     state.row = rows - 1U;
 }
 
@@ -143,7 +143,7 @@ static void ostui_put_visible(uint32_t cp)
         ostui_newline();
     }
     if (ostui_wide(cp) && state.col + 1U >= ostui_cols()) ostui_newline();
-    framebuffer_codepoint(state.col * LEONOS_FONT_W, state.row * LEONOS_FONT_H,
+    framebuffer_codepoint(state.col * RELIEFOS_FONT_W, state.row * RELIEFOS_FONT_H,
                           cp, state.fg, state.bg);
     state.col += framebuffer_codepoint_width(cp);
 }
@@ -218,8 +218,8 @@ static void ostui_finish_csi(char final)
     } else if (final == 'K') {
         const struct framebuffer *fb = framebuffer_get();
         if (fb->available) {
-            framebuffer_rect(state.col * LEONOS_FONT_W, state.row * LEONOS_FONT_H,
-                             fb->width - state.col * LEONOS_FONT_W, LEONOS_FONT_H, state.bg);
+            framebuffer_rect(state.col * RELIEFOS_FONT_W, state.row * RELIEFOS_FONT_H,
+                             fb->width - state.col * RELIEFOS_FONT_W, RELIEFOS_FONT_H, state.bg);
         }
     } else if (final == 'm') {
         ostui_apply_sgr();
@@ -294,9 +294,9 @@ static void ostui_feed(char ch)
         return;
     }
     uint32_t cp;
-    int result = leonos_utf8_feed(&utf8, (unsigned char)ch, &cp);
+    int result = reliefos_utf8_feed(&utf8, (unsigned char)ch, &cp);
     if (result) ostui_put_visible(cp);
-    if (result < 0 && leonos_utf8_feed(&utf8, (unsigned char)ch, &cp))
+    if (result < 0 && reliefos_utf8_feed(&utf8, (unsigned char)ch, &cp))
         ostui_put_visible(cp);
 }
 
@@ -312,7 +312,7 @@ void ostui_clear(void)
 
 void ostui_init(void)
 {
-    utf8 = (struct leonos_utf8_stream){0};
+    utf8 = (struct reliefos_utf8_stream){0};
     state = (struct ostui_state){.fg = palette[15], .bg = palette[0]};
     serial_write("\033[?1049h\033[2J\033[H");
     ostui_clear();

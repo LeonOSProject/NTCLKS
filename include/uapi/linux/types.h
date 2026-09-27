@@ -1,5 +1,5 @@
-#ifndef LEONOS_UAPI_LINUX_TYPES_H
-#define LEONOS_UAPI_LINUX_TYPES_H
+#ifndef RELIEFOS_UAPI_LINUX_TYPES_H
+#define RELIEFOS_UAPI_LINUX_TYPES_H
 
 /* Linux UAPI scalar types used by the supported x86_64 ABI subset.  Keep
  * these definitions independent from libc so kernel and userland consume

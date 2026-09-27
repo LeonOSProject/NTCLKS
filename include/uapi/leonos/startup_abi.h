@@ -1,80 +1,31 @@
+/* Transitional compatibility forwarder (ReliefOS / ReliefNT rename).
+ * Canonical declarations: <reliefos/startup_abi.h>.
+ * No second layout definition exists behind these names. */
 #ifndef LEONOS_UAPI_STARTUP_ABI_H
 #define LEONOS_UAPI_STARTUP_ABI_H
-/*
- * Startup-approval IPC wire ABI between sessiond and userland.
- * Userland wrappers live in <leonos/startup.h>.
- * UAPI only: nothing here may include a non-UAPI header.
- */
+#include <reliefos/startup_abi.h>
 
-#include <stdint.h>
-
-
-#define LEONOS_STARTUP_MAX_ENTRIES 16U
-#define LEONOS_STARTUP_MAX_ARGS 7U
-#define LEONOS_STARTUP_ARG_LEN 64U
-
-#define LEONOS_STARTUP_STATUS_PENDING 1U
-#define LEONOS_STARTUP_STATUS_APPROVED 2U
-#define LEONOS_STARTUP_STATUS_DENIED 3U
-#define LEONOS_STARTUP_STATUS_DENIED_REMEMBERED 4U
-#define LEONOS_STARTUP_STATUS_EXISTS 5U
-#define LEONOS_STARTUP_STATUS_CANCELLED 6U
-#define LEONOS_STARTUP_STATUS_FAILED 7U
-
-#define LEONOS_STARTUP_DECISION_ALLOW 1U
-#define LEONOS_STARTUP_DECISION_DENY 2U
-#define LEONOS_STARTUP_DECISION_DENY_REMEMBERED 3U
-
-/* args excludes argv[0]; the executable path is always argv[0]. */
-struct leonos_startup_command {
-    uint32_t argc;
-    uint32_t reserved;
-    char path[256];
-    char args[LEONOS_STARTUP_MAX_ARGS][LEONOS_STARTUP_ARG_LEN];
-};
-
-struct leonos_startup_request {
-    struct leonos_startup_command command;
-    uint32_t request_id;
-    uint32_t status;
-};
-
-struct leonos_startup_request_status {
-    uint32_t request_id;
-    uint32_t status;
-};
-
-struct leonos_startup_dialog_request {
-    uint32_t request_id;
-    uint32_t uid;
-    char requester_path[256];
-    struct leonos_startup_command command;
-};
-
-struct leonos_startup_dialog_resolution {
-    uint32_t request_id;
-    uint32_t decision;
-};
-
-struct leonos_startup_entry {
-    uint32_t id;
-    uint32_t enabled;
-    struct leonos_startup_command command;
-};
-
-struct leonos_startup_list {
-    uint32_t uid;
-    uint32_t capacity;
-    uint32_t count;
-    uint32_t reserved;
-    struct leonos_startup_entry *entries;
-};
-
-struct leonos_startup_update {
-    uint32_t uid;
-    uint32_t entry_id;
-    uint32_t enabled;
-    uint32_t reserved;
-};
+/* Old names are macro aliases to the same declarations. */
+#define LEONOS_STARTUP_ARG_LEN RELIEFOS_STARTUP_ARG_LEN
+#define LEONOS_STARTUP_DECISION_ALLOW RELIEFOS_STARTUP_DECISION_ALLOW
+#define LEONOS_STARTUP_DECISION_DENY RELIEFOS_STARTUP_DECISION_DENY
+#define LEONOS_STARTUP_DECISION_DENY_REMEMBERED RELIEFOS_STARTUP_DECISION_DENY_REMEMBERED
+#define LEONOS_STARTUP_MAX_ARGS RELIEFOS_STARTUP_MAX_ARGS
+#define LEONOS_STARTUP_MAX_ENTRIES RELIEFOS_STARTUP_MAX_ENTRIES
+#define LEONOS_STARTUP_STATUS_APPROVED RELIEFOS_STARTUP_STATUS_APPROVED
+#define LEONOS_STARTUP_STATUS_CANCELLED RELIEFOS_STARTUP_STATUS_CANCELLED
+#define LEONOS_STARTUP_STATUS_DENIED RELIEFOS_STARTUP_STATUS_DENIED
+#define LEONOS_STARTUP_STATUS_DENIED_REMEMBERED RELIEFOS_STARTUP_STATUS_DENIED_REMEMBERED
+#define LEONOS_STARTUP_STATUS_EXISTS RELIEFOS_STARTUP_STATUS_EXISTS
+#define LEONOS_STARTUP_STATUS_FAILED RELIEFOS_STARTUP_STATUS_FAILED
+#define LEONOS_STARTUP_STATUS_PENDING RELIEFOS_STARTUP_STATUS_PENDING
+#define leonos_startup_command reliefos_startup_command
+#define leonos_startup_dialog_request reliefos_startup_dialog_request
+#define leonos_startup_dialog_resolution reliefos_startup_dialog_resolution
+#define leonos_startup_entry reliefos_startup_entry
+#define leonos_startup_list reliefos_startup_list
+#define leonos_startup_request reliefos_startup_request
+#define leonos_startup_request_status reliefos_startup_request_status
+#define leonos_startup_update reliefos_startup_update
 
 #endif /* LEONOS_UAPI_STARTUP_ABI_H */

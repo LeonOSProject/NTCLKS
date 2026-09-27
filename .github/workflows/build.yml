@@ -1,9 +1,9 @@
-# Build verification for the standalone NTCLKS kernel tree: every push and
+# Build verification for the standalone ReliefNT kernel tree: every push and
 # pull request must prove `make all` produces all nine kernel products
 # (kernel.sys, kernel.debug, loader.elf, five .drv drivers, kerneldebug.sys).
 # Build-only by design: no tests, no artifact upload.
 
-name: Build NTCLKS
+name: Build ReliefNT
 
 on:
   push:
@@ -14,7 +14,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: ntclks-build-${{ github.workflow }}-${{ github.ref }}
+  group: reliefnt-build-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:

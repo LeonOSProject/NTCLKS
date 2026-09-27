@@ -1,18 +1,18 @@
-#include <ntclks/mm.h>
-#include <ntclks/console.h>
-#include <ntclks/multiboot2.h>
-#include <ntclks/paging.h>
-#include <ntclks/pci.h>
-#include <ntclks/port.h>
-#include <ntclks/sched.h>
-#include <ntclks/smp.h>
-#include <ntclks/storage.h>
-#include <ntclks/text_utf16.h>
-#include <ntclks/tmpfs.h>
-#include <ntclks/syscall.h>
-#include <ntclks/time.h>
-#include <ntclks/lock.h>
-#include <ntclks/pty.h>
+#include <reliefnt/mm.h>
+#include <reliefnt/console.h>
+#include <reliefnt/multiboot2.h>
+#include <reliefnt/paging.h>
+#include <reliefnt/pci.h>
+#include <reliefnt/port.h>
+#include <reliefnt/sched.h>
+#include <reliefnt/smp.h>
+#include <reliefnt/storage.h>
+#include <reliefnt/text_utf16.h>
+#include <reliefnt/tmpfs.h>
+#include <reliefnt/syscall.h>
+#include <reliefnt/time.h>
+#include <reliefnt/lock.h>
+#include <reliefnt/pty.h>
 #include <linux/mount.h>
 
 #define ATA_CLASS_MASS_STORAGE 0x01u
@@ -136,7 +136,7 @@
 #define STORAGE_VOLUME_TARGET_ROOT 1u
 #define STORAGE_VOLUME_BOOT 2u
 #define STORAGE_VOLUME_DYNAMIC_FIRST 3u
-#define STORAGE_MAX_INSTALL_DISKS LEONOS_INSTALL_MAX_DISKS
+#define STORAGE_MAX_INSTALL_DISKS RELIEFOS_INSTALL_MAX_DISKS
 #define STORAGE_PATH_CACHE_ENTRIES 128u
 #define STORAGE_DIR_INDEX_ENTRIES 512u
 #define INSTALL_ESP_FIRST_LBA 2048ULL
@@ -441,7 +441,7 @@ static const uint8_t basic_data_guid[16] = {
 struct storage_volume {
     bool ready;
     struct tmpfs_super *tmpfs;
-    char tmpfs_source[LEONOS_FS_PATH_LEN];
+    char tmpfs_source[RELIEFOS_FS_PATH_LEN];
     uint64_t mount_flags;
     uint8_t volume_id;
     uint8_t kind;
@@ -521,7 +521,7 @@ struct storage_volume {
     uint32_t source_disk_id;
     uint32_t source_partition_index;
     uint8_t data_partition_mount;
-    char mount_path[LEONOS_FS_PATH_LEN];
+    char mount_path[RELIEFOS_FS_PATH_LEN];
 };
 
 struct install_disk_state {
@@ -634,7 +634,7 @@ struct storage_cluster_cache {
 struct storage_path_cache_entry {
     struct storage_volume *volume;
     struct storage_node node;
-    char path[LEONOS_FS_PATH_LEN];
+    char path[RELIEFOS_FS_PATH_LEN];
     uint8_t valid;
 };
 
@@ -642,7 +642,7 @@ struct storage_dir_index_entry {
     struct storage_volume *volume;
     uint32_t directory_cluster;
     struct storage_node node;
-    char name[LEONOS_FS_NAME_LEN];
+    char name[RELIEFOS_FS_NAME_LEN];
     uint8_t valid;
 };
 
@@ -663,7 +663,7 @@ struct storage_write_chain_cache {
     uint32_t size;
     uint32_t count;
     uint32_t tail;
-    char path[LEONOS_FS_PATH_LEN];
+    char path[RELIEFOS_FS_PATH_LEN];
     uint8_t valid;
 };
 

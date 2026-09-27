@@ -1,28 +1,18 @@
+/* Transitional compatibility forwarder (ReliefOS / ReliefNT rename).
+ * Canonical declarations: <reliefos/kernel_debug_abi.h>.
+ * No second layout definition exists behind these names. */
 #ifndef LEONOS_UAPI_KERNEL_DEBUG_ABI_H
 #define LEONOS_UAPI_KERNEL_DEBUG_ABI_H
-/*
- * Kernel-debug control wire ABI between ntclks and userland. Userland wrappers
- * live in <leonos/kernel_debug.h>.
- * UAPI only: nothing here may include a non-UAPI header.
- */
+#include <reliefos/kernel_debug_abi.h>
 
-#include <stdint.h>
-
-#define LEONOS_KERNEL_DEBUG_VERSION 1U
-
-#define LEONOS_KERNEL_DEBUG_CONTROL_GET_STATE 1U
-#define LEONOS_KERNEL_DEBUG_CONTROL_SET_ENABLED 2U
-#define LEONOS_KERNEL_DEBUG_CONTROL_ARM_NEXT_BOOT 3U
-#define LEONOS_KERNEL_DEBUG_CONTROL_CLEAR 4U
-
-#define LEONOS_KERNEL_DEBUG_STATE_ENABLED 0x00000001U
-#define LEONOS_KERNEL_DEBUG_STATE_NEXT_BOOT 0x00000002U
-
-struct leonos_kernel_debug_control {
-    uint32_t version;
-    uint32_t command;
-    uint32_t flags;
-    uint32_t result_flags;
-};
+/* Old names are macro aliases to the same declarations. */
+#define LEONOS_KERNEL_DEBUG_CONTROL_ARM_NEXT_BOOT RELIEFOS_KERNEL_DEBUG_CONTROL_ARM_NEXT_BOOT
+#define LEONOS_KERNEL_DEBUG_CONTROL_CLEAR RELIEFOS_KERNEL_DEBUG_CONTROL_CLEAR
+#define LEONOS_KERNEL_DEBUG_CONTROL_GET_STATE RELIEFOS_KERNEL_DEBUG_CONTROL_GET_STATE
+#define LEONOS_KERNEL_DEBUG_CONTROL_SET_ENABLED RELIEFOS_KERNEL_DEBUG_CONTROL_SET_ENABLED
+#define LEONOS_KERNEL_DEBUG_STATE_ENABLED RELIEFOS_KERNEL_DEBUG_STATE_ENABLED
+#define LEONOS_KERNEL_DEBUG_STATE_NEXT_BOOT RELIEFOS_KERNEL_DEBUG_STATE_NEXT_BOOT
+#define LEONOS_KERNEL_DEBUG_VERSION RELIEFOS_KERNEL_DEBUG_VERSION
+#define leonos_kernel_debug_control reliefos_kernel_debug_control
 
 #endif /* LEONOS_UAPI_KERNEL_DEBUG_ABI_H */

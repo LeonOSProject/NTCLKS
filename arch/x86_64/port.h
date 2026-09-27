@@ -1,9 +1,9 @@
 /*
- * LeonOS x86_64 port I/O interface: declares inb/outb-style hardware access.
+ * ReliefOS x86_64 port I/O interface: declares inb/outb-style hardware access.
  * Used by legacy PCI, serial, power, and bootstrap device code.
  */
-#ifndef NTCLKS_X86_64_PORT_H
-#define NTCLKS_X86_64_PORT_H
+#ifndef RELIEFNT_X86_64_PORT_H
+#define RELIEFNT_X86_64_PORT_H
 
 #include <stdint.h>
 

@@ -1,5 +1,5 @@
-#ifndef LEONOS_UAPI_LINUX_EPOLL_H
-#define LEONOS_UAPI_LINUX_EPOLL_H
+#ifndef RELIEFOS_UAPI_LINUX_EPOLL_H
+#define RELIEFOS_UAPI_LINUX_EPOLL_H
 
 #include <linux/types.h>
 

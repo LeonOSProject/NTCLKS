@@ -1,9 +1,9 @@
 /*
- * LeonOS x86_64 architecture support: initializes processor control state.
+ * ReliefOS x86_64 architecture support: initializes processor control state.
  * Provides CPU feature setup and the transition into user execution.
  */
-#include <ntclks/console.h>
-#include <ntclks/types.h>
+#include <reliefnt/console.h>
+#include <reliefnt/types.h>
 
 #define X86_CR0_MP (1ULL << 1)
 #define X86_CR0_EM (1ULL << 2)
@@ -56,7 +56,7 @@ static void copy_fpu_state(void *dst, const void *src)
  */
 void arch_init(void)
 {
-    console_printf("[ntclks] arch/x86_64 initialized\n");
+    console_printf("[reliefnt] arch/x86_64 initialized\n");
 }
 
 /**
@@ -79,7 +79,7 @@ void arch_fpu_init(void)
 
     __asm__ volatile("fninit\n\tldmxcsr %0" : : "m"(default_mxcsr) : "memory");
     __asm__ volatile("fxsave64 (%0)" : : "r"(initial_fpu_state) : "memory");
-    console_printf("[ntclks] x87/SSE task state enabled\n");
+    console_printf("[reliefnt] x87/SSE task state enabled\n");
 }
 
 /**

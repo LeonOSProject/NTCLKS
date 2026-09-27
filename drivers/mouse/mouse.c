@@ -1,10 +1,10 @@
-#include <leonos/driver.h>
+#include <reliefos/driver.h>
 
-#include <ntclks/framebuffer.h>
-#include <ntclks/input.h>
-#include <ntclks/mouse.h>
+#include <reliefnt/framebuffer.h>
+#include <reliefnt/input.h>
+#include <reliefnt/mouse.h>
 
-static const struct leonos_driver_kernel_api *kernel_api;
+static const struct reliefos_driver_kernel_api *kernel_api;
 static struct framebuffer module_framebuffer;
 
 static const struct framebuffer *module_framebuffer_get(void)
@@ -163,7 +163,7 @@ static void mouse_publish(int32_t new_x, int32_t new_y, uint8_t buttons, const c
     ++events;
     input_push_mouse(state.x, state.y, state.x - old_x, state.y - old_y, state.buttons);
     if (events <= 8) {
-        console_printf("[ntclks] %s mouse event #%u buttons=%u pos=%d,%d delta=%d,%d\n",
+        console_printf("[reliefnt] %s mouse event #%u buttons=%u pos=%d,%d delta=%d,%d\n",
                        tag,
                        events,
                        state.buttons,
@@ -183,7 +183,7 @@ static void mouse_publish_wheel(int32_t wheel, const char *tag)
     ++events;
     input_push_mouse_wheel(state.x, state.y, wheel, state.buttons);
     if (events <= 8) {
-        console_printf("[ntclks] %s mouse wheel #%u delta=%d pos=%d,%d buttons=%u\n",
+        console_printf("[reliefnt] %s mouse wheel #%u delta=%d pos=%d,%d buttons=%u\n",
                        tag,
                        events,
                        (int)wheel,
@@ -465,7 +465,7 @@ static void mouse_hardware_init(void)
     (void)scale_ok;
     (void)resolution_ok;
     (void)sample_ok;
-    console_printf("[ntclks] mouse init ps2 defaults=%d scale=%d res=%d sample=%d wheel=%d enable=%d vmware=%d absolute=%d version=0x%x at %d,%d\n",
+    console_printf("[reliefnt] mouse init ps2 defaults=%d scale=%d res=%d sample=%d wheel=%d enable=%d vmware=%d absolute=%d version=0x%x at %d,%d\n",
                    defaults_ok,
                    scale_ok,
                    resolution_ok,
@@ -555,13 +555,13 @@ static void mouse_driver_poll(void)
     mouse_hardware_poll();
 }
 
-static void mouse_driver_get_state(struct leonos_driver_mouse_state *out)
+static void mouse_driver_get_state(struct reliefos_driver_mouse_state *out)
 {
     const struct mouse_state *source = mouse_hardware_get_state();
     if (!out || !source) {
         return;
     }
-    *out = (struct leonos_driver_mouse_state){
+    *out = (struct reliefos_driver_mouse_state){
         .x = source->x,
         .y = source->y,
         .buttons = source->buttons,
@@ -576,13 +576,13 @@ static void mouse_driver_get_state(struct leonos_driver_mouse_state *out)
     };
 }
 
-static int mouse_driver_init(const struct leonos_driver_kernel_api *api)
+static int mouse_driver_init(const struct reliefos_driver_kernel_api *api)
 {
-    static const struct leonos_driver_mouse_ops ops = {
+    static const struct reliefos_driver_mouse_ops ops = {
         .poll = mouse_driver_poll,
         .get_state = mouse_driver_get_state,
     };
-    if (!api || api->abi_version != LEONOS_DRIVER_ABI_VERSION ||
+    if (!api || api->abi_version != RELIEFOS_DRIVER_ABI_VERSION ||
         api->struct_size < sizeof(*api)) {
         return -22;
     }
@@ -600,11 +600,11 @@ static void mouse_driver_fini(void)
     state.present = false;
 }
 
-struct leonos_driver_module leonos_driver_module = {
-    .magic = LEONOS_DRIVER_MODULE_MAGIC,
-    .abi_version = LEONOS_DRIVER_ABI_VERSION,
-    .struct_size = sizeof(struct leonos_driver_module),
-    .kind = LEONOS_DRIVER_KIND_INPUT,
+struct reliefos_driver_module reliefos_driver_module = {
+    .magic = RELIEFOS_DRIVER_MODULE_MAGIC,
+    .abi_version = RELIEFOS_DRIVER_ABI_VERSION,
+    .struct_size = sizeof(struct reliefos_driver_module),
+    .kind = RELIEFOS_DRIVER_KIND_INPUT,
     .name = "mouse",
     .version = 1U,
     .reserved = 0,

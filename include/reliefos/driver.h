@@ -1,0 +1,136 @@
+#ifndef RELIEFOS_DRIVER_H
+#define RELIEFOS_DRIVER_H
+
+/*
+ * Driver module (Ring-0 .drv) API plus the userland driver-control client
+ * API. The control wire types and constants moved to the kernel UAPI
+ * (<reliefos/driver_abi.h>); this header re-exports them so existing callers
+ * keep working.
+ */
+#include <stdint.h>
+#include <reliefos/audio_abi.h>
+#include <reliefos/driver_abi.h>
+
+#define RELIEFOS_DRIVER_ABI_VERSION 1U
+#define RELIEFOS_DRIVER_MODULE_MAGIC 0x4c445256U
+#define RELIEFOS_DRIVER_MAX 16U
+
+
+#define RELIEFOS_DRIVER_KIND_INPUT 1U
+#define RELIEFOS_DRIVER_KIND_SERIAL 2U
+#define RELIEFOS_DRIVER_KIND_NETWORK 3U
+#define RELIEFOS_DRIVER_KIND_AUDIO 4U
+
+struct reliefos_driver_mouse_state {
+    int32_t x;
+    int32_t y;
+    uint8_t buttons;
+    uint8_t present;
+    uint8_t absolute;
+    uint8_t reserved;
+    uint32_t event_count;
+    uint8_t last_status;
+    uint8_t last_data;
+    uint8_t last_ack;
+    uint8_t reserved2;
+};
+
+struct reliefos_driver_pci_device {
+    uint8_t bus;
+    uint8_t slot;
+    uint8_t function;
+    uint8_t class_code;
+    uint16_t vendor_id;
+    uint16_t device_id;
+    uint8_t subclass;
+    uint8_t prog_if;
+    uint8_t header_type;
+    uint8_t reserved;
+};
+
+struct reliefos_driver_e1000_info {
+    uint32_t present;
+    uint32_t active;
+    uint16_t vendor_id;
+    uint16_t device_id;
+    uint8_t bus;
+    uint8_t slot;
+    uint8_t function;
+    uint8_t reserved;
+    uint8_t mac[6];
+    uint8_t reserved2[2];
+};
+
+struct reliefos_driver_mouse_ops {
+    void (*poll)(void);
+    void (*get_state)(struct reliefos_driver_mouse_state *out);
+};
+
+struct reliefos_driver_serial_ops {
+    int (*is_ready)(void);
+    void (*write)(const char *text);
+};
+
+struct reliefos_driver_e1000_ops {
+    int (*is_ready)(void);
+    const uint8_t *(*mac)(void);
+    int (*send)(const void *frame, uint32_t len);
+    int (*poll)(void *frame, uint32_t capacity, uint32_t *out_len);
+    void (*get_info)(struct reliefos_driver_e1000_info *out);
+};
+
+struct reliefos_driver_audio_ops {
+    int (*is_ready)(void);
+    int (*configure)(const struct reliefos_audio_format *format);
+    long (*write)(const void *data, uint32_t length, uint32_t *out_status);
+    void (*get_state)(struct reliefos_audio_state *out);
+};
+
+struct reliefos_driver_kernel_api {
+    uint32_t abi_version;
+    uint32_t struct_size;
+    uint8_t (*inb)(uint16_t port);
+    void (*outb)(uint16_t port, uint8_t value);
+    uint32_t (*inl)(uint16_t port);
+    void (*outl)(uint16_t port, uint32_t value);
+    uint64_t (*alloc_pages)(uint32_t page_count);
+    void (*free_pages)(uint64_t address, uint32_t page_count);
+    void (*console_write)(const char *text);
+    void (*input_push_mouse)(int32_t x, int32_t y, int32_t dx, int32_t dy,
+                             uint8_t buttons);
+    void (*input_push_mouse_wheel)(int32_t x, int32_t y, int32_t wheel,
+                                   uint8_t buttons);
+    int (*framebuffer_size)(uint32_t *width, uint32_t *height);
+    int (*pci_find)(uint16_t vendor_id, uint16_t device_id,
+                    struct reliefos_driver_pci_device *out);
+    uint16_t (*pci_read16)(uint8_t bus, uint8_t slot, uint8_t function,
+                           uint8_t offset);
+    void (*pci_write16)(uint8_t bus, uint8_t slot, uint8_t function,
+                        uint8_t offset, uint16_t value);
+    uint32_t (*pci_read32)(uint8_t bus, uint8_t slot, uint8_t function,
+                           uint8_t offset);
+    uint64_t (*ticks)(void);
+    void (*sleep_ms)(uint64_t ms);
+    int (*register_mouse)(const struct reliefos_driver_mouse_ops *ops);
+    int (*register_serial)(const struct reliefos_driver_serial_ops *ops);
+    int (*register_e1000)(const struct reliefos_driver_e1000_ops *ops);
+    int (*register_audio)(const struct reliefos_driver_audio_ops *ops);
+};
+
+struct reliefos_driver_module {
+    uint32_t magic;
+    uint32_t abi_version;
+    uint32_t struct_size;
+    uint32_t kind;
+    char name[RELIEFOS_DRIVER_NAME_LEN];
+    uint32_t version;
+    uint32_t reserved;
+    int (*init)(const struct reliefos_driver_kernel_api *api);
+    void (*fini)(void);
+};
+
+int reliefos_driver_list(struct reliefos_driver_info *drivers, uint32_t capacity,
+                       uint32_t *out_count);
+int reliefos_driver_control(uint32_t action, const char *file);
+
+#endif

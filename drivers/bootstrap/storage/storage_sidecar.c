@@ -1,5 +1,5 @@
 /*
- * LeonOS FAT/exFAT POSIX metadata sidecar.
+ * ReliefOS FAT/exFAT POSIX metadata sidecar.
  *
  * FAT32 and exFAT directory entries carry no ownership fields, so uid/gid/mode
  * for those volumes live in one hidden `LEONACL.SYS` file per directory.  This
@@ -26,10 +26,10 @@
  * same directory; that window predates this module and is unchanged.  Storage
  * I/O keeps whatever locking the storage subsystem itself applies.
  */
-#include <ntclks/mm.h>
-#include <ntclks/storage.h>
-#include <ntclks/syscall.h>
-#include <leonos/layout.h>
+#include <reliefnt/mm.h>
+#include <reliefnt/storage.h>
+#include <reliefnt/syscall.h>
+#include <reliefos/layout.h>
 
 #define SIDECAR_FILE_NAME "LEONACL.SYS"
 #define SIDECAR_MAGIC 0x4c43414cU
@@ -52,14 +52,14 @@
 
 /** @brief One directory member's metadata between reads and writes. */
 struct sidecar_record {
-    char name[LEONOS_FS_NAME_LEN];
+    char name[RELIEFOS_FS_NAME_LEN];
     uint32_t owner_uid;
     uint32_t flags;
     uint32_t ace_count;
     uint32_t has_mode;
     uint32_t mode;
     uint32_t gid;
-    struct leonos_fs_acl_ace aces[LEONOS_FS_ACL_MAX_ACE];
+    struct reliefos_fs_acl_ace aces[RELIEFOS_FS_ACL_MAX_ACE];
 };
 
 /** @brief How a queued rewrite touches the record named by the caller. */
@@ -191,16 +191,16 @@ static int sidecar_parent_name(const char *path, char *parent, uint32_t parent_c
     uint32_t slash = 0;
     uint32_t pos = 0;
     if (!path || path[0] != '/' || !parent || !name || parent_cap < 2 || name_cap == 0) {
-        return -LEONOS_EINVAL;
+        return -RELIEFOS_EINVAL;
     }
     for (uint32_t i = 0; path[i]; ++i) {
         if (path[i] == ':') {
-            return -LEONOS_EINVAL;
+            return -RELIEFOS_EINVAL;
         }
     }
     if (!path[1]) {
         if (parent_cap < 2 || name_cap < 2) {
-            return -LEONOS_ENAMETOOLONG;
+            return -RELIEFOS_ENAMETOOLONG;
         }
         parent[0] = '/';
         parent[1] = 0;
@@ -218,7 +218,7 @@ static int sidecar_parent_name(const char *path, char *parent, uint32_t parent_c
         parent[1] = 0;
     } else {
         if (slash + 1u > parent_cap) {
-            return -LEONOS_ENAMETOOLONG;
+            return -RELIEFOS_ENAMETOOLONG;
         }
         for (uint32_t i = 0; i < slash; ++i) {
             parent[i] = path[i];
@@ -227,12 +227,12 @@ static int sidecar_parent_name(const char *path, char *parent, uint32_t parent_c
     }
     for (uint32_t i = slash + 1u; path[i]; ++i) {
         if (pos + 1u >= name_cap) {
-            return -LEONOS_ENAMETOOLONG;
+            return -RELIEFOS_ENAMETOOLONG;
         }
         name[pos++] = path[i];
     }
     name[pos] = 0;
-    return name[0] ? 0 : -LEONOS_EINVAL;
+    return name[0] ? 0 : -RELIEFOS_EINVAL;
 }
 
 /**
@@ -247,7 +247,7 @@ static int sidecar_metadata_path(const char *directory, char *out, uint32_t cap)
     uint32_t pos = 0;
     const char *suffix = SIDECAR_FILE_NAME;
     if (!directory || !out || cap == 0) {
-        return -LEONOS_EINVAL;
+        return -RELIEFOS_EINVAL;
     }
     while (directory[pos] && pos + 1u < cap) {
         out[pos] = directory[pos];
@@ -255,18 +255,18 @@ static int sidecar_metadata_path(const char *directory, char *out, uint32_t cap)
     }
     out[pos] = 0;
     if (directory[pos]) {
-        return -LEONOS_ENAMETOOLONG;
+        return -RELIEFOS_ENAMETOOLONG;
     }
     if (pos > 1u) {
         if (pos + 1u >= cap) {
-            return -LEONOS_ENAMETOOLONG;
+            return -RELIEFOS_ENAMETOOLONG;
         }
         out[pos++] = '/';
         out[pos] = 0;
     }
     while (*suffix) {
         if (pos + 1u >= cap) {
-            return -LEONOS_ENAMETOOLONG;
+            return -RELIEFOS_ENAMETOOLONG;
         }
         out[pos++] = *suffix++;
         out[pos] = 0;
@@ -315,7 +315,7 @@ static int sidecar_volume_owns(const char *path)
 static int sidecar_load(const char *directory, const uint8_t **out_data,
                         uint32_t *out_len)
 {
-    char path[LEONOS_FS_PATH_LEN];
+    char path[RELIEFOS_FS_PATH_LEN];
     const void *data = 0;
     size_t length = 0;
     int ret = sidecar_metadata_path(directory, path, sizeof(path));
@@ -323,7 +323,7 @@ static int sidecar_load(const char *directory, const uint8_t **out_data,
         return ret;
     }
     ret = storage_read_file(path, &data, &length);
-    if (ret == -LEONOS_ENOENT) {
+    if (ret == -RELIEFOS_ENOENT) {
         *out_data = 0;
         *out_len = 0;
         return 0;
@@ -336,7 +336,7 @@ static int sidecar_load(const char *directory, const uint8_t **out_data,
             mm_free_pages((uint64_t)(uintptr_t)data,
                           sidecar_pages((uint32_t)length));
         }
-        return -LEONOS_EIO;
+        return -RELIEFOS_EIO;
     }
     *out_data = (const uint8_t *)data;
     *out_len = (uint32_t)length;
@@ -402,7 +402,7 @@ static int sidecar_next_record(const uint8_t *data, uint32_t length, uint32_t *c
         payload = sidecar_get_u16(data + pos + 2u);
         end = pos + SIDECAR_TLV_BYTES + (uint32_t)payload;
         if (payload < SIDECAR_RECORD_PREFIX_BYTES || end > length) {
-            return -LEONOS_EIO;
+            return -RELIEFOS_EIO;
         }
         *cursor = end;
         if (type != SIDECAR_TLV_RECORD && type != SIDECAR_TLV_POSIX) {
@@ -414,9 +414,9 @@ static int sidecar_next_record(const uint8_t *data, uint32_t length, uint32_t *c
         prefix = type == SIDECAR_TLV_POSIX ? SIDECAR_POSIX_PREFIX_BYTES
                                            : SIDECAR_RECORD_PREFIX_BYTES;
         needed = prefix + (uint32_t)name_length + (uint32_t)ace_count * SIDECAR_ACE_BYTES;
-        if (name_length == 0 || name_length >= LEONOS_FS_NAME_LEN ||
-            ace_count > LEONOS_FS_ACL_MAX_ACE || needed > (uint32_t)payload) {
-            return -LEONOS_EIO;
+        if (name_length == 0 || name_length >= RELIEFOS_FS_NAME_LEN ||
+            ace_count > RELIEFOS_FS_ACL_MAX_ACE || needed > (uint32_t)payload) {
+            return -RELIEFOS_EIO;
         }
         storage_memzero(out_record, sizeof(*out_record));
         out_record->owner_uid = sidecar_get_u32(body + 4u);
@@ -465,15 +465,15 @@ static int sidecar_emit_record(uint8_t *out, uint32_t capacity, uint32_t *pos,
                                        : SIDECAR_RECORD_PREFIX_BYTES;
     uint32_t payload = prefix + name_length + record->ace_count * SIDECAR_ACE_BYTES;
     uint8_t *body;
-    if (!name_length || name_length >= LEONOS_FS_NAME_LEN ||
-        record->ace_count > LEONOS_FS_ACL_MAX_ACE) {
-        return -LEONOS_EINVAL;
+    if (!name_length || name_length >= RELIEFOS_FS_NAME_LEN ||
+        record->ace_count > RELIEFOS_FS_ACL_MAX_ACE) {
+        return -RELIEFOS_EINVAL;
     }
     if (*count >= SIDECAR_MAX_RECORDS) {
-        return -LEONOS_ENOSPC;
+        return -RELIEFOS_ENOSPC;
     }
     if (*pos + SIDECAR_TLV_BYTES + payload > capacity) {
-        return -LEONOS_E2BIG;
+        return -RELIEFOS_E2BIG;
     }
     sidecar_put_u16(out + *pos, (uint16_t)(record->has_mode ? SIDECAR_TLV_POSIX
                                                            : SIDECAR_TLV_RECORD));
@@ -497,19 +497,19 @@ static int sidecar_emit_record(uint8_t *out, uint32_t capacity, uint32_t *pos,
         uint8_t *ace = out + *pos + i * SIDECAR_ACE_BYTES;
         sidecar_put_u32(ace, record->aces[i].principal);
         sidecar_put_u32(ace + 4u, 0);
-        sidecar_put_u32(ace + 8u, record->aces[i].permissions & LEONOS_FS_PERM_FULL);
+        sidecar_put_u32(ace + 8u, record->aces[i].permissions & RELIEFOS_FS_PERM_FULL);
     }
     *pos += record->ace_count * SIDECAR_ACE_BYTES;
     ++(*count);
     return 0;
 }
 
-/** @brief Map LEONOS_FS_PERM_* bits onto one POSIX rwx triplet. */
+/** @brief Map RELIEFOS_FS_PERM_* bits onto one POSIX rwx triplet. */
 static uint32_t sidecar_permissions_to_rwx(uint32_t bits)
 {
-    return ((bits & LEONOS_FS_PERM_READ) << 2) |
-           (bits & LEONOS_FS_PERM_WRITE) |
-           ((bits & LEONOS_FS_PERM_EXEC) >> 2);
+    return ((bits & RELIEFOS_FS_PERM_READ) << 2) |
+           (bits & RELIEFOS_FS_PERM_WRITE) |
+           ((bits & RELIEFOS_FS_PERM_EXEC) >> 2);
 }
 
 /**
@@ -519,19 +519,19 @@ static uint32_t sidecar_permissions_to_rwx(uint32_t bits)
  *            these records were first written.
  */
 static void sidecar_record_permissions(const struct sidecar_record *record,
-                                       struct leonos_permissions *out)
+                                       struct reliefos_permissions *out)
 {
     uint32_t owner_bits = 0;
     uint32_t other_bits = 0;
     uint32_t other;
     for (uint32_t i = 0; i < record->ace_count; ++i) {
-        const struct leonos_fs_acl_ace *ace = &record->aces[i];
-        if (ace->principal == LEONOS_FS_ACL_PRINCIPAL_OWNER ||
-            (!record->owner_uid && ace->principal == LEONOS_FS_ACL_PRINCIPAL_SYSTEM)) {
+        const struct reliefos_fs_acl_ace *ace = &record->aces[i];
+        if (ace->principal == RELIEFOS_FS_ACL_PRINCIPAL_OWNER ||
+            (!record->owner_uid && ace->principal == RELIEFOS_FS_ACL_PRINCIPAL_SYSTEM)) {
             owner_bits |= ace->permissions;
         }
-        if (ace->principal == LEONOS_FS_ACL_PRINCIPAL_USERS ||
-            ace->principal == LEONOS_FS_ACL_PRINCIPAL_EVERYONE) {
+        if (ace->principal == RELIEFOS_FS_ACL_PRINCIPAL_USERS ||
+            ace->principal == RELIEFOS_FS_ACL_PRINCIPAL_EVERYONE) {
             other_bits |= ace->permissions;
         }
     }
@@ -548,7 +548,7 @@ static void sidecar_record_permissions(const struct sidecar_record *record,
  * @param out Output metadata; root-owned, with the group copied from the owner
  *            because a sidecar volume has no separate group authority.
  */
-static void sidecar_default_permissions(const char *path, struct leonos_permissions *out)
+static void sidecar_default_permissions(const char *path, struct reliefos_permissions *out)
 {
     uint32_t other_bits = 0;
     uint32_t other;
@@ -560,13 +560,13 @@ static void sidecar_default_permissions(const char *path, struct leonos_permissi
     }
     if (storage_text_eq(path, "/tmp") || sidecar_path_under(path, "/tmp") ||
         storage_text_eq(path, "/var/tmp") || sidecar_path_under(path, "/var/tmp")) {
-        other_bits = LEONOS_FS_PERM_FULL;
-    } else if (storage_text_eq(path, LEONOS_PATH_DISPLAY_CONF) ||
-               storage_text_eq(path, LEONOS_PATH_LOCALE_CONF) ||
-               storage_text_eq(path, LEONOS_PATH_OOBE_DONE)) {
-        other_bits = LEONOS_FS_PERM_READ | LEONOS_FS_PERM_WRITE;
+        other_bits = RELIEFOS_FS_PERM_FULL;
+    } else if (storage_text_eq(path, RELIEFOS_PATH_DISPLAY_CONF) ||
+               storage_text_eq(path, RELIEFOS_PATH_LOCALE_CONF) ||
+               storage_text_eq(path, RELIEFOS_PATH_OOBE_DONE)) {
+        other_bits = RELIEFOS_FS_PERM_READ | RELIEFOS_FS_PERM_WRITE;
     } else if (sidecar_path_is_system_tree(path)) {
-        other_bits = LEONOS_FS_PERM_READ | LEONOS_FS_PERM_EXEC;
+        other_bits = RELIEFOS_FS_PERM_READ | RELIEFOS_FS_PERM_EXEC;
     }
     /* The owner triplet is always rwx: the synthetic owner is the system
      * principal, which holds every permission bit. */
@@ -586,10 +586,10 @@ static void sidecar_default_permissions(const char *path, struct leonos_permissi
  * @return Zero, -EINVAL for a malformed path, or -EIO when the directory's
  *         sidecar is damaged (a default is never substituted for it).
  */
-static int sidecar_fetch(const char *path, struct leonos_permissions *out)
+static int sidecar_fetch(const char *path, struct reliefos_permissions *out)
 {
-    char parent[LEONOS_FS_PATH_LEN];
-    char name[LEONOS_FS_NAME_LEN];
+    char parent[RELIEFOS_FS_PATH_LEN];
+    char name[RELIEFOS_FS_NAME_LEN];
     const uint8_t *image = 0;
     uint32_t length = 0;
     uint32_t cursor = SIDECAR_HEADER_BYTES;
@@ -604,13 +604,13 @@ static int sidecar_fetch(const char *path, struct leonos_permissions *out)
     }
     if (sidecar_is_corrupt(image, length)) {
         sidecar_unload(image, length);
-        return -LEONOS_EIO;
+        return -RELIEFOS_EIO;
     }
     while (image) {
         ret = sidecar_next_record(image, length, &cursor, &record);
         if (ret < 0) {
             sidecar_unload(image, length);
-            return -LEONOS_EIO;
+            return -RELIEFOS_EIO;
         }
         if (ret == 0) {
             break;
@@ -649,7 +649,7 @@ static int sidecar_fetch(const char *path, struct leonos_permissions *out)
  * normalized them.
  */
 static int sidecar_edit(const char *directory, const char *name, enum sidecar_edit edit,
-                        const struct leonos_permissions *value, const char *new_name)
+                        const struct reliefos_permissions *value, const char *new_name)
 {
     const uint8_t *image = 0;
     uint32_t length = 0;
@@ -658,7 +658,7 @@ static int sidecar_edit(const char *directory, const char *name, enum sidecar_ed
     uint32_t count = 0;
     uint64_t phys;
     uint8_t *updated;
-    char path[LEONOS_FS_PATH_LEN];
+    char path[RELIEFOS_FS_PATH_LEN];
     struct sidecar_record record;
     struct sidecar_record candidate;
     int replaced = 0;
@@ -667,10 +667,10 @@ static int sidecar_edit(const char *directory, const char *name, enum sidecar_ed
     int ret;
 
     if (edit == SIDECAR_EDIT_SET && !value) {
-        return -LEONOS_EINVAL;
+        return -RELIEFOS_EINVAL;
     }
     if (edit == SIDECAR_EDIT_RENAME && (!new_name || !new_name[0])) {
-        return -LEONOS_EINVAL;
+        return -RELIEFOS_EINVAL;
     }
     if (edit == SIDECAR_EDIT_RENAME && sidecar_names_match(name, new_name)) {
         return 0;
@@ -681,7 +681,7 @@ static int sidecar_edit(const char *directory, const char *name, enum sidecar_ed
     }
     if (sidecar_is_corrupt(image, length)) {
         sidecar_unload(image, length);
-        return edit == SIDECAR_EDIT_SET ? -LEONOS_EIO : 0;
+        return edit == SIDECAR_EDIT_SET ? -RELIEFOS_EIO : 0;
     }
     if (!image && edit != SIDECAR_EDIT_SET) {
         /* Nothing is tracked in this directory, so there is nothing to drop
@@ -699,7 +699,7 @@ static int sidecar_edit(const char *directory, const char *name, enum sidecar_ed
     phys = mm_alloc_pages(SIDECAR_MAX_PAGES);
     if (!phys) {
         sidecar_unload(image, length);
-        return -LEONOS_ENOMEM;
+        return -RELIEFOS_ENOMEM;
     }
     updated = (uint8_t *)(uintptr_t)phys;
     storage_memzero(updated, SIDECAR_MAX_BYTES);
@@ -746,7 +746,7 @@ static int sidecar_edit(const char *directory, const char *name, enum sidecar_ed
     if (corrupt) {
         mm_free_pages(phys, SIDECAR_MAX_PAGES);
         sidecar_unload(image, length);
-        return edit == SIDECAR_EDIT_SET ? -LEONOS_EIO : 0;
+        return edit == SIDECAR_EDIT_SET ? -RELIEFOS_EIO : 0;
     }
     if (ret == 0 && edit == SIDECAR_EDIT_SET && !replaced) {
         ret = sidecar_emit_record(updated, SIDECAR_MAX_BYTES, &position, &count,
@@ -773,14 +773,14 @@ static int sidecar_edit(const char *directory, const char *name, enum sidecar_ed
     return ret;
 }
 
-int storage_sidecar_permissions(const char *path, struct leonos_permissions *value,
+int storage_sidecar_permissions(const char *path, struct reliefos_permissions *value,
                                 bool write)
 {
-    char parent[LEONOS_FS_PATH_LEN];
-    char name[LEONOS_FS_NAME_LEN];
+    char parent[RELIEFOS_FS_PATH_LEN];
+    char name[RELIEFOS_FS_NAME_LEN];
     int ret;
     if (!path || !value) {
-        return -LEONOS_EINVAL;
+        return -RELIEFOS_EINVAL;
     }
     if (!write) {
         return sidecar_fetch(path, value);
@@ -794,8 +794,8 @@ int storage_sidecar_permissions(const char *path, struct leonos_permissions *val
 
 int storage_sidecar_note_deleted(const char *path)
 {
-    char parent[LEONOS_FS_PATH_LEN];
-    char name[LEONOS_FS_NAME_LEN];
+    char parent[RELIEFOS_FS_PATH_LEN];
+    char name[RELIEFOS_FS_NAME_LEN];
     int ret;
     if (!path || !sidecar_volume_owns(path)) {
         return 0;
@@ -809,10 +809,10 @@ int storage_sidecar_note_deleted(const char *path)
 
 int storage_sidecar_note_renamed(const char *path, const char *new_path)
 {
-    char old_parent[LEONOS_FS_PATH_LEN];
-    char new_parent[LEONOS_FS_PATH_LEN];
-    char old_name[LEONOS_FS_NAME_LEN];
-    char new_name[LEONOS_FS_NAME_LEN];
+    char old_parent[RELIEFOS_FS_PATH_LEN];
+    char new_parent[RELIEFOS_FS_PATH_LEN];
+    char old_name[RELIEFOS_FS_NAME_LEN];
+    char new_name[RELIEFOS_FS_NAME_LEN];
     int ret;
     if (!path || !new_path || !sidecar_volume_owns(new_path)) {
         return 0;

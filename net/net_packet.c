@@ -1,14 +1,14 @@
 /* Raw IPv4 and Ethernet sockets. Serialized by the kernel execution lock. */
-#include <ntclks/net_packet.h>
-#include <ntclks/net.h>
-#include <ntclks/e1000.h>
-#include <ntclks/heap.h>
-#include <ntclks/sched.h>
-#include <ntclks/syscall.h>
-#include <ntclks/syscall_internal.h>
-#include <ntclks/usercopy.h>
-#include <ntclks/time.h>
-#include <ntclks/futex.h>
+#include <reliefnt/net_packet.h>
+#include <reliefnt/net.h>
+#include <reliefnt/e1000.h>
+#include <reliefnt/heap.h>
+#include <reliefnt/sched.h>
+#include <reliefnt/syscall.h>
+#include <reliefnt/syscall_internal.h>
+#include <reliefnt/usercopy.h>
+#include <reliefnt/time.h>
+#include <reliefnt/futex.h>
 #include <linux/socket.h>
 #include <linux/if_packet.h>
 #include <linux/capability.h>
@@ -164,7 +164,7 @@ int task_packet_recv(struct task_file *file, void *data, uint32_t length,
     if (flags & ~(MSG_DONTWAIT | MSG_PEEK | MSG_TRUNC | MSG_WAITALL)) return -LINUX_EOPNOTSUPP;
     net_poll_packets();
     if (!s->head) {
-        if ((file->flags & LEONOS_O_NONBLOCK) || (flags & MSG_DONTWAIT)) return -LINUX_EAGAIN;
+        if ((file->flags & RELIEFOS_O_NONBLOCK) || (flags & MSG_DONTWAIT)) return -LINUX_EAGAIN;
         struct task *task = sched_current_task();
         uint64_t now = time_ticks();
         if (!task->socket_io_deadline) {
@@ -268,11 +268,11 @@ int64_t syscall_packet(uint64_t number, uint64_t a0, uint64_t a1, uint64_t a2,
         *s = (struct packet_socket){.domain = (int)a0, .type = type, .protocol = (int)a2,
             .hdrincl = (int)a0 == AF_INET && (int)a2 == 255};
         sockets[index] = s;
-        file->flags = TASK_FILE_FLAG_SOCKET | TASK_FILE_FLAG_SOCKET_INET | LEONOS_O_RDWR | (a1 & SOCK_NONBLOCK ? LEONOS_O_NONBLOCK : 0);
-        file->fd_flags = a1 & SOCK_CLOEXEC ? LEONOS_FD_CLOEXEC : 0;
+        file->flags = TASK_FILE_FLAG_SOCKET | TASK_FILE_FLAG_SOCKET_INET | RELIEFOS_O_RDWR | (a1 & SOCK_NONBLOCK ? RELIEFOS_O_NONBLOCK : 0);
+        file->fd_flags = a1 & SOCK_CLOEXEC ? RELIEFOS_FD_CLOEXEC : 0;
         file->kind = TASK_FILE_KIND_PACKET;
         file->aux = (uintptr_t)s;
-        file->node.type = LEONOS_FS_TYPE_DEVICE;
+        file->node.type = RELIEFOS_FS_TYPE_DEVICE;
         return fd;
     }
     struct task_file *file = task_file_for_fd(task, (int32_t)a0);
@@ -297,7 +297,7 @@ int64_t syscall_packet(uint64_t number, uint64_t a0, uint64_t a1, uint64_t a2,
             if (address.sin_family != AF_INET) return -LINUX_EAFNOSUPPORT;
             if (number == __NR_connect) s->remote_ip = address.sin_addr.s_addr;
             else {
-                struct leonos_net_config config;
+                struct reliefos_net_config config;
                 net_get_config(&config);
                 if (address.sin_addr.s_addr && address.sin_addr.s_addr != __builtin_bswap32(config.local_ip))
                     return -LINUX_EADDRNOTAVAIL;
@@ -314,8 +314,8 @@ int64_t syscall_packet(uint64_t number, uint64_t a0, uint64_t a1, uint64_t a2,
             __builtin_memcpy(timeout, (void *)(uintptr_t)a3, sizeof(timeout));
             if (timeout[1] < 0 || timeout[1] >= 1000000) return -LINUX_EDOM;
             if (timeout[0] < 0) s->timeout = 1;
-            else if ((uint64_t)timeout[0] > (UINT64_MAX - NTCLKS_TICK_HZ) / NTCLKS_TICK_HZ) s->timeout = UINT64_MAX;
-            else s->timeout = timeout[0] * NTCLKS_TICK_HZ + (timeout[1] * NTCLKS_TICK_HZ + 999999) / 1000000;
+            else if ((uint64_t)timeout[0] > (UINT64_MAX - RELIEFNT_TICK_HZ) / RELIEFNT_TICK_HZ) s->timeout = UINT64_MAX;
+            else s->timeout = timeout[0] * RELIEFNT_TICK_HZ + (timeout[1] * RELIEFNT_TICK_HZ + 999999) / 1000000;
             return 0;
         }
         if (!((int)a1 == SOL_SOCKET && (int)a2 == 6) &&

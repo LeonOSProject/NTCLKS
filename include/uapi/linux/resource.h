@@ -1,5 +1,5 @@
-#ifndef LEONOS_UAPI_LINUX_RESOURCE_H
-#define LEONOS_UAPI_LINUX_RESOURCE_H
+#ifndef RELIEFOS_UAPI_LINUX_RESOURCE_H
+#define RELIEFOS_UAPI_LINUX_RESOURCE_H
 
 #include <stdint.h>
 #include <linux/time.h>

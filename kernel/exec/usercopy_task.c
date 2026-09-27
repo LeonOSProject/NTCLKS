@@ -1,7 +1,7 @@
-#include <ntclks/usercopy.h>
-#include <ntclks/sched.h>
-#include <ntclks/paging.h>
-#include <ntclks/syscall.h>
+#include <reliefnt/usercopy.h>
+#include <reliefnt/sched.h>
+#include <reliefnt/paging.h>
+#include <reliefnt/syscall.h>
 #include <linux/errno.h>
 
 /**
@@ -15,8 +15,8 @@
 int user_copy_to_task(struct task *task, uint64_t address, const void *source, uint64_t size)
 {
     if (!size) return 0;
-    if (!task || address < NTCLKS_USER_BASE || address >= NTCLKS_USER_TOP ||
-        size > NTCLKS_USER_TOP - address) return -LINUX_EFAULT;
+    if (!task || address < RELIEFNT_USER_BASE || address >= RELIEFNT_USER_TOP ||
+        size > RELIEFNT_USER_TOP - address) return -LINUX_EFAULT;
     for (uint64_t copied = 0; copied < size;) {
         uint64_t destination = address + copied;
         if (!address_space_user_page_writable(sched_task_as(task), destination)) {
@@ -28,7 +28,7 @@ int user_copy_to_task(struct task *task, uint64_t address, const void *source, u
         uint64_t offset = destination & 4095u, take = 4096u - offset;
         if (!phys) return -LINUX_EFAULT;
         if (take > size - copied) take = size - copied;
-        __builtin_memcpy((void *)(uintptr_t)(NTCLKS_KERNEL_DIRECT_MAP_BASE + phys + offset),
+        __builtin_memcpy((void *)(uintptr_t)(RELIEFNT_KERNEL_DIRECT_MAP_BASE + phys + offset),
                          (const uint8_t *)source + copied, take);
         copied += take;
     }

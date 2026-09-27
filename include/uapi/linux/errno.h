@@ -1,5 +1,5 @@
-#ifndef LEONOS_UAPI_LINUX_ERRNO_H
-#define LEONOS_UAPI_LINUX_ERRNO_H
+#ifndef RELIEFOS_UAPI_LINUX_ERRNO_H
+#define RELIEFOS_UAPI_LINUX_ERRNO_H
 
 /* Linux v6.12 asm-generic errno-base.h and errno.h, native x86-64.
  * Public E* names also support libc headers that include linux/errno.h. */

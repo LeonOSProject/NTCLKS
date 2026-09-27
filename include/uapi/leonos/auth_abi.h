@@ -1,27 +1,17 @@
+/* Transitional compatibility forwarder (ReliefOS / ReliefNT rename).
+ * Canonical declarations: <reliefos/auth_abi.h>.
+ * No second layout definition exists behind these names. */
 #ifndef LEONOS_UAPI_AUTH_ABI_H
 #define LEONOS_UAPI_AUTH_ABI_H
-/*
- * Authentication wire ABI between ntclks and userland. Userland wrappers live
- * in <leonos/auth.h>. UAPI only: nothing here may include a non-UAPI header.
- */
+#include <reliefos/auth_abi.h>
 
-#include <stdint.h>
-#include <leonos/auth_user.h>
-
-#define LEONOS_AUTH_ROLE_NONE 0U
-#define LEONOS_AUTH_ROLE_USER 1U
-#define LEONOS_AUTH_ROLE_ADMIN 2U
-
-#define LEONOS_AUTH_USER_DISABLED 0x00000001U
-
-#define LEONOS_AUTH_UPDATE_ROLE 0x00000001U
-#define LEONOS_AUTH_UPDATE_FLAGS 0x00000002U
-
-struct leonos_auth_status {
-    uint32_t user_count;
-    uint32_t has_admin;
-    uint32_t reserved0;
-    uint32_t reserved1;
-};
+/* Old names are macro aliases to the same declarations. */
+#define LEONOS_AUTH_ROLE_ADMIN RELIEFOS_AUTH_ROLE_ADMIN
+#define LEONOS_AUTH_ROLE_NONE RELIEFOS_AUTH_ROLE_NONE
+#define LEONOS_AUTH_ROLE_USER RELIEFOS_AUTH_ROLE_USER
+#define LEONOS_AUTH_UPDATE_FLAGS RELIEFOS_AUTH_UPDATE_FLAGS
+#define LEONOS_AUTH_UPDATE_ROLE RELIEFOS_AUTH_UPDATE_ROLE
+#define LEONOS_AUTH_USER_DISABLED RELIEFOS_AUTH_USER_DISABLED
+#define leonos_auth_status reliefos_auth_status
 
 #endif /* LEONOS_UAPI_AUTH_ABI_H */

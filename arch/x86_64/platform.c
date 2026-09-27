@@ -1,9 +1,9 @@
 /*
- * LeonOS platform support: handles firmware-provided platform information.
+ * ReliefOS platform support: handles firmware-provided platform information.
  * Converts EFI tables and platform services into kernel boot abstractions.
  */
-#include <ntclks/console.h>
-#include <ntclks/platform.h>
+#include <reliefnt/console.h>
+#include <reliefnt/platform.h>
 
 struct efi_guid {
     uint32_t data1;
@@ -77,7 +77,7 @@ struct __attribute__((packed)) smbios_header {
     uint16_t handle;
 };
 
-static struct leonos_machine_identity platform_identity;
+static struct reliefos_machine_identity platform_identity;
 static struct platform_dmi_info platform_dmi_data;
 
 /**
@@ -182,7 +182,7 @@ static void format_uuid_raw(const uint8_t uuid[16], char *out, uint32_t cap, boo
         0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
     };
     uint32_t pos = 0;
-    if (!out || cap < LEONOS_MACHINE_IDENTITY_UUID_LEN) {
+    if (!out || cap < RELIEFOS_MACHINE_IDENTITY_UUID_LEN) {
         if (out && cap) {
             out[0] = 0;
         }
@@ -292,7 +292,7 @@ static int parse_smbios_table(uint64_t table_addr, uint32_t table_len, bool litt
             if (uuid_valid(uuid)) {
                 format_uuid_raw(uuid, platform_identity.platform_uuid,
                                 sizeof(platform_identity.platform_uuid), little_endian);
-                platform_identity.flags |= LEONOS_MACHINE_IDENTITY_FLAG_PLATFORM_UUID;
+                platform_identity.flags |= RELIEFOS_MACHINE_IDENTITY_FLAG_PLATFORM_UUID;
                 copy_text(platform_identity.source, sizeof(platform_identity.source),
                           "smbios-system-uuid");
                 copy_text(platform_dmi_data.values[7],sizeof(platform_dmi_data.values[7]),platform_identity.platform_uuid);
@@ -349,12 +349,12 @@ void platform_identity_init(const struct boot_info *boot)
         {0x9aU, 0x16U, 0x00U, 0x90U, 0x27U, 0x3fU, 0xc1U, 0x4dU},
     };
     struct efi_system_table *st;
-    platform_identity = (struct leonos_machine_identity){0};
+    platform_identity = (struct reliefos_machine_identity){0};
     platform_dmi_data = (struct platform_dmi_info){0};
-    platform_identity.version = LEONOS_MACHINE_IDENTITY_VERSION;
+    platform_identity.version = RELIEFOS_MACHINE_IDENTITY_VERSION;
     copy_text(platform_identity.source, sizeof(platform_identity.source), "unavailable");
     if (!boot || !boot->efi_system_table) {
-        console_printf("[ntclks] platform identity unavailable: no EFI system table\n");
+        console_printf("[reliefnt] platform identity unavailable: no EFI system table\n");
         return;
     }
     st = (struct efi_system_table *)(uintptr_t)boot->efi_system_table;
@@ -363,14 +363,14 @@ void platform_identity_init(const struct boot_info *boot)
                   sizeof(platform_identity.firmware_vendor),
                   st->firmware_vendor);
     if (!st->configuration_table || st->number_of_table_entries > 256ULL) {
-        console_printf("[ntclks] platform identity unavailable: no EFI config table\n");
+        console_printf("[reliefnt] platform identity unavailable: no EFI config table\n");
         return;
     }
     for (uint64_t i = 0; i < st->number_of_table_entries; ++i) {
         struct efi_configuration_table *table = &st->configuration_table[i];
         if (guid_equal(&table->vendor_guid, &smbios3_guid) &&
             parse_smbios3(table->vendor_table) == 0) {
-            console_printf("[ntclks] platform inventory source=SMBIOS3 uuid=%s\n",
+            console_printf("[reliefnt] platform inventory source=SMBIOS3 uuid=%s\n",
                            platform_identity.platform_uuid);
             return;
         }
@@ -379,18 +379,18 @@ void platform_identity_init(const struct boot_info *boot)
         struct efi_configuration_table *table = &st->configuration_table[i];
         if (guid_equal(&table->vendor_guid, &smbios2_guid) &&
             parse_smbios2(table->vendor_table) == 0) {
-            console_printf("[ntclks] platform inventory source=SMBIOS2 uuid=%s\n",
+            console_printf("[reliefnt] platform inventory source=SMBIOS2 uuid=%s\n",
                            platform_identity.platform_uuid);
             return;
         }
     }
-    console_printf("[ntclks] platform identity unavailable: no usable SMBIOS table\n");
+    console_printf("[reliefnt] platform identity unavailable: no usable SMBIOS table\n");
 }
 
 /**
  * @brief Copy the cached machine identity into *identity.
  */
-void platform_machine_identity(struct leonos_machine_identity *identity)
+void platform_machine_identity(struct reliefos_machine_identity *identity)
 {
     if (!identity) {
         return;

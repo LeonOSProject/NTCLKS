@@ -15,7 +15,7 @@ int storage_tmpfs_get_page(const struct storage_node *node, uint64_t offset, uin
 int storage_mount_tmpfs(const char *source, const char *target, uint64_t mount_flags, const char *options,
                         uint32_t uid, uint32_t gid)
 {
-    if (!target || !source || storage_strlen(source) >= LEONOS_FS_PATH_LEN)
+    if (!target || !source || storage_strlen(source) >= RELIEFOS_FS_PATH_LEN)
         return -22;
     uint64_t flags;
     kernel_execution_lock_irqsave(&flags);
@@ -24,7 +24,7 @@ int storage_mount_tmpfs(const char *source, const char *target, uint64_t mount_f
     int ret = storage_lookup_path(target, &node);
     if (ret < 0)
         goto out;
-    if (node.type != LEONOS_FS_TYPE_DIR) {
+    if (node.type != RELIEFOS_FS_TYPE_DIR) {
         ret = -20;
         goto out;
     }
