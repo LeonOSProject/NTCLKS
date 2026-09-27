@@ -814,6 +814,12 @@ static void fb_console_initialize_fullscreen(void)
     fb_console_reset_attributes();
     fb_console_reset_ansi();
     framebuffer_rect(0, 0, fb->width, fb->height, console_panel());
+    /* The repaint covers the whole screen, so it must be published as a
+     * whole: the scanout only refreshes regions an update command names, and
+     * the grid (`fb_rows * LEONOS_FONT_H`) cannot reach the remainder strip
+     * below the last font row. Publishing only the grid left that strip
+     * showing the previous graphical picture after a switch to text. */
+    framebuffer_present();
 }
 
 static void console_emit_raw(char ch)
