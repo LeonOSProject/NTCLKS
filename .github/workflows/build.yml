@@ -1,0 +1,69 @@
+# Build verification for the standalone NTCLKS kernel tree: every push and
+# pull request must prove `make all` produces all nine kernel products
+# (kernel.sys, kernel.debug, loader.elf, five .drv drivers, kerneldebug.sys).
+# Build-only by design: no tests, no artifact upload.
+
+name: Build NTCLKS
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ntclks-build-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          # third_party/kconfig-frontends is built from source to derive .config;
+          # a missing submodule fails the build by design.
+          submodules: recursive
+          persist-credentials: false
+
+      # Toolchain for the kernel products (clang/lld/llvm), HOSTCC plus the
+      # autotools chain kconfig-frontends' bootstrap needs. Subset of the
+      # known-good LeonOS-4 ubuntu-24.04 package set.
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            clang \
+            libclang-rt-dev \
+            llvm \
+            lld \
+            git \
+            make \
+            bison \
+            flex \
+            gperf \
+            gettext \
+            perl \
+            libncurses-dev \
+            bc \
+            pkg-config \
+            autoconf \
+            automake \
+            libtool \
+            libtool-bin \
+            gawk \
+            ncurses-bin
+
+      # The build itself never downloads: it verifies cache/downloads against
+      # configs/dependencies.lock.json and stops when bytes are missing.
+      - name: Fetch locked dependencies
+        run: make fetch
+
+      - name: Build all products
+        run: make all
