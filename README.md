@@ -8,7 +8,7 @@
 （mouse/serial/e1000/ac97/es1371）与 `kerneldebug.sys`。本仓库不含用户态、镜像
 或打包目标。
 
-在父仓库 [LeonOS-4](https://github.com/LeonOSProject/LeonOS-4) 中，本仓库挂载于
+在父仓库 [ReliefOS](https://github.com/ReliefOSProject/ReliefOS) 中，本仓库挂载于
 `kernel/reliefnt/`。
 
 许可证：Apache License 2.0（见 [LICENSE](LICENSE)），第三方组件的归属与许可见
@@ -17,7 +17,7 @@
 ## 获取
 
 ```sh
-git clone --recurse-submodules https://github.com/LeonOSProject/NTCLKS.git
+git clone --recurse-submodules https://github.com/ReliefOSProject/ReliefNT.git
 cd ReliefNT
 # 若克隆时未带 --recurse-submodules：
 git submodule update --init --recursive

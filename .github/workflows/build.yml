@@ -33,7 +33,7 @@ jobs:
 
       # Toolchain for the kernel products (clang/lld/llvm), HOSTCC plus the
       # autotools chain kconfig-frontends' bootstrap needs. Subset of the
-      # known-good LeonOS-4 ubuntu-24.04 package set.
+      # known-good ReliefOS ubuntu-24.04 package set.
       - name: Install dependencies
         run: |
           sudo apt-get update
