@@ -21,12 +21,13 @@ ReliefOS-specific extensions. Neither i386 nor x32 is included.
 - SDK packagers export this directory without flattening `linux/` and
   `reliefos/`. Current source headers override legacy `devtools/include` templates.
   Build the SDK archive; the checked-in template is not a current sysroot.
-- Run `python3 build.py test uapi` after changing wire declarations. Compile
+- Run `python3 tools/test_uapi.py` in the main repository after changing wire declarations. Compile
   checks only certify declarations. Syscall behavior, errors, blocking, signal
   delivery and object lifetime require separate guest regression evidence.
 
 ABI 1 binaries must be rebuilt after the Linux boundary corrections. The musl
-runtime uses `/lib/ld-musl-x86_64.so.1` and `libleonos.so.2`; its FILE, errno, TLS
+runtime uses `/lib/ld-musl-x86_64.so.1` and canonical `libreliefos.so.2`;
+`libleonos.so.2` remains a separately linked compatibility SONAME. Its FILE, errno, TLS
 and allocation objects cannot be mixed with the Picolibc runtime. See
 `docs/MUSL_MIGRATION_2026-09-08.md` for current migration and guest-test status.
 
