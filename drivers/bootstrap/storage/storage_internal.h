@@ -434,6 +434,10 @@ struct __attribute__((packed)) ext2_dirent {
 
 #define EXT4_SUPERBLOCK_OFFSET 1024u
 #define EXT4_SUPERBLOCK_SIZE 1024u
+/* On-disk offset of s_checksum_seed (linux/fs/ext4/ext4.h:1369).  Named
+ * here so storage_ext4_parse_super and the host tests share one spelling;
+ * keep the replacement list token-identical to the tests' local copy. */
+#define SB_CHECKSUM_SEED 0x270
 #define EXT4_SUPER_MAGIC 0xef53u
 #define EXT4_EXT_MAGIC 0xf30au
 #define EXT4_MIN_BLOCK_SIZE 1024u
@@ -513,6 +517,7 @@ struct storage_ext4_super_view {
     uint32_t feature_incompat;
     uint32_t feature_ro_compat;
     uint32_t journal_inum;
+    uint32_t checksum_seed; /* s_checksum_seed @0x270 (CSUM_SEED feature) */
     uint8_t uuid[16];
     char volume_name[17];
 };
@@ -575,6 +580,46 @@ int storage_ext4_parse_group_desc(const uint8_t *raw, uint32_t raw_len,
                                   uint32_t desc_size, struct storage_ext4_group_view *out);
 int storage_ext4_parse_extent_header(const uint8_t *raw, uint32_t raw_len,
                                      struct storage_ext4_extent_header_view *out);
+
+/* ---- ext4 metadata checksums ----------------------------------------
+ * Linux-compatible checksum layer (linux/fs/ext4/{super.c,inode.c} and
+ * linux/lib/crc/crc16.c, Linux v7.3-rc5 reference tree).  Pure functions
+ * over caller-provided buffers: verify() never writes, update() stamps the
+ * checksum field (little-endian) of the buffer it was given and nothing
+ * else.  The verify/update entry points return 0 on match/write, 0 without
+ * touching the buffer when the relevant checksum feature is off (super and
+ * inode: METADATA_CSUM; group descriptor: METADATA_CSUM or GDT_CSUM),
+ * -RELIEFOS_EIO on a checksum mismatch, and -RELIEFOS_EINVAL for NULL
+ * pointers or out-of-range sizes (superblock below EXT4_SUPERBLOCK_SIZE,
+ * desc_size outside 32..256 or not a multiple of 4, inode_size outside
+ * 128..EXT4_MAX_BLOCK_SIZE or not a multiple of 128).
+ *
+ * inode checksums additionally presuppose s_creator_os == EXT4_OS_LINUX(0)
+ * as in Linux; that field is not part of the super view, so callers must
+ * not checksum inodes of non-Linux-created filesystems.  Whether the
+ * i_checksum_hi slot at 0x82 takes part follows EXT4_FITS_IN_INODE
+ * (i_extra_isize >= 4): where it does not fit, 0x82 onward is ordinary
+ * hash input and only the low 16 bits at 0x7C are stored or compared.
+ * The legacy gdt_csum chain only hashes the descriptor tail past
+ * bg_checksum when INCOMPAT_64BIT is set (super.c:3293-3295). */
+uint32_t storage_ext4_crc32c(uint32_t seed, const uint8_t *data, uint32_t len);
+uint16_t storage_ext4_crc16(uint16_t seed, const uint8_t *data, uint32_t len);
+uint32_t storage_ext4_super_csum_seed(const struct storage_ext4_super_view *view);
+int storage_ext4_verify_super_checksum(const uint8_t *sb_raw, uint32_t sb_len);
+int storage_ext4_update_super_checksum(uint8_t *sb_raw, uint32_t sb_len);
+int storage_ext4_verify_group_checksum(const uint8_t *gd_raw, uint32_t desc_size,
+                                       uint32_t group,
+                                       const struct storage_ext4_super_view *view);
+int storage_ext4_update_group_checksum(uint8_t *gd_raw, uint32_t desc_size,
+                                       uint32_t group,
+                                       const struct storage_ext4_super_view *view);
+int storage_ext4_verify_inode_checksum(const uint8_t *ino_raw,
+                                       uint32_t inode_size, uint32_t ino,
+                                       uint32_t generation,
+                                       const struct storage_ext4_super_view *view);
+int storage_ext4_update_inode_checksum(uint8_t *ino_raw, uint32_t inode_size,
+                                       uint32_t ino, uint32_t generation,
+                                       const struct storage_ext4_super_view *view);
 
 struct nvme_controller;
 

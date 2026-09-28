@@ -213,6 +213,7 @@ int storage_ext4_parse_super(const uint8_t *raw, uint32_t raw_len,
     out->feature_incompat = incompat;
     out->feature_ro_compat = ro_compat;
     out->journal_inum = ext4_get_le32(raw + SB_JOURNAL_INUM);
+    out->checksum_seed = ext4_get_le32(raw + SB_CHECKSUM_SEED);
     for (i = 0; i < 16; i++)
         out->uuid[i] = raw[SB_UUID + i];
     for (i = 0; i < 16; i++)
