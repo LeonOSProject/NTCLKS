@@ -85,6 +85,26 @@ static void storage_copy_disk_transport(struct storage_volume *volume,
     storage_volume_from_install_disk(volume, disk);
 }
 
+/* "exFAT -> ext-family probe" root route: the unified parser mounts ext4
+ * (and classifies) first; a pure ext2 classification or a probe that cannot
+ * recognize the image as ext-family falls back to the legacy ext2 backend
+ * unchanged (spec section 8 keeps it until the ext4 backend passes the ext2
+ * compatibility tests).  A feature-policy rejection is final: the legacy
+ * ext2 backend would mount known-unsupported or unknown features read-write,
+ * which the global constraint forbids, so it never sees such images. */
+static int storage_mount_ext_family(struct storage_volume *root)
+{
+    int ret = storage_ext4_mount(root);
+    if (ret == 0 && root->filesystem == STORAGE_FILESYSTEM_EXT4) {
+        return 0;
+    }
+    if (ret == -RELIEFOS_EOPNOTSUPP) {
+        return ret;
+    }
+    storage_ext4_state_reset(root);
+    return ext2_mount();
+}
+
 static int storage_try_mount_root_disk(struct install_disk_state *disk)
 {
     struct storage_volume *root = &g_volumes[STORAGE_VOLUME_ROOT];
@@ -109,11 +129,11 @@ static int storage_try_mount_root_disk(struct install_disk_state *disk)
                            (unsigned int)root->exfat_sector_count);
             ret = exfat_mount();
             console_printf("[reliefnt] exfat_mount returned %d\n", ret);
-            if (ret < 0 && root->ext2_start_lba) {
-                ret = ext2_mount();
+            if (ret < 0 && root->ext_start_lba) {
+                ret = storage_mount_ext_family(root);
             }
-        } else if (root->ext2_start_lba) {
-            ret = ext2_mount();
+        } else if (root->ext_start_lba) {
+            ret = storage_mount_ext_family(root);
         } else {
             /* A GPT disk with an ESP but no recognized root must fail
              * explicitly. Mounting the ESP as / leaves a seemingly bootable
@@ -133,8 +153,12 @@ static int storage_try_mount_root_disk(struct install_disk_state *disk)
                        disk->bus, disk->slot, disk->function,
                        disk->transport == STORAGE_TRANSPORT_NVME ? disk->nvme_nsid : disk->port,
                        root->filesystem == STORAGE_FILESYSTEM_EXFAT ? "exfat" :
-                       (root->filesystem == STORAGE_FILESYSTEM_EXT2 ? "ext2" : "fat32"));
+                       (root->filesystem == STORAGE_FILESYSTEM_EXT4 ? "ext4" :
+                        (root->filesystem == STORAGE_FILESYSTEM_EXT2 ? "ext2" : "fat32")));
     } else {
+        /* Failed root mount: release the ext4 state and its caches before
+         * the volume slot is reused; g_active_volume is restored below. */
+        storage_ext4_state_reset(root);
         storage_memzero(root, sizeof(*root));
     }
     g_active_volume = old;
@@ -465,8 +489,11 @@ void storage_mount_boot_root(const struct boot_info *boot, bool ramdisk_root)
     uint64_t length = 0;
     storage_init();
     if (!ramdisk_root) {
-        console_printf("[reliefnt] storage boot root from probed disks root=/ fs=%s\n",
-                       storage_root_filesystem_name());
+        const char *root_fs = g_volumes[STORAGE_VOLUME_ROOT].filesystem == STORAGE_FILESYSTEM_EXT4
+                                  ? "ext4"
+                                  : storage_root_filesystem_name();
+        console_printf("[reliefnt] storage boot root from probed disks root=%s fs=%s\n",
+                       root_fs, root_fs);
         return;
     }
     if (!boot_find_module_range(boot, "reliefos-installer-root", &start, &length) &&

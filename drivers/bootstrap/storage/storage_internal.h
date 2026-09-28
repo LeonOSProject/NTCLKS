@@ -1,3 +1,5 @@
+#ifndef RELIEFNT_STORAGE_INTERNAL_H
+#define RELIEFNT_STORAGE_INTERNAL_H
 #include <reliefnt/mm.h>
 #include <reliefnt/console.h>
 #include <reliefnt/multiboot2.h>
@@ -175,6 +177,7 @@ enum storage_filesystem_kind {
     STORAGE_FILESYSTEM_EXT2 = 3,
     STORAGE_FILESYSTEM_EXFAT = 4,
     STORAGE_FILESYSTEM_TMPFS = 5,
+    STORAGE_FILESYSTEM_EXT4 = 6,
 };
 
 struct __attribute__((packed)) ahci_hba_port {
@@ -438,6 +441,10 @@ struct __attribute__((packed)) ext2_dirent {
  * here so storage_ext4_parse_super and the host tests share one spelling;
  * keep the replacement list token-identical to the tests' local copy. */
 #define SB_CHECKSUM_SEED 0x270
+/* On-disk offset of s_creator_os (ext4.h:1369).  EXT4_OS_LINUX is 0; inode
+ * checksums are only meaningful for Linux-created filesystems, so the mount
+ * path reads this word before calling storage_ext4_verify_inode_checksum. */
+#define SB_CREATOR_OS 0x48
 #define EXT4_SUPER_MAGIC 0xef53u
 #define EXT4_EXT_MAGIC 0xf30au
 #define EXT4_MIN_BLOCK_SIZE 1024u
@@ -546,8 +553,7 @@ struct storage_ext4_extent_header_view {
 };
 
 /* Per-volume ext4 geometry.  Cache, journal and statistics fields are
- * added by later tasks; this struct is not yet attached to
- * storage_volume. */
+ * added by later tasks. */
 struct storage_ext4_state {
     uint64_t partition_start_lba;
     uint64_t partition_sector_count;
@@ -563,6 +569,90 @@ struct storage_ext4_state {
     uint32_t first_data_block;
     uint32_t desc_size;
 };
+
+/* ---- ext4 mount and feature policy (task 4) --------------------------
+ * storage_ext4_mount() parses the whole ext2/3/4 family with the unified
+ * parser above.  It returns 0 and fills volume->ext4 / volume->filesystem /
+ * volume->read_only_reason on success, or a negative RELIEFOS_* errno:
+ * -RELIEFOS_EINVAL for format or partition-boundary violations,
+ * -RELIEFOS_EIO for superblock / group-descriptor / root-inode checksum
+ * failures and corrupt metadata, -RELIEFOS_EOPNOTSUPP when the feature
+ * policy rejects the image (the offending bit mask is logged; the volume
+ * keeps its previous contents).  Failed mounts release the per-volume ext4
+ * state and cache.  volume->mount_generation increments on every mount
+ * attempt; cache entries are stamped with it so a reused volume object never
+ * serves blocks from a previous mount.
+ *
+ * storage_ext4_feature_policy() maps the feature words to a verdict:
+ * RW or RO with a STORAGE_EXT4_READ_ONLY_* reason (returns 0), or REJECT
+ * (returns -RELIEFOS_EOPNOTSUPP).  Read-only reasons compose with the fixed
+ * precedence READONLY_FEATURE > UNKNOWN_RO_COMPAT > JOURNAL_NEEDS_RECOVERY,
+ * so clearing the transient RECOVER flag (journal replay, a later task) can
+ * restore write access only when no permanent reason was present. */
+
+/* Defined further below; declared here so the prototypes do not give the
+ * tag prototype scope. */
+struct storage_volume;
+
+#define STORAGE_EXT4_READ_ONLY_NONE 0u
+#define STORAGE_EXT4_READ_ONLY_READONLY_FEATURE 1u
+#define STORAGE_EXT4_READ_ONLY_UNKNOWN_RO_COMPAT 2u
+#define STORAGE_EXT4_READ_ONLY_JOURNAL_NEEDS_RECOVERY 3u
+
+enum storage_ext4_feature_verdict {
+    STORAGE_EXT4_FEATURE_RW = 0,
+    STORAGE_EXT4_FEATURE_RO = 1,
+    STORAGE_EXT4_FEATURE_REJECT = 2,
+};
+
+struct storage_ext4_feature_decision {
+    uint8_t verdict;
+    uint32_t read_only_reason;
+};
+
+int storage_ext4_feature_policy(const struct storage_ext4_super_view *view,
+                                struct storage_ext4_feature_decision *out);
+int storage_ext4_mount(struct storage_volume *volume);
+/* Drops the volume's ext4 cache entries and clears ext4 state,
+ * read_only_reason and the filesystem kind (mount failure and ext2
+ * fallback cleanup). */
+void storage_ext4_state_reset(struct storage_volume *volume);
+
+/* ---- ext4 bounded caches (storage_ext4_cache.c) ----------------------
+ * Four fixed-capacity caches (block / inode / dir / journal eviction
+ * domains; capacity macros may be overridden with -D in host tests).  Each
+ * entry is stamped valid/dirty/pinned/block/age/checksum_ok/volume_generation
+ * and holds one filesystem block; entries are lazily allocated with
+ * mm_alloc_pages like ext2_cache.  Eviction is LRU by age and never touches
+ * pinned entries; when the capacity is full and every entry is pinned the
+ * insert paths return -RELIEFOS_ENOMEM.  I/O is bounded by the volume's
+ * ext4 geometry and partition range and never runs under the transport
+ * spinlock.  The cache does no format parsing: checksum_ok is set by the
+ * caller (storage_ext4_mount stamps blocks whose checksums it verified) and
+ * cleared when a block is modified.
+ *
+ * Pin lifecycle: storage_ext4_cache_get(..., for_write=true) pins the entry
+ * until storage_ext4_cache_mark_dirty() publishes the change and releases
+ * the pin, or until flush/invalidate.  Reads never pin.
+ * storage_ext4_cache_read() falls back to uncached device I/O when the table
+ * cannot be allocated (ext2_cache convention: allocation failure only
+ * disables caching for that I/O) but propagates -RELIEFOS_ENOMEM when the
+ * capacity is full of pinned entries.
+ *
+ * Calling convention: a caller that remounts a volume (which increments
+ * mount_generation and makes every cached block of the previous mount stale,
+ * discarded without write-back) must storage_ext4_cache_flush() its dirty
+ * blocks first.  Skipping the flush would silently drop uncommitted writes
+ * once the write paths start publishing through this cache. */
+int storage_ext4_cache_read(struct storage_volume *volume, uint64_t block, void *out);
+int storage_ext4_cache_get(struct storage_volume *volume, uint64_t block, uint8_t **data,
+                           bool for_write);
+int storage_ext4_cache_mark_dirty(struct storage_volume *volume, uint64_t block);
+/* Weak: tools/tests/storage_sync_test.c compiles storage_sync.c without
+ * linking this cache layer, and the NULL check there keeps that binary
+ * linkable; the storage facade always links the real implementation. */
+__attribute__((weak)) int storage_ext4_cache_flush(struct storage_volume *volume);
+void storage_ext4_cache_invalidate(struct storage_volume *volume);
 
 uint16_t ext4_get_le16(const uint8_t *p);
 uint32_t ext4_get_le32(const uint8_t *p);
@@ -667,8 +757,10 @@ struct storage_volume {
     uint64_t ram_bytes;
     uint64_t esp_start_lba;
     uint64_t esp_sector_count;
-    uint64_t ext2_start_lba;
-    uint64_t ext2_sector_count;
+    /* Ext-family partition range (ext2/3/4 share one parser and one GPT
+     * partition); the legacy ext2_* spellings live on as access macros. */
+    uint64_t ext_start_lba;
+    uint64_t ext_sector_count;
     uint64_t exfat_start_lba;
     uint64_t exfat_sector_count;
     uint32_t bytes_per_sector;
@@ -695,6 +787,13 @@ struct storage_volume {
     uint32_t ext2_feature_incompat;
     uint32_t ext2_next_block;
     uint32_t ext2_next_inode;
+    /* ext4 backend state (geometry parsed at mount, bounded caches held by
+     * storage_ext4_cache.c) plus mount bookkeeping: mount_generation is
+     * stamped into cache entries and read_only_reason is one of the
+     * STORAGE_EXT4_READ_ONLY_* values (0 = writable). */
+    struct storage_ext4_state ext4;
+    uint32_t mount_generation;
+    uint32_t read_only_reason;
     uint32_t exfat_fat_offset;
     uint32_t exfat_fat_length;
     uint32_t exfat_cluster_heap_offset;
@@ -724,6 +823,12 @@ struct storage_volume {
     uint8_t data_partition_mount;
     char mount_path[RELIEFOS_FS_PATH_LEN];
 };
+
+/* Spec section 8: the ext2 partition range was renamed to the ext-family
+ * spelling.  Keep the old field names working as access macros so existing
+ * callers and host-test fixtures compile unchanged. */
+#define ext2_start_lba ext_start_lba
+#define ext2_sector_count ext_sector_count
 
 struct install_disk_state {
     bool present;
@@ -893,3 +998,5 @@ static uint32_t storage_get_u32(const uint8_t *p)
     return (uint32_t)p[0] | ((uint32_t)p[1] << 8) |
            ((uint32_t)p[2] << 16) | ((uint32_t)p[3] << 24);
 }
+
+#endif /* RELIEFNT_STORAGE_INTERNAL_H */

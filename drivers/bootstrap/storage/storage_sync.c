@@ -19,14 +19,26 @@ static int storage_flush_volume(const struct storage_volume *volume)
 int storage_sync_volume(uint32_t volume_id)
 {
     if (volume_id >= STORAGE_MAX_VOLUMES) return -19;
+    struct storage_volume *volume = &g_volumes[volume_id];
     uint64_t flags;
     kernel_execution_lock_irqsave(&flags);
-    kernel_spin_lock(&storage_transport_lock);
     bool saved_async = storage_io_async_context;
     storage_io_async_context = false;
-    int ret = storage_flush_volume(&g_volumes[volume_id]);
-    storage_io_async_context = saved_async;
+    /* Ext-family volumes publish cached metadata first; cache write-back
+     * does its own device I/O and must precede (and never run under) the
+     * transport spinlock below. */
+    int ret = 0;
+    if (volume->ready &&
+        (volume->filesystem == STORAGE_FILESYSTEM_EXT4 ||
+         volume->filesystem == STORAGE_FILESYSTEM_EXT2) &&
+        storage_ext4_cache_flush) {
+        ret = storage_ext4_cache_flush(volume);
+    }
+    kernel_spin_lock(&storage_transport_lock);
+    int transport_ret = storage_flush_volume(volume);
     kernel_spin_unlock(&storage_transport_lock);
+    if (ret == 0) ret = transport_ret;
+    storage_io_async_context = saved_async;
     kernel_execution_unlock_irqrestore(flags);
     return ret;
 }

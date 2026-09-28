@@ -1,0 +1,321 @@
+/* ext-family mount: superblock/group-descriptor reads through bounded block
+ * I/O, the feature policy of record, ext2-vs-ext4 classification and
+ * per-volume ext4 state.  Format parsing and checksum primitives come from
+ * storage_ext4_format.c / storage_ext4_checksum.c; the bounded caches from
+ * storage_ext4_cache.c.  See storage_internal.h for the contract (verdicts,
+ * read_only_reason composition and failure cleanup). */
+
+/* ext4_inode field offsets (linux/fs/ext4/ext4.h:794). */
+#define INO_MODE 0x00
+#define INO_GENERATION 0x64
+
+/* Feature masks the policy of record allows or rejects (ruling 1). */
+#define EXT4_INCOMPAT_ALLOWED                                                  \
+    (EXT4_FEATURE_INCOMPAT_FILETYPE | EXT4_FEATURE_INCOMPAT_RECOVER |          \
+     EXT4_FEATURE_INCOMPAT_EXTENTS | EXT4_FEATURE_INCOMPAT_64BIT |             \
+     EXT4_FEATURE_INCOMPAT_FLEX_BG | EXT4_FEATURE_INCOMPAT_CSUM_SEED)
+#define EXT4_RO_COMPAT_RW                                                      \
+    (EXT4_FEATURE_RO_COMPAT_SPARSE_SUPER | EXT4_FEATURE_RO_COMPAT_LARGE_FILE | \
+     EXT4_FEATURE_RO_COMPAT_BTREE_DIR | EXT4_FEATURE_RO_COMPAT_HUGE_FILE |     \
+     EXT4_FEATURE_RO_COMPAT_GDT_CSUM | EXT4_FEATURE_RO_COMPAT_DIR_NLINK |      \
+     EXT4_FEATURE_RO_COMPAT_EXTRA_ISIZE | EXT4_FEATURE_RO_COMPAT_METADATA_CSUM)
+#define EXT4_RO_COMPAT_REJECT                                                  \
+    (EXT4_FEATURE_RO_COMPAT_QUOTA | EXT4_FEATURE_RO_COMPAT_BIGALLOC |          \
+     EXT4_FEATURE_RO_COMPAT_PROJECT | EXT4_FEATURE_RO_COMPAT_VERITY)
+
+/* Assembled root inode for the straddling case (kernel stacks stay small). */
+static uint8_t ext4_mount_inode_buf[EXT4_MAX_BLOCK_SIZE];
+
+/* Bounded raw block read over the volume's ext4 geometry. */
+static int ext4_mount_read_block(struct storage_volume *volume, uint64_t block, void *buf)
+{
+    uint64_t lba;
+    uint32_t sectors;
+    int ret = ext4_cache_block_range(volume, block, &lba, &sectors);
+    if (ret < 0) {
+        return ret;
+    }
+    return storage_read_device(volume, lba, sectors, buf);
+}
+
+/* Feature policy of record (ruling 1/2): returns 0 with verdict RW/RO plus a
+ * read_only_reason, or -RELIEFOS_EOPNOTSUPP with verdict REJECT after
+ * logging the offending bit mask. */
+int storage_ext4_feature_policy(const struct storage_ext4_super_view *view,
+                                struct storage_ext4_feature_decision *out)
+{
+    uint32_t bad;
+    uint32_t reason = STORAGE_EXT4_READ_ONLY_NONE;
+
+    if (!view || !out) {
+        return -RELIEFOS_EINVAL;
+    }
+    out->verdict = STORAGE_EXT4_FEATURE_RW;
+    out->read_only_reason = STORAGE_EXT4_READ_ONLY_NONE;
+
+    /* Incompat: only the recognized set mounts at all; the explicit reject
+     * list and any unknown bit fail closed (unknown bits change on-disk
+     * interpretation). */
+    bad = view->feature_incompat & ~EXT4_INCOMPAT_ALLOWED;
+    if (bad != 0) {
+        console_printf("[reliefnt] ext4 mount rejected incompat=0x%x\n", bad);
+        out->verdict = STORAGE_EXT4_FEATURE_REJECT;
+        return -RELIEFOS_EOPNOTSUPP;
+    }
+    /* Compat never blocks, except FAST_COMMIT: it changes how the journal is
+     * interpreted (spec: affects on-disk interpretation -> reject). */
+    if ((view->feature_compat & EXT4_FEATURE_COMPAT_FAST_COMMIT) != 0) {
+        console_printf("[reliefnt] ext4 mount rejected compat=0x%x\n",
+                       EXT4_FEATURE_COMPAT_FAST_COMMIT);
+        out->verdict = STORAGE_EXT4_FEATURE_REJECT;
+        return -RELIEFOS_EOPNOTSUPP;
+    }
+    /* Quota/bigalloc/project/verity change on-disk interpretation too. */
+    bad = view->feature_ro_compat & EXT4_RO_COMPAT_REJECT;
+    if (bad != 0) {
+        console_printf("[reliefnt] ext4 mount rejected ro_compat=0x%x\n", bad);
+        out->verdict = STORAGE_EXT4_FEATURE_REJECT;
+        return -RELIEFOS_EOPNOTSUPP;
+    }
+    /* Read-only outcomes, composed with the precedence documented in the
+     * header: permanent reasons first, so clearing RECOVER later can only
+     * restore write access when it was the sole reason. */
+    if ((view->feature_ro_compat & EXT4_FEATURE_RO_COMPAT_READONLY) != 0) {
+        reason = STORAGE_EXT4_READ_ONLY_READONLY_FEATURE;
+    } else if ((view->feature_ro_compat &
+                ~(EXT4_RO_COMPAT_RW | EXT4_RO_COMPAT_REJECT |
+                  EXT4_FEATURE_RO_COMPAT_READONLY)) != 0) {
+        reason = STORAGE_EXT4_READ_ONLY_UNKNOWN_RO_COMPAT;
+    } else if ((view->feature_incompat & EXT4_FEATURE_INCOMPAT_RECOVER) != 0) {
+        /* Journal recovery is a later task; until its replay is safe, a
+         * filesystem that claims pending recovery is never written (ruling
+         * 2, extended to a bare RECOVER flag without HAS_JOURNAL). */
+        reason = STORAGE_EXT4_READ_ONLY_JOURNAL_NEEDS_RECOVERY;
+    }
+    if (reason != STORAGE_EXT4_READ_ONLY_NONE) {
+        out->verdict = STORAGE_EXT4_FEATURE_RO;
+        out->read_only_reason = reason;
+    }
+    return 0;
+}
+
+/* Ruling 3: any ext3/4-era feature classifies as EXT4; only a feature set
+ * made of classic ext2 bits is "pure ext2".  Anything else stays with the
+ * new backend so its read-only policy is enforced. */
+static uint8_t ext4_classify(const struct storage_ext4_super_view *view)
+{
+    if ((view->feature_compat &
+         (EXT4_FEATURE_COMPAT_HAS_JOURNAL | EXT4_FEATURE_COMPAT_SPARSE_SUPER2)) != 0) {
+        return STORAGE_FILESYSTEM_EXT4;
+    }
+    if ((view->feature_incompat & (EXT4_FEATURE_INCOMPAT_EXTENTS |
+                                   EXT4_FEATURE_INCOMPAT_64BIT |
+                                   EXT4_FEATURE_INCOMPAT_FLEX_BG)) != 0) {
+        return STORAGE_FILESYSTEM_EXT4;
+    }
+    if ((view->feature_ro_compat & (EXT4_FEATURE_RO_COMPAT_METADATA_CSUM |
+                                    EXT4_FEATURE_RO_COMPAT_EXTRA_ISIZE |
+                                    EXT4_FEATURE_RO_COMPAT_DIR_NLINK |
+                                    EXT4_FEATURE_RO_COMPAT_HUGE_FILE |
+                                    EXT4_FEATURE_RO_COMPAT_GDT_CSUM)) != 0) {
+        return STORAGE_FILESYSTEM_EXT4;
+    }
+    if ((view->feature_compat &
+         ~(EXT4_FEATURE_COMPAT_DIR_PREALLOC | EXT4_FEATURE_COMPAT_IMAGIC_INODES |
+           EXT4_FEATURE_COMPAT_EXT_ATTR | EXT4_FEATURE_COMPAT_RESIZE_INODE |
+           EXT4_FEATURE_COMPAT_DIR_INDEX)) == 0 &&
+        (view->feature_incompat & ~EXT4_FEATURE_INCOMPAT_FILETYPE) == 0 &&
+        (view->feature_ro_compat &
+         ~(EXT4_FEATURE_RO_COMPAT_SPARSE_SUPER | EXT4_FEATURE_RO_COMPAT_LARGE_FILE |
+           EXT4_FEATURE_RO_COMPAT_BTREE_DIR)) == 0) {
+        return STORAGE_FILESYSTEM_EXT2;
+    }
+    return STORAGE_FILESYSTEM_EXT4;
+}
+
+void storage_ext4_state_reset(struct storage_volume *volume)
+{
+    if (!volume) {
+        return;
+    }
+    storage_ext4_cache_invalidate(volume);
+    storage_memzero(&volume->ext4, sizeof(volume->ext4));
+    volume->read_only_reason = STORAGE_EXT4_READ_ONLY_NONE;
+    volume->filesystem = STORAGE_FILESYSTEM_NONE;
+}
+
+int storage_ext4_mount(struct storage_volume *volume)
+{
+    struct storage_ext4_super_view view;
+    struct storage_ext4_feature_decision decision;
+    struct storage_ext4_group_view group_view;
+    uint64_t gdt_block;
+    uint64_t ino_table = 0;
+    uint64_t ino_offset;
+    uint64_t ino_block;
+    uint32_t ino_in_block;
+    uint32_t creator_os;
+    uint32_t filesystem;
+    const uint8_t *ino_raw;
+    const char *reason;
+    int ret;
+
+    if (!volume) {
+        return -RELIEFOS_EINVAL;
+    }
+    /* Every mount attempt gets a fresh generation so cache entries from a
+     * previous mount of this volume object are never served. */
+    volume->mount_generation++;
+    if ((!volume->ext_start_lba && volume->kind != STORAGE_VOLUME_RAM) ||
+        volume->ext_sector_count < 4u) {
+        ret = -RELIEFOS_EINVAL;
+        goto fail;
+    }
+
+    /* The superblock lives at byte offset 1024 of the partition: sectors
+     * 2-3, both 512-byte aligned. */
+    ret = storage_read_device(volume, volume->ext_start_lba + 2u, 2u, storage_scratch);
+    if (ret < 0) {
+        goto fail;
+    }
+    ret = storage_ext4_parse_super(storage_scratch, EXT4_SUPERBLOCK_SIZE, &view);
+    if (ret < 0) {
+        goto fail;
+    }
+    creator_os = ext4_get_le32(storage_scratch + SB_CREATOR_OS);
+    if ((view.feature_ro_compat & EXT4_FEATURE_RO_COMPAT_METADATA_CSUM) != 0) {
+        ret = storage_ext4_verify_super_checksum(storage_scratch, EXT4_SUPERBLOCK_SIZE);
+        if (ret < 0) {
+            goto fail;
+        }
+    }
+    /* The filesystem must fit the partition that claims to hold it. */
+    if (view.blocks_count > volume->ext_sector_count / (view.block_size / SECTOR_SIZE)) {
+        ret = -RELIEFOS_EINVAL;
+        goto fail;
+    }
+    ret = storage_ext4_feature_policy(&view, &decision);
+    if (ret < 0) {
+        goto fail;
+    }
+    filesystem = ext4_classify(&view);
+
+    /* Publish the geometry before the cache-backed reads below. */
+    volume->ext4.partition_start_lba = volume->ext_start_lba;
+    volume->ext4.partition_sector_count = volume->ext_sector_count;
+    volume->ext4.blocks_count = view.blocks_count;
+    volume->ext4.group_count = view.group_count;
+    volume->ext4.block_size = view.block_size;
+    volume->ext4.cluster_size = view.cluster_size;
+    volume->ext4.readahead_blocks = 0;
+    volume->ext4.blocks_per_group = view.blocks_per_group;
+    volume->ext4.inodes_per_group = view.inodes_per_group;
+    volume->ext4.inodes_count = view.inodes_count;
+    volume->ext4.inode_size = view.inode_size;
+    volume->ext4.first_data_block = view.first_data_block;
+    volume->ext4.desc_size = view.desc_size;
+
+    /* Group descriptors start at block s_first_data_block + 1 and are
+     * verified group by group. */
+    gdt_block = (uint64_t)view.first_data_block + 1u;
+    if (view.group_count > UINT64_MAX / view.desc_size) {
+        ret = -RELIEFOS_EINVAL;
+        goto fail;
+    }
+    for (uint64_t group = 0; group < view.group_count; ++group) {
+        uint64_t offset = group * view.desc_size;
+        uint64_t block = gdt_block + offset / view.block_size;
+        uint32_t in_block = (uint32_t)(offset % view.block_size);
+        uint8_t desc[EXT4_MAX_DESC_SIZE];
+
+        if (in_block + view.desc_size <= view.block_size) {
+            ret = ext4_mount_read_block(volume, block, storage_scratch);
+            if (ret < 0) {
+                goto fail;
+            }
+            storage_memcpy(desc, storage_scratch + in_block, view.desc_size);
+        } else {
+            uint32_t first = view.block_size - in_block;
+            ret = ext4_mount_read_block(volume, block, storage_scratch);
+            if (ret < 0) {
+                goto fail;
+            }
+            storage_memcpy(desc, storage_scratch + in_block, first);
+            ret = ext4_mount_read_block(volume, block + 1u, storage_scratch);
+            if (ret < 0) {
+                goto fail;
+            }
+            storage_memcpy(desc + first, storage_scratch, view.desc_size - first);
+        }
+        ret = storage_ext4_parse_group_desc(desc, view.desc_size, view.desc_size, &group_view);
+        if (ret < 0) {
+            goto fail;
+        }
+        ret = storage_ext4_verify_group_checksum(desc, view.desc_size, (uint32_t)group, &view);
+        if (ret < 0) {
+            goto fail;
+        }
+        if (group == 0) {
+            ino_table = group_view.inode_table;
+        }
+    }
+
+    /* Fresh cache generation for this mount, then the root inode through
+     * the bounded block cache. */
+    storage_ext4_cache_invalidate(volume);
+    ino_offset = (uint64_t)(EXT2_ROOT_INO - 1u) * view.inode_size;
+    ino_block = ino_table + ino_offset / view.block_size;
+    ino_in_block = (uint32_t)(ino_offset % view.block_size);
+    ret = storage_ext4_cache_read(volume, ino_block, storage_scratch);
+    if (ret < 0) {
+        goto fail;
+    }
+    if (ino_in_block + view.inode_size <= view.block_size) {
+        ino_raw = storage_scratch + ino_in_block;
+    } else {
+        uint32_t first = view.block_size - ino_in_block;
+        storage_memcpy(ext4_mount_inode_buf, storage_scratch + ino_in_block, first);
+        ret = storage_ext4_cache_read(volume, ino_block + 1u, storage_scratch);
+        if (ret < 0) {
+            goto fail;
+        }
+        storage_memcpy(ext4_mount_inode_buf + first, storage_scratch, view.inode_size - first);
+        ino_raw = ext4_mount_inode_buf;
+    }
+    if ((view.feature_ro_compat & EXT4_FEATURE_RO_COMPAT_METADATA_CSUM) != 0 &&
+        creator_os == 0) {
+        /* inode checksums are only defined for Linux-created filesystems
+         * (storage_ext4_checksum.c contract). */
+        ret = storage_ext4_verify_inode_checksum(ino_raw, view.inode_size, EXT2_ROOT_INO,
+                                                 ext4_get_le32(ino_raw + INO_GENERATION),
+                                                 &view);
+        if (ret < 0) {
+            goto fail;
+        }
+        ext4_cache_note_checksum_ok(volume, ino_block);
+    }
+    if ((ext4_get_le16(ino_raw + INO_MODE) & EXT2_S_IFMT) != EXT2_S_IFDIR) {
+        ret = -RELIEFOS_EIO;
+        goto fail;
+    }
+
+    volume->filesystem = (uint8_t)filesystem;
+    volume->read_only_reason = decision.read_only_reason;
+    reason = decision.read_only_reason == STORAGE_EXT4_READ_ONLY_READONLY_FEATURE
+                 ? " readonly-feature"
+                 : decision.read_only_reason == STORAGE_EXT4_READ_ONLY_UNKNOWN_RO_COMPAT
+                       ? " unknown-ro-compat"
+                       : decision.read_only_reason ==
+                                     STORAGE_EXT4_READ_ONLY_JOURNAL_NEEDS_RECOVERY
+                             ? " journal-needs-recovery"
+                             : "";
+    console_printf("[reliefnt] ext4 mount ok fs=%s blocks=%llu groups=%llu%s\n",
+                   filesystem == STORAGE_FILESYSTEM_EXT4 ? "ext4" : "ext2",
+                   (unsigned long long)view.blocks_count,
+                   (unsigned long long)view.group_count, reason);
+    return 0;
+
+fail:
+    storage_ext4_state_reset(volume);
+    return ret;
+}
