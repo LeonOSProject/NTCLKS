@@ -420,6 +420,162 @@ struct __attribute__((packed)) ext2_dirent {
     char name[];
 };
 
+/* ---- ext4 on-disk format --------------------------------------------
+ * Native-integer views over the little-endian ext4 on-disk layout
+ * (linux/fs/ext4/ext4.h, Linux v7.3-rc5 reference).  Packed disk structs
+ * stay private to storage_ext4_format.c; callers only see these views.
+ * All parsers return 0 or a negative RELIEFOS_* errno: format violations
+ * (bad magic, illegal geometry, out-of-range reference) return
+ * -RELIEFOS_EINVAL; offset+size arithmetic overflow returns
+ * -RELIEFOS_EOVERFLOW. */
+
+/* Linux asm-generic value; reliefnt/syscall.h has no alias yet. */
+#define RELIEFOS_EOVERFLOW 75
+
+#define EXT4_SUPERBLOCK_OFFSET 1024u
+#define EXT4_SUPERBLOCK_SIZE 1024u
+#define EXT4_SUPER_MAGIC 0xef53u
+#define EXT4_EXT_MAGIC 0xf30au
+#define EXT4_MIN_BLOCK_SIZE 1024u
+#define EXT4_MAX_BLOCK_SIZE 4096u
+#define EXT4_GOOD_OLD_INODE_SIZE 128u
+#define EXT4_MIN_DESC_SIZE 32u
+#define EXT4_MAX_DESC_SIZE 256u
+#define EXT4_MAX_EXTENT_DEPTH 5u
+#define EXT4_NAME_LEN 255u
+
+/* Group descriptor flags (ext4.h:445-448). */
+#define EXT4_BG_INODE_UNINIT 0x0001u
+#define EXT4_BG_BLOCK_UNINIT 0x0002u
+#define EXT4_BG_INODE_ZEROED 0x0004u
+
+/* Feature masks (ext4.h:2178-2233). */
+#define EXT4_FEATURE_COMPAT_DIR_PREALLOC 0x0001u
+#define EXT4_FEATURE_COMPAT_IMAGIC_INODES 0x0002u
+#define EXT4_FEATURE_COMPAT_HAS_JOURNAL 0x0004u
+#define EXT4_FEATURE_COMPAT_EXT_ATTR 0x0008u
+#define EXT4_FEATURE_COMPAT_RESIZE_INODE 0x0010u
+#define EXT4_FEATURE_COMPAT_DIR_INDEX 0x0020u
+#define EXT4_FEATURE_COMPAT_SPARSE_SUPER2 0x0200u
+#define EXT4_FEATURE_COMPAT_FAST_COMMIT 0x0400u
+#define EXT4_FEATURE_COMPAT_STABLE_INODES 0x0800u
+#define EXT4_FEATURE_COMPAT_ORPHAN_FILE 0x1000u
+
+#define EXT4_FEATURE_RO_COMPAT_SPARSE_SUPER 0x0001u
+#define EXT4_FEATURE_RO_COMPAT_LARGE_FILE 0x0002u
+#define EXT4_FEATURE_RO_COMPAT_BTREE_DIR 0x0004u
+#define EXT4_FEATURE_RO_COMPAT_HUGE_FILE 0x0008u
+#define EXT4_FEATURE_RO_COMPAT_GDT_CSUM 0x0010u
+#define EXT4_FEATURE_RO_COMPAT_DIR_NLINK 0x0020u
+#define EXT4_FEATURE_RO_COMPAT_EXTRA_ISIZE 0x0040u
+#define EXT4_FEATURE_RO_COMPAT_QUOTA 0x0100u
+#define EXT4_FEATURE_RO_COMPAT_BIGALLOC 0x0200u
+#define EXT4_FEATURE_RO_COMPAT_METADATA_CSUM 0x0400u
+#define EXT4_FEATURE_RO_COMPAT_READONLY 0x1000u
+#define EXT4_FEATURE_RO_COMPAT_PROJECT 0x2000u
+#define EXT4_FEATURE_RO_COMPAT_VERITY 0x8000u
+#define EXT4_FEATURE_RO_COMPAT_ORPHAN_PRESENT 0x10000u
+
+#define EXT4_FEATURE_INCOMPAT_COMPRESSION 0x0001u
+#define EXT4_FEATURE_INCOMPAT_FILETYPE 0x0002u
+#define EXT4_FEATURE_INCOMPAT_RECOVER 0x0004u
+#define EXT4_FEATURE_INCOMPAT_JOURNAL_DEV 0x0008u
+#define EXT4_FEATURE_INCOMPAT_META_BG 0x0010u
+#define EXT4_FEATURE_INCOMPAT_EXTENTS 0x0040u
+#define EXT4_FEATURE_INCOMPAT_64BIT 0x0080u
+#define EXT4_FEATURE_INCOMPAT_MMP 0x0100u
+#define EXT4_FEATURE_INCOMPAT_FLEX_BG 0x0200u
+#define EXT4_FEATURE_INCOMPAT_EA_INODE 0x0400u
+#define EXT4_FEATURE_INCOMPAT_DIRDATA 0x1000u
+#define EXT4_FEATURE_INCOMPAT_CSUM_SEED 0x2000u
+#define EXT4_FEATURE_INCOMPAT_LARGEDIR 0x4000u
+#define EXT4_FEATURE_INCOMPAT_INLINE_DATA 0x8000u
+#define EXT4_FEATURE_INCOMPAT_ENCRYPT 0x10000u
+#define EXT4_FEATURE_INCOMPAT_CASEFOLD 0x20000u
+
+/* Parsed superblock: 64-bit counts are combined from the _lo/_hi words
+ * only when feature_incompat has EXT4_FEATURE_INCOMPAT_64BIT. */
+struct storage_ext4_super_view {
+    uint64_t blocks_count;
+    uint64_t reserved_blocks_count;
+    uint64_t free_blocks_count;
+    uint64_t group_count;
+    uint32_t inodes_count;
+    uint32_t free_inodes_count;
+    uint32_t block_size;
+    uint32_t cluster_size;
+    uint32_t blocks_per_group;
+    uint32_t inodes_per_group;
+    uint32_t first_data_block;
+    uint32_t desc_size;
+    uint32_t inode_size;
+    uint32_t feature_compat;
+    uint32_t feature_incompat;
+    uint32_t feature_ro_compat;
+    uint32_t journal_inum;
+    uint8_t uuid[16];
+    char volume_name[17];
+};
+
+/* Parsed group descriptor.  The 64-bit bitmap/table and count fields are
+ * combined from the _lo/_hi words only when desc_size >= 64. */
+struct storage_ext4_group_view {
+    uint64_t block_bitmap;
+    uint64_t inode_bitmap;
+    uint64_t inode_table;
+    uint32_t free_blocks_count;
+    uint32_t free_inodes_count;
+    uint32_t used_dirs_count;
+    uint32_t itable_unused;
+    uint16_t flags;
+    uint16_t checksum;
+};
+
+/* Parsed extent tree node header (ext4_extents.h:78-84). */
+struct storage_ext4_extent_header_view {
+    uint16_t magic;
+    uint16_t entries;
+    uint16_t max_entries;
+    uint16_t depth;
+    uint32_t generation;
+};
+
+/* Per-volume ext4 geometry.  Cache, journal and statistics fields are
+ * added by later tasks; this struct is not yet attached to
+ * storage_volume. */
+struct storage_ext4_state {
+    uint64_t partition_start_lba;
+    uint64_t partition_sector_count;
+    uint64_t blocks_count;
+    uint64_t group_count;
+    uint32_t block_size;
+    uint32_t cluster_size;
+    uint32_t readahead_blocks;
+    uint32_t blocks_per_group;
+    uint32_t inodes_per_group;
+    uint32_t inodes_count;
+    uint32_t inode_size;
+    uint32_t first_data_block;
+    uint32_t desc_size;
+};
+
+uint16_t ext4_get_le16(const uint8_t *p);
+uint32_t ext4_get_le32(const uint8_t *p);
+uint64_t ext4_get_le64(const uint8_t *p);
+void ext4_put_le16(uint8_t *p, uint16_t value);
+void ext4_put_le32(uint8_t *p, uint32_t value);
+void ext4_put_le64(uint8_t *p, uint64_t value);
+int ext4_range_ok(uint64_t raw_len, uint64_t offset, uint64_t size);
+
+int storage_ext4_parse_super(const uint8_t *raw, uint32_t raw_len,
+                             struct storage_ext4_super_view *out);
+/* Callers must pass the desc_size produced by storage_ext4_parse_super; the
+ * 64-bit fields are combined from the hi words iff desc_size >= 64. */
+int storage_ext4_parse_group_desc(const uint8_t *raw, uint32_t raw_len,
+                                  uint32_t desc_size, struct storage_ext4_group_view *out);
+int storage_ext4_parse_extent_header(const uint8_t *raw, uint32_t raw_len,
+                                     struct storage_ext4_extent_header_view *out);
+
 struct nvme_controller;
 
 static const uint8_t esp_guid[16] = {
