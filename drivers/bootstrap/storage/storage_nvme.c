@@ -281,7 +281,7 @@ static int nvme_submit_locked(struct nvme_controller *controller, uint8_t admin,
         status = cq[*cq_head].status;
         if ((status & 1u) == *cq_phase) {
             if (cq[*cq_head].command_id != command_id) {
-                console_printf("[ntclks] nvme unexpected completion cid=%u expected=%u qid=%u\n",
+                console_printf("[reliefnt] nvme unexpected completion cid=%u expected=%u qid=%u\n",
                                cq[*cq_head].command_id, command_id, queue_id);
                 return -5;
             }
@@ -298,7 +298,7 @@ static int nvme_submit_locked(struct nvme_controller *controller, uint8_t admin,
         }
         nvme_cpu_relax();
     }
-    console_printf("[ntclks] nvme timeout pci=%u:%u.%u qid=%u opcode=0x%x\n",
+    console_printf("[reliefnt] nvme timeout pci=%u:%u.%u qid=%u opcode=0x%x\n",
                    controller->bus, controller->slot, controller->function,
                    queue_id, command->cdw0 & 0xffu);
     return -5;
@@ -391,14 +391,14 @@ static int nvme_initialize_controller(struct nvme_controller *controller)
     }
     cap = nvme_read64(controller, NVME_REG_CAP);
     if ((cap & (1ULL << 37)) == 0) {
-        console_printf("[ntclks] nvme pci=%u:%u.%u does not expose the NVM command set\n",
+        console_printf("[reliefnt] nvme pci=%u:%u.%u does not expose the NVM command set\n",
                        controller->bus, controller->slot, controller->function);
         return -95;
     }
     mpsmin = (uint32_t)((cap >> 48) & 0x0fu);
     mpsmax = (uint32_t)((cap >> 52) & 0x0fu);
     if (mpsmin != 0 || mpsmax < mpsmin) {
-        console_printf("[ntclks] nvme pci=%u:%u.%u requires unsupported page size mps=%u..%u\n",
+        console_printf("[reliefnt] nvme pci=%u:%u.%u requires unsupported page size mps=%u..%u\n",
                        controller->bus, controller->slot, controller->function, mpsmin, mpsmax);
         return -95;
     }
@@ -467,7 +467,7 @@ static int nvme_initialize_controller(struct nvme_controller *controller)
     }
     ret = nvme_create_io_queues(controller);
     if (ret < 0) goto fail;
-    console_printf("[ntclks] NVMe controller ready pci=%u:%u.%u model=\"%s\" namespaces=%u qdepth=%u\n",
+    console_printf("[reliefnt] NVMe controller ready pci=%u:%u.%u model=\"%s\" namespaces=%u qdepth=%u\n",
                    controller->bus, controller->slot, controller->function,
                    controller->model, controller->namespace_count, controller->queue_depth);
     return 0;
@@ -552,7 +552,7 @@ static int nvme_namespace_usable(struct nvme_controller *controller, uint32_t ns
                                ((uint16_t)controller->identify_buffer[offset + 1u] << 8));
     lbads = controller->identify_buffer[offset + 2u];
     if (!nsze || lbads != 9u || metadata_size != 0u) {
-        console_printf("[ntclks] NVMe namespace %u skipped: sectors=%llu lbads=%u metadata=%u\n",
+        console_printf("[reliefnt] NVMe namespace %u skipped: sectors=%llu lbads=%u metadata=%u\n",
                        nsid, (unsigned long long)nsze, lbads, metadata_size);
         return -95;
     }
@@ -582,7 +582,7 @@ static void nvme_register_namespace(struct nvme_controller *controller, uint32_t
     disk->nvme_nsid = nsid;
     disk->sector_count = sectors;
     storage_copy_text(disk->device_model, sizeof(disk->device_model), controller->model);
-    console_printf("[ntclks] NVMe namespace ready pci=%u:%u.%u nsid=%u sectors=%llu model=\"%s\"\n",
+    console_printf("[reliefnt] NVMe namespace ready pci=%u:%u.%u nsid=%u sectors=%llu model=\"%s\"\n",
                    controller->bus, controller->slot, controller->function, nsid,
                    (unsigned long long)sectors, disk->device_model);
     if (!*root_ready && storage_try_mount_root_disk(disk) == 0) {
@@ -609,7 +609,7 @@ static void storage_scan_nvme_controller(uint8_t bus, uint8_t slot, uint8_t func
     }
     bar0 = pci_config_read32(bus, slot, function, 0x10);
     if (!bar0 || (bar0 & 1u) != 0) {
-        console_printf("[ntclks] NVMe pci=%u:%u.%u has no memory BAR0\n", bus, slot, function);
+        console_printf("[reliefnt] NVMe pci=%u:%u.%u has no memory BAR0\n", bus, slot, function);
         return;
     }
     if (((bar0 >> 1) & 3u) == 2u) {
@@ -635,7 +635,7 @@ static void storage_scan_nvme_controller(uint8_t bus, uint8_t slot, uint8_t func
     pci_config_write16(bus, slot, function, 0x04, (uint16_t)(pci_command | 0x0006u));
     ret = nvme_initialize_controller(controller);
     if (ret < 0) {
-        console_printf("[ntclks] NVMe controller init failed pci=%u:%u.%u ret=%d\n",
+        console_printf("[reliefnt] NVMe controller init failed pci=%u:%u.%u ret=%d\n",
                        bus, slot, function, ret);
         storage_memzero(controller, sizeof(*controller));
         return;
@@ -647,7 +647,7 @@ static void storage_scan_nvme_controller(uint8_t bus, uint8_t slot, uint8_t func
         ret = nvme_identify(controller, start_nsid, NVME_IDENTIFY_ACTIVE_NAMESPACE_LIST,
                             controller->namespace_list, controller->namespace_list_phys);
         if (ret < 0) {
-            console_printf("[ntclks] NVMe active namespace list failed pci=%u:%u.%u ret=%d\n",
+            console_printf("[reliefnt] NVMe active namespace list failed pci=%u:%u.%u ret=%d\n",
                            bus, slot, function, ret);
             list_failed = 1;
             break;
@@ -672,7 +672,7 @@ static void storage_scan_nvme_controller(uint8_t bus, uint8_t slot, uint8_t func
     }
     if (list_failed && namespace_ids_seen == 0 && controller->namespace_count != 0) {
         uint32_t limit = min_u32(controller->namespace_count, 256u);
-        console_printf("[ntclks] NVMe using bounded namespace scan pci=%u:%u.%u nn=%u\n",
+        console_printf("[reliefnt] NVMe using bounded namespace scan pci=%u:%u.%u nn=%u\n",
                        bus, slot, function, controller->namespace_count);
         for (uint32_t nsid = 1; nsid <= limit; ++nsid) {
             nvme_register_namespace(controller, nsid, root_ready);

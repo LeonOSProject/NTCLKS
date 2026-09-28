@@ -130,7 +130,7 @@ static int storage_read_mount_table(uint64_t offset, void *buffer, uint32_t capa
     for (uint32_t i = 0; i < STORAGE_MAX_VOLUMES; ++i) {
         const struct storage_volume *volume = &g_volumes[i];
         const char *filesystem;
-        char source[LEONOS_FS_PATH_LEN];
+        char source[RELIEFOS_FS_PATH_LEN];
         if (!volume->ready || !volume->mount_path[0]) continue;
         switch (volume->filesystem) {
         case STORAGE_FILESYSTEM_EXT2: filesystem = "ext2"; break;

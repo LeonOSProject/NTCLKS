@@ -1,16 +1,16 @@
 /*
- * LeonOS ELF loader: validates and maps static and dynamic x86_64 images.
+ * ReliefOS ELF loader: validates and maps static and dynamic x86_64 images.
  * Enforces ABI, W^X, PT_INTERP, segment-layout, and ASLR startup rules.
  */
-#include <leonos/elf_abi.h>
-#include <ntclks/console.h>
-#include <ntclks/elf.h>
-#include <ntclks/mm.h>
-#include <ntclks/paging.h>
-#include <ntclks/permissions.h>
-#include <ntclks/random.h>
-#include <ntclks/sched.h>
-#include <ntclks/storage.h>
+#include <reliefos/elf_abi.h>
+#include <reliefnt/console.h>
+#include <reliefnt/elf.h>
+#include <reliefnt/mm.h>
+#include <reliefnt/paging.h>
+#include <reliefnt/permissions.h>
+#include <reliefnt/random.h>
+#include <reliefnt/sched.h>
+#include <reliefnt/storage.h>
 
 #define EI_NIDENT 16
 #define ET_EXEC 2
@@ -118,7 +118,7 @@ static const struct elf64_phdr *elf64_phdr_at(const struct elf64_ehdr *eh,
 }
 
 /**
- * @brief Scan PT_NOTE segments for the LeonOS ABI note; store its major version and return true only when it matches the kernel's ABI major.
+ * @brief Scan PT_NOTE segments for the ReliefOS ABI note; store its major version and return true only when it matches the kernel's ABI major.
  */
 static bool elf64_note_abi(const struct elf64_ehdr *eh, const void *image, size_t len,
                            uint32_t *out_major)
@@ -141,22 +141,22 @@ static bool elf64_note_abi(const struct elf64_ehdr *eh, const void *image, size_
             if (!desc || !next || desc > end || next > end) {
                 return false;
             }
-            if (note->n_type == LEONOS_ELF_NOTE_TYPE &&
-                note->n_namesz == sizeof(LEONOS_ELF_NOTE_NAME) &&
-                note->n_descsz >= sizeof(struct leonos_elf_abi_note)) {
+            if (note->n_type == RELIEFOS_ELF_NOTE_TYPE &&
+                note->n_namesz == sizeof(RELIEFOS_ELF_NOTE_NAME) &&
+                note->n_descsz >= sizeof(struct reliefos_elf_abi_note)) {
                 const char *name = (const char *)image + names;
-                const struct leonos_elf_abi_note *abi =
-                    (const struct leonos_elf_abi_note *)((const uint8_t *)image + desc);
+                const struct reliefos_elf_abi_note *abi =
+                    (const struct reliefos_elf_abi_note *)((const uint8_t *)image + desc);
                 bool match = true;
-                for (uint32_t n = 0; n < sizeof(LEONOS_ELF_NOTE_NAME); ++n) {
-                    if (name[n] != LEONOS_ELF_NOTE_NAME[n]) {
+                for (uint32_t n = 0; n < sizeof(RELIEFOS_ELF_NOTE_NAME); ++n) {
+                    if (name[n] != RELIEFOS_ELF_NOTE_NAME[n]) {
                         match = false;
                         break;
                     }
                 }
                 if (match) {
                     *out_major = abi->major;
-                    return abi->major == LEONOS_ELF_ABI_MAJOR;
+                    return abi->major == RELIEFOS_ELF_ABI_MAJOR;
                 }
             }
             cursor = next;
@@ -169,11 +169,11 @@ static bool elf64_note_abi(const struct elf64_ehdr *eh, const void *image, size_
  * @brief Copy the PT_INTERP path string (if any) into out; returns false when absent or not NUL-terminated within the segment.
  */
 static bool elf64_interp(const struct elf64_ehdr *eh, const void *image, size_t len,
-                         char out[LEONOS_FS_PATH_LEN])
+                         char out[RELIEFOS_FS_PATH_LEN])
 {
     for (uint16_t i = 0; i < eh->e_phnum; ++i) {
         const struct elf64_phdr *ph = elf64_phdr_at(eh, image, i);
-        if (ph->p_type != PT_INTERP || !ph->p_filesz || ph->p_filesz > LEONOS_FS_PATH_LEN ||
+        if (ph->p_type != PT_INTERP || !ph->p_filesz || ph->p_filesz > RELIEFOS_FS_PATH_LEN ||
             ph->p_offset > len || ph->p_filesz > len - ph->p_offset) {
             continue;
         }
@@ -224,7 +224,7 @@ static bool elf64_validate_dynamic_header(const struct elf64_ehdr *eh, const voi
                 return false;
             }
             if (legacy) {
-                const char *expected = LEONOS_ELF_INTERP_PATH;
+                const char *expected = RELIEFOS_ELF_INTERP_PATH;
                 for (uint32_t i = 0; expected[i] || out->interp[i]; ++i) {
                     if (expected[i] != out->interp[i]) return false;
                 }
@@ -334,7 +334,7 @@ static bool elf64_segment_valid(const struct elf64_phdr *ph, uint64_t file_len,
         return false;
     }
     start = bias + ph->p_vaddr;
-    return start >= NTCLKS_USER_BASE && ph->p_memsz <= NTCLKS_USER_TOP - start;
+    return start >= RELIEFNT_USER_BASE && ph->p_memsz <= RELIEFNT_USER_TOP - start;
 }
 
 /**
@@ -397,7 +397,7 @@ bool elf64_load_address_space(struct address_space *as, const void *image, size_
     eh = (const struct elf64_ehdr *)image;
     for (uint16_t i = 0; i < eh->e_phnum; ++i) {
         const struct elf64_phdr *ph = elf64_phdr_at(eh, image, i);
-        uint64_t flags = (ph->p_flags & PF_W) ? NTCLKS_PAGE_WRITABLE : 0;
+        uint64_t flags = (ph->p_flags & PF_W) ? RELIEFNT_PAGE_WRITABLE : 0;
         if (ph->p_type != PT_LOAD || !ph->p_memsz) {
             continue;
         }
@@ -406,7 +406,7 @@ bool elf64_load_address_space(struct address_space *as, const void *image, size_
             return false;
         }
         if (!(ph->p_flags & PF_X)) {
-            flags |= NTCLKS_PAGE_NOEXEC;
+            flags |= RELIEFNT_PAGE_NOEXEC;
         }
         if (!ensure_segment_pages(as, ph->p_vaddr, ph->p_vaddr + ph->p_memsz, flags) ||
             !copy_to_address_space(as, ph->p_vaddr,
@@ -428,7 +428,7 @@ static int elf64_read_headers(const struct storage_node *node, const void **out_
     uint64_t header_len;
     uint32_t wanted;
     uint32_t got = 0;
-    if (!node || node->type != LEONOS_FS_TYPE_FILE || node->size < sizeof(struct elf64_ehdr) ||
+    if (!node || node->type != RELIEFOS_FS_TYPE_FILE || node->size < sizeof(struct elf64_ehdr) ||
         !out_image || !out_len) {
         return -8;
     }
@@ -460,16 +460,16 @@ static int elf64_read_headers(const struct storage_node *node, const void **out_
 static bool elf64_task_range_available(const struct task *task, uint64_t start, uint64_t end)
 {
     uint64_t stack_low;
-    if (!task || start < NTCLKS_USER_BASE || start >= end || end > NTCLKS_USER_TOP ||
-        task->stack_top < (uint64_t)NTCLKS_USER_STACK_PAGES * PAGE_SIZE) {
-        console_printf("[ntclks] ELF range invalid start=0x%llx end=0x%llx stack=0x%llx\n",
+    if (!task || start < RELIEFNT_USER_BASE || start >= end || end > RELIEFNT_USER_TOP ||
+        task->stack_top < (uint64_t)RELIEFNT_USER_STACK_PAGES * PAGE_SIZE) {
+        console_printf("[reliefnt] ELF range invalid start=0x%llx end=0x%llx stack=0x%llx\n",
                        (unsigned long long)start, (unsigned long long)end,
                        task ? (unsigned long long)task->stack_top : 0ULL);
         return false;
     }
-    stack_low = task->stack_top - (uint64_t)NTCLKS_USER_STACK_MAX_PAGES * PAGE_SIZE;
+    stack_low = task->stack_top - (uint64_t)RELIEFNT_USER_STACK_MAX_PAGES * PAGE_SIZE;
     if (end > stack_low) {
-        console_printf("[ntclks] ELF range overlaps stack start=0x%llx end=0x%llx stack=0x%llx\n",
+        console_printf("[reliefnt] ELF range overlaps stack start=0x%llx end=0x%llx stack=0x%llx\n",
                        (unsigned long long)start, (unsigned long long)end,
                        (unsigned long long)stack_low);
         return false;
@@ -477,7 +477,7 @@ static bool elf64_task_range_available(const struct task *task, uint64_t start, 
     for (uint32_t i = 0; i < sched_task_vma_capacity(task); ++i) {
         const struct task_vma *vma = sched_task_vma_at((struct task *)task, i);
         if (vma && vma->used && start < vma->end && end > vma->start) {
-            console_printf("[ntclks] ELF range overlaps VMA=%u range=0x%llx-0x%llx existing=0x%llx-0x%llx\n",
+            console_printf("[reliefnt] ELF range overlaps VMA=%u range=0x%llx-0x%llx existing=0x%llx-0x%llx\n",
                            i, (unsigned long long)start, (unsigned long long)end,
                            (unsigned long long)vma->start, (unsigned long long)vma->end);
             return false;
@@ -605,7 +605,7 @@ static int elf64_map_one(struct task *task, const struct storage_node *node,
     uint32_t free_vmas = 0;
     uint64_t program_break = 0;
     if (!elf64_segments_nonoverlapping(eh, image, node->size, bias, info->dynamic)) {
-        console_printf("[ntclks] ELF %s segment layout rejected bias=0x%llx\n",
+        console_printf("[reliefnt] ELF %s segment layout rejected bias=0x%llx\n",
                        image_name, (unsigned long long)bias);
         return -8;
     }
@@ -622,7 +622,7 @@ static int elf64_map_one(struct task *task, const struct storage_node *node,
         }
     }
     if (!loads || loads > free_vmas) {
-        console_printf("[ntclks] ELF %s VMA capacity rejected loads=%u free=%u\n",
+        console_printf("[reliefnt] ELF %s VMA capacity rejected loads=%u free=%u\n",
                        image_name, loads, free_vmas);
         return -12;
     }
@@ -642,12 +642,12 @@ static int elf64_map_one(struct task *task, const struct storage_node *node,
         start = align_down(bias + ph->p_vaddr);
         end = align_up(bias + ph->p_vaddr + ph->p_memsz);
         if (!end) {
-            console_printf("[ntclks] ELF %s LOAD[%u] address overflow\n", image_name, i);
+            console_printf("[reliefnt] ELF %s LOAD[%u] address overflow\n", image_name, i);
             return -8;
         }
         page_delta = ph->p_vaddr - align_down(ph->p_vaddr);
         if (ph->p_offset < page_delta) {
-            console_printf("[ntclks] ELF %s LOAD[%u] file offset rejected\n", image_name, i);
+            console_printf("[reliefnt] ELF %s LOAD[%u] file offset rejected\n", image_name, i);
             return -8;
         }
         file_offset = ph->p_offset - page_delta;
@@ -655,13 +655,13 @@ static int elf64_map_one(struct task *task, const struct storage_node *node,
             legacy_vma = elf64_legacy_shared_page_vma(task, node, start, end, file_offset);
         }
         if (!legacy_vma && !elf64_task_range_available(task, start, end)) {
-            console_printf("[ntclks] ELF %s LOAD[%u] range rejected 0x%llx-0x%llx\n",
+            console_printf("[reliefnt] ELF %s LOAD[%u] range rejected 0x%llx-0x%llx\n",
                            image_name, i, (unsigned long long)start,
                            (unsigned long long)end);
             return -8;
         }
         if (!address_space_prepare_user_range(sched_task_as(task), start, end)) {
-            console_printf("[ntclks] ELF %s LOAD[%u] page table preparation failed "
+            console_printf("[reliefnt] ELF %s LOAD[%u] page table preparation failed "
                            "0x%llx-0x%llx\n",
                            image_name, i, (unsigned long long)start,
                            (unsigned long long)end);
@@ -669,7 +669,7 @@ static int elf64_map_one(struct task *task, const struct storage_node *node,
         }
         vma = legacy_vma ? legacy_vma : elf64_task_free_vma(task);
         if (!vma) {
-            console_printf("[ntclks] ELF %s LOAD[%u] VMA capacity rejected\n", image_name, i);
+            console_printf("[reliefnt] ELF %s LOAD[%u] VMA capacity rejected\n", image_name, i);
             return -12;
         }
         if (ph->p_flags & PF_W) {
@@ -684,7 +684,7 @@ static int elf64_map_one(struct task *task, const struct storage_node *node,
         if (legacy_vma) {
             if ((legacy_vma->prot | prot) & TASK_VMA_PROT_WRITE &&
                 (legacy_vma->prot | prot) & TASK_VMA_PROT_EXEC) {
-                console_printf("[ntclks] ELF %s LOAD[%u] legacy W+X page rejected\n",
+                console_printf("[reliefnt] ELF %s LOAD[%u] legacy W+X page rejected\n",
                                image_name, i);
                 return -8;
             }
@@ -747,16 +747,16 @@ int elf64_map_task_image(struct task *task, const struct storage_node *node,
     int ret;
 
     if (!task || !node || !out) {
-        console_printf("[ntclks] ELF task image request is invalid\n");
+        console_printf("[reliefnt] ELF task image request is invalid\n");
         return -22;
     }
     ret = elf64_read_headers(node, &image, &image_len);
     if (ret < 0) {
-        console_printf("[ntclks] ELF main header read failed\n");
+        console_printf("[reliefnt] ELF main header read failed\n");
         return ret;
     }
     if (!elf64_probe_image(image, image_len, node->size, false, &main_info)) {
-        console_printf("[ntclks] ELF main header validation failed\n");
+        console_printf("[reliefnt] ELF main header validation failed\n");
         return -8;
     }
     main_eh = image;
@@ -764,7 +764,7 @@ int elf64_map_task_image(struct task *task, const struct storage_node *node,
         main_bias = elf64_choose_bias(&main_info, false);
         if (!main_bias || main_info.entry > UINT64_MAX - main_bias ||
             main_info.phdr_vaddr > UINT64_MAX - main_bias) {
-            console_printf("[ntclks] ELF main ASLR layout rejected span=0x%llx\n",
+            console_printf("[reliefnt] ELF main ASLR layout rejected span=0x%llx\n",
                            (unsigned long long)(main_info.high_vaddr - main_info.low_vaddr));
             return -8;
         }
@@ -777,7 +777,7 @@ int elf64_map_task_image(struct task *task, const struct storage_node *node,
         }
     }
     if (!entry_found) {
-        console_printf("[ntclks] ELF main entry is outside an executable LOAD segment\n");
+        console_printf("[reliefnt] ELF main entry is outside an executable LOAD segment\n");
         return -8;
     }
     ret = elf64_map_one(task, node, image, &main_info, main_bias, "main");
@@ -794,12 +794,12 @@ int elf64_map_task_image(struct task *task, const struct storage_node *node,
         return 0;
     }
 
-    char interpreter_path[LEONOS_FS_PATH_LEN];
+    char interpreter_path[RELIEFOS_FS_PATH_LEN];
     ret = fs_permissions_resolve(task, sched_task_cwd(task), main_info.interp,
                                  interpreter_path, sizeof(interpreter_path), false);
     if (!ret) ret = storage_lookup_path(interpreter_path, &interp_node);
     if (ret < 0) {
-        console_printf("[ntclks] ELF interpreter lookup failed path=%s\n", main_info.interp);
+        console_printf("[reliefnt] ELF interpreter lookup failed path=%s\n", main_info.interp);
         return ret;
     }
     ret = fs_permissions_check(task, interpreter_path, FS_ACCESS_EXEC, false);
@@ -808,22 +808,22 @@ int elf64_map_task_image(struct task *task, const struct storage_node *node,
         sched_task_mm(task)->nondumpable = true;
     ret = elf64_read_headers(&interp_node, &interp_image, &interp_len);
     if (ret < 0) {
-        console_printf("[ntclks] ELF interpreter header read failed\n");
+        console_printf("[reliefnt] ELF interpreter header read failed\n");
         return ret == -8 ? -80 : ret;
     }
     if (!elf64_probe_image(interp_image, interp_len, interp_node.size, true, &interp_info)) {
-        console_printf("[ntclks] ELF interpreter header validation failed\n");
+        console_printf("[reliefnt] ELF interpreter header validation failed\n");
         return -80;
     }
     if (interp_info.abi_major != main_info.abi_major) {
-        console_printf("[ntclks] ELF ABI mismatch main=%u interpreter=%u\n",
+        console_printf("[reliefnt] ELF ABI mismatch main=%u interpreter=%u\n",
                        main_info.abi_major, interp_info.abi_major);
         return -80;
     }
     interp_bias = elf64_choose_bias(&interp_info, true);
     interp_eh = interp_image;
     if (!interp_bias || interp_info.entry > UINT64_MAX - interp_bias) {
-        console_printf("[ntclks] ELF interpreter ASLR layout rejected span=0x%llx\n",
+        console_printf("[reliefnt] ELF interpreter ASLR layout rejected span=0x%llx\n",
                        (unsigned long long)(interp_info.high_vaddr - interp_info.low_vaddr));
         return -8;
     }

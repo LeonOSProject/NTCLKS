@@ -104,14 +104,14 @@ static int gpu_reap_locked(void)
  * @param request Trusted in/out request; handle stays zero on failure.
  * @return Zero or negative SVGA error; unfinished retirement remains tracked internally.
  */
-int svga_gpu_create(uint32_t owner, struct leonos_gpu_context *request)
+int svga_gpu_create(uint32_t owner, struct reliefos_gpu_context *request)
 {
     if (!request) return SVGA_EINVAL;
     request->handle = 0;
-    if (!owner || request->size != sizeof(*request) || request->version != LEONOS_GPU_ABI_VERSION ||
-        request->reserved || !request->width || request->width > LEONOS_GPU_MAX_WIDTH ||
-        !request->height || request->height > LEONOS_GPU_MAX_HEIGHT ||
-        !request->vertex_capacity || request->vertex_capacity > LEONOS_GPU_MAX_VERTICES)
+    if (!owner || request->size != sizeof(*request) || request->version != RELIEFOS_GPU_ABI_VERSION ||
+        request->reserved || !request->width || request->width > RELIEFOS_GPU_MAX_WIDTH ||
+        !request->height || request->height > RELIEFOS_GPU_MAX_HEIGHT ||
+        !request->vertex_capacity || request->vertex_capacity > RELIEFOS_GPU_MAX_VERTICES)
         return SVGA_EINVAL;
     uint64_t flags = svga_lock();
     (void)gpu_clock_locked();
@@ -133,7 +133,7 @@ int svga_gpu_create(uint32_t owner, struct leonos_gpu_context *request)
             .pending_slot = SVGA_GPU_NO_SLOT, .last_slot = SVGA_GPU_NO_SLOT};
     }
     if (!ret) {
-        uint32_t vertex_bytes = c->vertex_capacity * sizeof(struct leonos_gpu_vertex);
+        uint32_t vertex_bytes = c->vertex_capacity * sizeof(struct reliefos_gpu_vertex);
         struct svga_surface_desc color = {SVGA3D_X8R8G8B8, SVGA3D_SURFACE_HINT_RENDERTARGET,
             c->width, c->height, 1, 1};
         struct svga_surface_desc depth = {SVGA3D_Z_D24S8, SVGA3D_SURFACE_HINT_DEPTHSTENCIL,
@@ -202,8 +202,8 @@ static void gpu_record_error_locked(const struct svga_gpu_context *c, int status
 {
     /* Capture before cleanup submits its own fences or retires the context. */
     svga.gpu_error_owner = c->owner;
-    svga.gpu_error = (struct leonos_gpu_diagnostics){.size = sizeof(svga.gpu_error),
-        .version = LEONOS_GPU_ABI_VERSION, .status = status, .stage = stage,
+    svga.gpu_error = (struct reliefos_gpu_diagnostics){.size = sizeof(svga.gpu_error),
+        .version = RELIEFOS_GPU_ABI_VERSION, .status = status, .stage = stage,
         .handle = c->handle, .generation = svga.generation,
         .fifo_min = svga.fifo[SVGA_FIFO_MIN], .fifo_max = svga.fifo[SVGA_FIFO_MAX],
         .fifo_next = svga.fifo[SVGA_FIFO_NEXT_CMD], .fifo_stop = svga.fifo[SVGA_FIFO_STOP],
@@ -212,12 +212,12 @@ static void gpu_record_error_locked(const struct svga_gpu_context *c, int status
         .submitted_frames = svga.gpu_stats.submitted, .completed_frames = svga.gpu_stats.completed};
 }
 
-void svga_gpu_get_diagnostics(uint32_t owner, struct leonos_gpu_diagnostics *out)
+void svga_gpu_get_diagnostics(uint32_t owner, struct reliefos_gpu_diagnostics *out)
 {
     if (!out) return;
     uint64_t flags = svga_lock();
     *out = owner && owner == svga.gpu_error_owner ? svga.gpu_error :
-        (struct leonos_gpu_diagnostics){.size = sizeof(*out), .version = LEONOS_GPU_ABI_VERSION};
+        (struct reliefos_gpu_diagnostics){.size = sizeof(*out), .version = RELIEFOS_GPU_ABI_VERSION};
     svga_unlock(flags);
 }
 
@@ -228,16 +228,16 @@ static uint32_t float_word(const float *value)
     return bits;
 }
 
-static int gpu_validate(const struct svga_gpu_context *c, const struct leonos_gpu_frame *frame,
-                        const struct leonos_gpu_vertex *vertices, const struct leonos_gpu_draw *draws,
+static int gpu_validate(const struct svga_gpu_context *c, const struct reliefos_gpu_frame *frame,
+                        const struct reliefos_gpu_vertex *vertices, const struct reliefos_gpu_draw *draws,
                         const uint32_t *pixels)
 {
     if (!vertices || !draws || !pixels || frame->size != sizeof(*frame) ||
-        frame->version != LEONOS_GPU_ABI_VERSION || frame->reserved ||
+        frame->version != RELIEFOS_GPU_ABI_VERSION || frame->reserved ||
         !frame->vertex_count || frame->vertex_count > c->vertex_capacity ||
-        !frame->draw_count || frame->draw_count > LEONOS_GPU_MAX_DRAWS ||
+        !frame->draw_count || frame->draw_count > RELIEFOS_GPU_MAX_DRAWS ||
         frame->pixel_capacity != c->width * c->height ||
-        frame->fill_mode < LEONOS_GPU_FILL_POINT || frame->fill_mode > LEONOS_GPU_FILL_SOLID)
+        frame->fill_mode < RELIEFOS_GPU_FILL_POINT || frame->fill_mode > RELIEFOS_GPU_FILL_SOLID)
         return SVGA_EINVAL;
     for (uint32_t i = 0; i < frame->vertex_count; ++i) {
         if ((float_word(&vertices[i].x) & 0x7f800000u) == 0x7f800000u ||
@@ -335,7 +335,7 @@ static int gpu_state_init_locked(struct svga_gpu_context *c, uint32_t slot, uint
 }
 
 static int gpu_state_locked(struct svga_gpu_context *c, uint32_t slot,
-                            const struct leonos_gpu_frame *frame)
+                            const struct reliefos_gpu_frame *frame)
 {
     uint32_t cid = (uint32_t)svga_find_context(c->context);
     int ret = c->state_ready ? gpu_set_targets_locked(c, slot) :
@@ -350,7 +350,7 @@ static int gpu_state_locked(struct svga_gpu_context *c, uint32_t slot,
 }
 
 static int gpu_draw_locked(struct svga_gpu_context *c, uint32_t slot,
-                           const struct leonos_gpu_draw *draw)
+                           const struct reliefos_gpu_draw *draw)
 {
     uint32_t cid = (uint32_t)svga_find_context(c->context);
     uint32_t vertex = (uint32_t)svga_find_surface(c->slots[slot].vertex);
@@ -363,9 +363,9 @@ static int gpu_draw_locked(struct svga_gpu_context *c, uint32_t slot,
         .command = {cid, 2, 1},
         .declarations = {
             {{SVGA3D_DECLTYPE_FLOAT3, SVGA3D_DECLMETHOD_DEFAULT, SVGA3D_DECLUSAGE_POSITION, 0},
-             {vertex, 0, sizeof(struct leonos_gpu_vertex)}, {draw->first, draw->first + draw->count - 1}},
+             {vertex, 0, sizeof(struct reliefos_gpu_vertex)}, {draw->first, draw->first + draw->count - 1}},
             {{SVGA3D_DECLTYPE_D3DCOLOR, SVGA3D_DECLMETHOD_DEFAULT, SVGA3D_DECLUSAGE_COLOR, 0},
-             {vertex, 12, sizeof(struct leonos_gpu_vertex)}, {draw->first, draw->first + draw->count - 1}},
+             {vertex, 12, sizeof(struct reliefos_gpu_vertex)}, {draw->first, draw->first + draw->count - 1}},
         },
         .range = {SVGA3D_PRIMITIVE_TRIANGLELIST, draw->count / 3u,
             {SVGA3D_INVALID_ID, 0, 0}, 0, (int32_t)draw->first},
@@ -391,9 +391,9 @@ static bool gpu_slot_usable_locked(const struct svga_gpu_context *c, uint32_t sl
 }
 
 static int gpu_submit_locked(struct svga_gpu_context *c, uint32_t slot,
-                             const struct leonos_gpu_frame *frame,
-                             const struct leonos_gpu_vertex *vertices,
-                             const struct leonos_gpu_draw *draws, uint32_t *stage)
+                             const struct reliefos_gpu_frame *frame,
+                             const struct reliefos_gpu_vertex *vertices,
+                             const struct reliefos_gpu_draw *draws, uint32_t *stage)
 {
     struct svga_gpu_slot *s = &c->slots[slot];
     int upload = svga_find_gmr(s->upload);
@@ -411,22 +411,22 @@ static int gpu_submit_locked(struct svga_gpu_context *c, uint32_t slot,
     int ret = svga_surface_dma_locked(s->vertex, 0, 0, s->upload, 0, bytes,
         SVGA3D_WRITE_HOST_VRAM, &upload_box, 1);
     if (!ret) {
-        *stage = LEONOS_GPU_ERROR_STATE;
+        *stage = RELIEFOS_GPU_ERROR_STATE;
         ret = gpu_state_locked(c, slot, frame);
     }
     for (uint32_t i = 0; !ret && i < frame->draw_count; ++i) {
-        *stage = LEONOS_GPU_ERROR_DRAW;
+        *stage = RELIEFOS_GPU_ERROR_DRAW;
         ret = gpu_draw_locked(c, slot, &draws[i]);
         if (!ret) svga.gpu_stats.triangles += draws[i].count / 3u;
     }
     struct svga_dma_box read_box = {0, 0, 0, c->width, c->height, 1, 0, 0, 0};
     if (!ret) {
-        *stage = LEONOS_GPU_ERROR_READBACK;
+        *stage = RELIEFOS_GPU_ERROR_READBACK;
         ret = svga_surface_dma_locked(s->color, 0, 0, s->readback, 0, c->width * 4u,
             SVGA3D_READ_HOST_VRAM, &read_box, 1);
     }
     if (!ret) {
-        *stage = LEONOS_GPU_ERROR_FENCE;
+        *stage = RELIEFOS_GPU_ERROR_FENCE;
         svga_fifo_flush_notify_locked();
         ret = svga_fence_locked(&s->fence);
         if (ret) s->fence = 0;
@@ -456,9 +456,9 @@ static int gpu_copyout_locked(const struct svga_gpu_context *c, uint32_t slot, u
  *
  * @return Zero with top-down 00RRGGBB output; negative errors leave output unchanged.
  */
-int svga_gpu_render(uint32_t owner, const struct leonos_gpu_frame *frame,
-                    const struct leonos_gpu_vertex *vertices,
-                    const struct leonos_gpu_draw *draws, uint32_t *pixels)
+int svga_gpu_render(uint32_t owner, const struct reliefos_gpu_frame *frame,
+                    const struct reliefos_gpu_vertex *vertices,
+                    const struct reliefos_gpu_draw *draws, uint32_t *pixels)
 {
     if (!frame) return SVGA_EINVAL;
     uint64_t flags = svga_lock();
@@ -469,7 +469,7 @@ int svga_gpu_render(uint32_t owner, const struct leonos_gpu_frame *frame,
     if (ret) { svga_unlock(flags); return ret; }
     struct svga_gpu_stats *stats = &svga.gpu_stats;
     ++stats->submitted;
-    uint32_t stage = LEONOS_GPU_ERROR_REAP;
+    uint32_t stage = RELIEFOS_GPU_ERROR_REAP;
     ret = gpu_reap_locked();
     if (!ret) gpu_retire_fences_locked(c);
     if (!ret) {
@@ -478,14 +478,14 @@ int svga_gpu_render(uint32_t owner, const struct leonos_gpu_frame *frame,
             stats->busy_start = now;
             stats->busy = true;
         }
-        stage = LEONOS_GPU_ERROR_PREPARE;
+        stage = RELIEFOS_GPU_ERROR_PREPARE;
         uint32_t slot = c->next_slot;
         if (c->slots[slot].fence) {
             ret = svga_wait_locked(c->slots[slot].fence);
             if (!ret) c->slots[slot].fence = 0;
         }
         if (!ret) {
-            stage = LEONOS_GPU_ERROR_UPLOAD;
+            stage = RELIEFOS_GPU_ERROR_UPLOAD;
             ret = gpu_submit_locked(c, slot, frame, vertices, draws, &stage);
         }
         uint32_t output = slot;
@@ -498,13 +498,13 @@ int svga_gpu_render(uint32_t owner, const struct leonos_gpu_frame *frame,
                 output = c->pending_slot;
             }
             if (c->slots[output].fence) {
-                stage = LEONOS_GPU_ERROR_FENCE;
+                stage = RELIEFOS_GPU_ERROR_FENCE;
                 ret = svga_wait_locked(c->slots[output].fence);
                 if (!ret) c->slots[output].fence = 0;
             }
         }
         if (!ret) {
-            stage = LEONOS_GPU_ERROR_COPYOUT;
+            stage = RELIEFOS_GPU_ERROR_COPYOUT;
             ret = gpu_copyout_locked(c, output, pixels);
         }
         if (!ret) {
@@ -543,7 +543,7 @@ int svga_gpu_render(uint32_t owner, const struct leonos_gpu_frame *frame,
  * @brief Snapshot timing estimates in a single monotonic clock domain and live resources.
  * @param out Writable kernel output, ignored when NULL.
  */
-void svga_gpu_get_info(struct leonos_gpu_info *out)
+void svga_gpu_get_info(struct reliefos_gpu_info *out)
 {
     if (!out) return;
     uint64_t flags = svga_lock();
@@ -555,8 +555,8 @@ void svga_gpu_get_info(struct leonos_gpu_info *out)
     uint64_t now = gpu_clock_locked();
     struct svga_gpu_stats *s = &svga.gpu_stats;
     uint64_t pending = s->busy ? now - s->busy_start : 0;
-    *out = (struct leonos_gpu_info){.size = sizeof(*out), .version = LEONOS_GPU_ABI_VERSION,
-        .flags = svga.available ? LEONOS_GPU_AVAILABLE | LEONOS_GPU_BUSY_ESTIMATED : 0,
+    *out = (struct reliefos_gpu_info){.size = sizeof(*out), .version = RELIEFOS_GPU_ABI_VERSION,
+        .flags = svga.available ? RELIEFOS_GPU_AVAILABLE | RELIEFOS_GPU_BUSY_ESTIMATED : 0,
         .generation = s->generation, .sample_ticks = now,
         .busy_ticks = pending > UINT64_MAX - s->busy_ticks ? UINT64_MAX : s->busy_ticks + pending,
         .submitted_frames = s->submitted, .completed_frames = s->completed,

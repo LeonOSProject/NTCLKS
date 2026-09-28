@@ -19,7 +19,7 @@ static int ahci_async_fast_poll_idle(struct ahci_hba_port *port)
         }
         ahci_cpu_relax();
     }
-    return -LEONOS_EAGAIN;
+    return -RELIEFOS_EAGAIN;
 }
 
 static int ahci_async_fast_poll_command(struct ahci_hba_port *port)
@@ -33,7 +33,7 @@ static int ahci_async_fast_poll_command(struct ahci_hba_port *port)
         }
         ahci_cpu_relax();
     }
-    return -LEONOS_EAGAIN;
+    return -RELIEFOS_EAGAIN;
 }
 
 static int ahci_wait_idle(struct ahci_hba_port *port)
@@ -60,7 +60,7 @@ static int ahci_wait_cmd_slot(struct ahci_hba_port *port)
             }
             ahci_cpu_relax();
         }
-        return -LEONOS_EAGAIN;
+        return -RELIEFOS_EAGAIN;
     }
     for (uint32_t i = 0; i < AHCI_WAIT_SPINS; ++i) {
         if ((port->ci | port->sact) == 0) {
@@ -82,7 +82,7 @@ static void ahci_log_pending_failure(const char *reason,
     if (!port) {
         return;
     }
-    console_printf("[ntclks] ahci %s op=%s owner=%u lba=%llu sectors=%u "
+    console_printf("[reliefnt] ahci %s op=%s owner=%u lba=%llu sectors=%u "
                    "ci=0x%x is=0x%x tfd=0x%x serr=0x%x\n",
                    reason,
                    ahci_pending_command.write ? "write" : "read",
@@ -108,7 +108,7 @@ static int ahci_pending_poll(void)
     if ((port->ci & 1u) != 0) {
         if (storage_async_can_yield()) {
             int poll_ret = ahci_async_fast_poll_command(port);
-            if (poll_ret != -LEONOS_EAGAIN) {
+            if (poll_ret != -RELIEFOS_EAGAIN) {
                 goto command_complete;
             }
             if (time_ticks() - ahci_pending_command.start_tick >=
@@ -120,7 +120,7 @@ static int ahci_pending_poll(void)
                 ahci_pending_clear();
                 return -5;
             }
-            return -LEONOS_EAGAIN;
+            return -RELIEFOS_EAGAIN;
         }
         for (uint32_t i = 0; i < AHCI_WAIT_SPINS; ++i) {
             if (port->is & AHCI_PORT_IS_TFES) {
@@ -187,11 +187,11 @@ void storage_drain_task_io(uint32_t pid)
 
 static int storage_read_failure(int ret)
 {
-    if (ret != -LEONOS_EAGAIN) {
+    if (ret != -RELIEFOS_EAGAIN) {
         console_printf("[storage] read failure ret=%d active_volume=%u\n",
                        ret, g_active_volume ? g_active_volume->volume_id : 99u);
     }
-    return ret == -LEONOS_EAGAIN ? ret : -5;
+    return ret == -RELIEFOS_EAGAIN ? ret : -5;
 }
 
 static int ahci_stop_port(struct ahci_hba_port *port)
@@ -247,12 +247,12 @@ static int ahci_recover_port(struct ahci_hba_port *port, uint32_t attempt)
     if (!port) {
         return -22;
     }
-    console_printf("[ntclks] ahci recovering port after I/O failure attempt=%u "
+    console_printf("[reliefnt] ahci recovering port after I/O failure attempt=%u "
                    "ci=0x%x is=0x%x tfd=0x%x serr=0x%x\n",
                    attempt, port->ci, port->is, port->tfd, port->serr);
     ahci_pending_clear();
     if (ahci_setup_port(port) < 0) {
-        console_printf("[ntclks] ahci port recovery failed attempt=%u\n", attempt);
+        console_printf("[reliefnt] ahci port recovery failed attempt=%u\n", attempt);
         return -5;
     }
     return 0;
@@ -280,7 +280,7 @@ static int ahci_read_lba(struct ahci_hba_port *port, uint64_t lba, uint32_t sect
         }
     }
     if (ahci_wait_idle(port) < 0) {
-        return storage_async_can_yield() ? -LEONOS_EAGAIN : -5;
+        return storage_async_can_yield() ? -RELIEFOS_EAGAIN : -5;
     }
 
     port->is = 0xffffffffu;
@@ -311,7 +311,7 @@ static int ahci_read_lba(struct ahci_hba_port *port, uint64_t lba, uint32_t sect
     fis->counth = (uint8_t)((sector_count >> 8) & 0xffu);
 
     if (ahci_wait_cmd_slot(port) < 0) {
-        return storage_async_can_yield() ? -LEONOS_EAGAIN : -5;
+        return storage_async_can_yield() ? -RELIEFOS_EAGAIN : -5;
     }
     ahci_memory_barrier();
     port->ci = 1u;
@@ -350,7 +350,7 @@ static int ahci_read_atapi_blocks(struct ahci_hba_port *port, uint64_t lba,
         }
     }
     if (ahci_wait_idle(port) < 0) {
-        return storage_async_can_yield() ? -LEONOS_EAGAIN : -5;
+        return storage_async_can_yield() ? -RELIEFOS_EAGAIN : -5;
     }
 
     port->is = 0xffffffffu;
@@ -385,7 +385,7 @@ static int ahci_read_atapi_blocks(struct ahci_hba_port *port, uint64_t lba,
     packet[8] = (uint8_t)(block_count & 0xffu);
 
     if (ahci_wait_cmd_slot(port) < 0) {
-        return storage_async_can_yield() ? -LEONOS_EAGAIN : -5;
+        return storage_async_can_yield() ? -RELIEFOS_EAGAIN : -5;
     }
     ahci_memory_barrier();
     port->ci = 1u;
@@ -406,7 +406,7 @@ static int ahci_read_atapi_blocks_retry(struct ahci_hba_port *port, uint64_t lba
     int ret = -5;
     for (uint32_t attempt = 0; attempt < AHCI_IO_RETRY_COUNT; ++attempt) {
         ret = ahci_read_atapi_blocks(port, lba, block_count, buffer);
-        if (ret >= 0 || ret == -LEONOS_EAGAIN) {
+        if (ret >= 0 || ret == -RELIEFOS_EAGAIN) {
             return ret;
         }
         if (ahci_recover_port(port, attempt + 1u) < 0) {
@@ -441,7 +441,7 @@ static int ahci_write_lba(struct ahci_hba_port *port, uint64_t lba, uint32_t sec
         }
     }
     if (ahci_wait_idle(port) < 0) {
-        return storage_async_can_yield() ? -LEONOS_EAGAIN : -5;
+        return storage_async_can_yield() ? -RELIEFOS_EAGAIN : -5;
     }
 
     port->is = 0xffffffffu;
@@ -472,7 +472,7 @@ static int ahci_write_lba(struct ahci_hba_port *port, uint64_t lba, uint32_t sec
     fis->counth = (uint8_t)((sector_count >> 8) & 0xffu);
 
     if (ahci_wait_cmd_slot(port) < 0) {
-        return storage_async_can_yield() ? -LEONOS_EAGAIN : -5;
+        return storage_async_can_yield() ? -RELIEFOS_EAGAIN : -5;
     }
     ahci_memory_barrier();
     port->ci = 1u;
@@ -523,7 +523,7 @@ static int ahci_read_lba_retry(struct ahci_hba_port *port, uint64_t lba,
     int ret = -5;
     for (uint32_t attempt = 0; attempt < AHCI_IO_RETRY_COUNT; ++attempt) {
         ret = ahci_read_lba(port, lba, sector_count, buffer);
-        if (ret >= 0 || ret == -LEONOS_EAGAIN) {
+        if (ret >= 0 || ret == -RELIEFOS_EAGAIN) {
             return ret;
         }
         if (ahci_recover_port(port, attempt + 1u) < 0) {
@@ -542,7 +542,7 @@ static int ahci_write_lba_retry(struct ahci_hba_port *port, uint64_t lba,
     int ret = -5;
     for (uint32_t attempt = 0; attempt < AHCI_IO_RETRY_COUNT; ++attempt) {
         ret = ahci_write_lba(port, lba, sector_count, buffer);
-        if (ret >= 0 || ret == -LEONOS_EAGAIN) {
+        if (ret >= 0 || ret == -RELIEFOS_EAGAIN) {
             return ret;
         }
         /* Writes are retried at the same sector range with unchanged data.

@@ -1,5 +1,5 @@
-#ifndef LEONOS_UAPI_LINUX_SECUREBITS_H
-#define LEONOS_UAPI_LINUX_SECUREBITS_H
+#ifndef RELIEFOS_UAPI_LINUX_SECUREBITS_H
+#define RELIEFOS_UAPI_LINUX_SECUREBITS_H
 
 /* Linux v6.12 include/uapi/linux/securebits.h bit assignments. */
 #define SECBIT_NOROOT (1U << 0)

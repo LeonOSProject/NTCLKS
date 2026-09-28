@@ -20,7 +20,7 @@ struct disk_block_partition_range {
 
 struct disk_block_partition_cache {
     uint64_t disk_sectors;
-    struct disk_block_partition_range entries[LEONOS_DISK_MAX_PARTITIONS];
+    struct disk_block_partition_range entries[RELIEFOS_DISK_MAX_PARTITIONS];
     int32_t status;
     uint8_t valid;
 };
@@ -115,7 +115,7 @@ static int disk_block_range(uint32_t disk_id, struct install_disk_state *disk,
         *out_sector_count = sector_count;
         return 0;
     }
-    if (partition_index < -1 || (uint32_t)partition_index >= LEONOS_DISK_MAX_PARTITIONS) {
+    if (partition_index < -1 || (uint32_t)partition_index >= RELIEFOS_DISK_MAX_PARTITIONS) {
         return -22;
     }
     ret = disk_block_cache_load(disk_id, disk, sector_count);
@@ -176,7 +176,7 @@ static int disk_gpt_header_valid(const struct gpt_header *header, uint64_t secto
         header->first_usable_lba > header->last_usable_lba ||
         header->last_usable_lba >= sector_count || header->first_usable_lba < 2u ||
         header->partition_entry_count == 0 ||
-        header->partition_entry_count > LEONOS_DISK_MAX_PARTITIONS ||
+        header->partition_entry_count > RELIEFOS_DISK_MAX_PARTITIONS ||
         header->partition_entry_size != sizeof(struct gpt_entry)) {
         return -22;
     }
@@ -271,7 +271,7 @@ static int disk_gpt_load(struct install_disk_state *disk, uint64_t sector_count,
     table_bytes = primary.partition_entry_count * primary.partition_entry_size;
     table_sectors = (table_bytes + SECTOR_SIZE - 1u) / SECTOR_SIZE;
     ret = install_read_sectors(disk, primary.backup_lba, 1u, storage_scratch);
-    if (ret == -LEONOS_EAGAIN) {
+    if (ret == -RELIEFOS_EAGAIN) {
         /* The AHCI async path still owns the pending command.  Do not treat
          * an incomplete backup-header read as a missing header and submit a
          * second request against the shared command slot. */
@@ -364,7 +364,7 @@ int storage_sync_disk(uint32_t disk_id)
  */
 int storage_disk_partition_uuid(uint32_t disk_id, uint32_t partition_index, char uuid[37])
 {
-    if (!uuid || disk_id >= STORAGE_MAX_INSTALL_DISKS || partition_index >= LEONOS_DISK_MAX_PARTITIONS) return -22;
+    if (!uuid || disk_id >= STORAGE_MAX_INSTALL_DISKS || partition_index >= RELIEFOS_DISK_MAX_PARTITIONS) return -22;
     uint64_t first, sectors;
     int ret = storage_disk_block_info(disk_id, (int32_t)partition_index, &first, &sectors);
     if (ret < 0) return ret;
@@ -594,7 +594,7 @@ static int disk_gpt_entries_valid(const struct disk_gpt_table *table)
  * @brief Detects the filesystem superblock at a GPT partition start.
  * @param disk Prepared block-disk state.
  * @param entry Validated GPT partition entry.
- * @param out_filesystem Receives a LEONOS_DISK_FILESYSTEM value.
+ * @param out_filesystem Receives a RELIEFOS_DISK_FILESYSTEM value.
  * @return Zero when probing completed, including an unknown filesystem; a
  *         negative storage error when the partition could not be read.
  */
@@ -607,7 +607,7 @@ static int disk_partition_filesystem(struct install_disk_state *disk,
     if (!disk || !entry || !out_filesystem || entry->last_lba < entry->first_lba) {
         return -22;
     }
-    *out_filesystem = LEONOS_DISK_FILESYSTEM_UNKNOWN;
+    *out_filesystem = RELIEFOS_DISK_FILESYSTEM_UNKNOWN;
     sectors = entry->last_lba - entry->first_lba + 1u;
     ret = install_read_sectors(disk, entry->first_lba, 1u, storage_scratch);
     if (ret < 0) {
@@ -615,13 +615,13 @@ static int disk_partition_filesystem(struct install_disk_state *disk,
     }
     if (storage_scratch[510] == 0x55 && storage_scratch[511] == 0xaa &&
         storage_memcmp(storage_scratch + 82u, "FAT32   ", 8u) == 0) {
-        *out_filesystem = LEONOS_DISK_FILESYSTEM_FAT32;
+        *out_filesystem = RELIEFOS_DISK_FILESYSTEM_FAT32;
         return 0;
     }
     if (storage_scratch[510] == 0x55 && storage_scratch[511] == 0xaa &&
         storage_memcmp(storage_scratch + 3u, "EXFAT   ", 8u) == 0 &&
         storage_scratch[108u] == 9u && storage_scratch[110u] == 1u) {
-        *out_filesystem = LEONOS_DISK_FILESYSTEM_EXFAT;
+        *out_filesystem = RELIEFOS_DISK_FILESYSTEM_EXFAT;
         return 0;
     }
     if (sectors > 2u) {
@@ -632,7 +632,7 @@ static int disk_partition_filesystem(struct install_disk_state *disk,
         const struct ext2_superblock *super =
             (const struct ext2_superblock *)(const void *)storage_scratch;
         if (super->magic == EXT2_SUPER_MAGIC) {
-            *out_filesystem = LEONOS_DISK_FILESYSTEM_EXT2;
+            *out_filesystem = RELIEFOS_DISK_FILESYSTEM_EXT2;
         }
     }
     return 0;
@@ -669,7 +669,7 @@ static void disk_gpt_name_to_text(const uint16_t source[36], char *target, uint3
  */
 static int disk_partition_export(uint32_t disk_id, struct install_disk_state *disk,
                                  uint32_t entry_index, const struct gpt_entry *entry,
-                                 struct leonos_disk_partition *out)
+                                 struct reliefos_disk_partition *out)
 {
     if (!disk || !entry || !out) {
         return -22;
@@ -682,19 +682,19 @@ static int disk_partition_export(uint32_t disk_id, struct install_disk_state *di
     storage_memcpy(out->type_guid, entry->type_guid, sizeof(out->type_guid));
     disk_gpt_name_to_text(entry->name, out->name, sizeof(out->name));
     if (storage_memcmp(entry->type_guid, esp_guid, sizeof(entry->type_guid)) == 0) {
-        out->flags |= LEONOS_DISK_PARTITION_FLAG_ESP;
+        out->flags |= RELIEFOS_DISK_PARTITION_FLAG_ESP;
     }
     if (disk->boot_root) {
-        out->flags |= LEONOS_DISK_PARTITION_FLAG_BOOT_ROOT |
-                      LEONOS_DISK_PARTITION_FLAG_PROTECTED;
+        out->flags |= RELIEFOS_DISK_PARTITION_FLAG_BOOT_ROOT |
+                      RELIEFOS_DISK_PARTITION_FLAG_PROTECTED;
     }
     if (disk->target_mounted) {
-        out->flags |= LEONOS_DISK_PARTITION_FLAG_TARGET_MOUNTED |
-                      LEONOS_DISK_PARTITION_FLAG_PROTECTED;
+        out->flags |= RELIEFOS_DISK_PARTITION_FLAG_TARGET_MOUNTED |
+                      RELIEFOS_DISK_PARTITION_FLAG_PROTECTED;
     }
     if (storage_disk_partition_mount_path(disk_id, entry_index, out->mount_path,
                                           sizeof(out->mount_path)) == 0) {
-        out->flags |= LEONOS_DISK_PARTITION_FLAG_MOUNTED;
+        out->flags |= RELIEFOS_DISK_PARTITION_FLAG_MOUNTED;
     }
     return disk_partition_filesystem(disk, entry, &out->filesystem);
 }
@@ -711,7 +711,7 @@ static int disk_partition_mutable(const struct install_disk_state *disk)
     }
     /* When booted from the installer ISO, / is the writable RAM root and the
      * physical disks are installation targets, even if probing them first
-     * found an existing LeonOS root. Keep the boot-disk guard for normal disk
+     * found an existing ReliefOS root. Keep the boot-disk guard for normal disk
      * boots while allowing the ISO's advanced environment to manage targets. */
     return ((disk->boot_root && !storage_installer_root_active()) ||
             disk->target_mounted) ? -16 : 0;
@@ -753,21 +753,21 @@ static int storage_installer_mounts_busy(void)
 
 /**
  * @brief Tests a user-visible filesystem selection accepted by the formatter.
- * @param filesystem LEONOS_DISK_FILESYSTEM value.
+ * @param filesystem RELIEFOS_DISK_FILESYSTEM value.
  * @return Nonzero when the selection is FAT32, exFAT, or ext2.
  */
 static int disk_filesystem_format_supported(uint32_t filesystem)
 {
-    return filesystem == LEONOS_DISK_FILESYSTEM_FAT32 ||
-           filesystem == LEONOS_DISK_FILESYSTEM_EXT2 ||
-           filesystem == LEONOS_DISK_FILESYSTEM_EXFAT;
+    return filesystem == RELIEFOS_DISK_FILESYSTEM_FAT32 ||
+           filesystem == RELIEFOS_DISK_FILESYSTEM_EXT2 ||
+           filesystem == RELIEFOS_DISK_FILESYSTEM_EXFAT;
 }
 
 /**
- * @brief Formats a validated data extent using the selected LeonOS filesystem.
+ * @brief Formats a validated data extent using the selected ReliefOS filesystem.
  * @param disk Prepared block-disk state.
  * @param entry GPT partition entry defining the data extent.
- * @param filesystem Selected LEONOS_DISK_FILESYSTEM value.
+ * @param filesystem Selected RELIEFOS_DISK_FILESYSTEM value.
  * @return Zero on success or a negative errno-style storage error.
  */
 static int disk_format_entry(struct install_disk_state *disk, const struct gpt_entry *entry,
@@ -779,10 +779,10 @@ static int disk_format_entry(struct install_disk_state *disk, const struct gpt_e
         return -22;
     }
     sector_count = entry->last_lba - entry->first_lba + 1u;
-    if (filesystem == LEONOS_DISK_FILESYSTEM_FAT32) {
+    if (filesystem == RELIEFOS_DISK_FILESYSTEM_FAT32) {
         return install_format_fat32(disk, entry->first_lba, sector_count);
     }
-    if (filesystem == LEONOS_DISK_FILESYSTEM_EXFAT) {
+    if (filesystem == RELIEFOS_DISK_FILESYSTEM_EXFAT) {
         return install_format_exfat(disk, entry->first_lba, sector_count);
     }
     return install_format_ext2(disk, entry->first_lba, sector_count);
@@ -791,18 +791,18 @@ static int disk_format_entry(struct install_disk_state *disk, const struct gpt_e
 /**
  * @brief Assigns a standard GPT type GUID for a selected data filesystem.
  * @param entry Writable GPT entry.
- * @param filesystem Selected LEONOS_DISK_FILESYSTEM value.
+ * @param filesystem Selected RELIEFOS_DISK_FILESYSTEM value.
  */
 static void disk_gpt_set_filesystem_type(struct gpt_entry *entry, uint32_t filesystem)
 {
     if (!entry) {
         return;
     }
-    if (filesystem == LEONOS_DISK_FILESYSTEM_UNKNOWN ||
-        filesystem == LEONOS_DISK_FILESYSTEM_FAT32 ||
-        filesystem == LEONOS_DISK_FILESYSTEM_EXFAT) {
+    if (filesystem == RELIEFOS_DISK_FILESYSTEM_UNKNOWN ||
+        filesystem == RELIEFOS_DISK_FILESYSTEM_FAT32 ||
+        filesystem == RELIEFOS_DISK_FILESYSTEM_EXFAT) {
         storage_memcpy(entry->type_guid, basic_data_guid, sizeof(entry->type_guid));
-    } else if (filesystem == LEONOS_DISK_FILESYSTEM_EXT2) {
+    } else if (filesystem == RELIEFOS_DISK_FILESYSTEM_EXT2) {
         storage_memcpy(entry->type_guid, linux_filesystem_guid, sizeof(entry->type_guid));
     }
 }
@@ -812,11 +812,11 @@ static int disk_gpt_set_partition_type(struct gpt_entry *entry, uint32_t type)
     if (!entry) {
         return -22;
     }
-    if (type == LEONOS_DISK_PARTITION_TYPE_BASIC_DATA) {
+    if (type == RELIEFOS_DISK_PARTITION_TYPE_BASIC_DATA) {
         storage_memcpy(entry->type_guid, basic_data_guid, sizeof(entry->type_guid));
-    } else if (type == LEONOS_DISK_PARTITION_TYPE_ESP) {
+    } else if (type == RELIEFOS_DISK_PARTITION_TYPE_ESP) {
         storage_memcpy(entry->type_guid, esp_guid, sizeof(entry->type_guid));
-    } else if (type == LEONOS_DISK_PARTITION_TYPE_LINUX) {
+    } else if (type == RELIEFOS_DISK_PARTITION_TYPE_LINUX) {
         storage_memcpy(entry->type_guid, linux_filesystem_guid, sizeof(entry->type_guid));
     } else {
         return -22;
@@ -909,7 +909,7 @@ static void disk_gpt_set_name(uint16_t destination[36], const char *source)
  * @return Zero on success or a negative errno-style storage error.
  */
 int storage_disk_list_partitions(uint32_t disk_id,
-                                 struct leonos_disk_partition *partitions,
+                                 struct reliefos_disk_partition *partitions,
                                  uint32_t capacity, uint32_t *out_count)
 {
     struct install_disk_state *disk;
@@ -925,8 +925,8 @@ int storage_disk_list_partitions(uint32_t disk_id,
     if (ret < 0) {
         return ret;
     }
-    if (capacity > LEONOS_DISK_MAX_PARTITIONS) {
-        capacity = LEONOS_DISK_MAX_PARTITIONS;
+    if (capacity > RELIEFOS_DISK_MAX_PARTITIONS) {
+        capacity = RELIEFOS_DISK_MAX_PARTITIONS;
     }
     ret = disk_manage_prepare(disk_id, &disk, &sector_count);
     if (ret < 0) {
@@ -968,7 +968,7 @@ int storage_disk_list_partitions(uint32_t disk_id,
  * requires a valid table, while this operation is the explicit destructive
  * entry point used by the installer ISO's gptinit utility.
  */
-int storage_disk_initialize_gpt(const struct leonos_disk_gpt_initialize *request)
+int storage_disk_initialize_gpt(const struct reliefos_disk_gpt_initialize *request)
 {
     struct install_disk_state *disk;
     struct gpt_header *header;
@@ -987,7 +987,7 @@ int storage_disk_initialize_gpt(const struct leonos_disk_gpt_initialize *request
     if (ret < 0) {
         return ret;
     }
-    if (!request || (request->flags & ~LEONOS_DISK_GPT_INITIALIZE_FORCE) != 0) {
+    if (!request || (request->flags & ~RELIEFOS_DISK_GPT_INITIALIZE_FORCE) != 0) {
         return -22;
     }
     ret = disk_manage_prepare(request->disk_id, &disk, &sector_count);
@@ -1010,7 +1010,7 @@ int storage_disk_initialize_gpt(const struct leonos_disk_gpt_initialize *request
     {
         struct disk_gpt_table existing;
         ret = disk_gpt_load(disk, sector_count, &existing);
-        if (ret == 0 && !(request->flags & LEONOS_DISK_GPT_INITIALIZE_FORCE)) {
+        if (ret == 0 && !(request->flags & RELIEFOS_DISK_GPT_INITIALIZE_FORCE)) {
             return -17;
         }
     }
@@ -1093,7 +1093,7 @@ int storage_disk_initialize_gpt(const struct leonos_disk_gpt_initialize *request
  * @param request Validated disk-management format request.
  * @return Zero on success or a negative errno-style storage error.
  */
-int storage_disk_format_partition(const struct leonos_disk_partition_format *request)
+int storage_disk_format_partition(const struct reliefos_disk_partition_format *request)
 {
     struct install_disk_state *disk;
     struct disk_gpt_table table;
@@ -1126,7 +1126,7 @@ int storage_disk_format_partition(const struct leonos_disk_partition_format *req
     }
     if (storage_disk_partition_volume_id(request->disk_id, request->partition_index,
                                          &mounted_volume) == 0) {
-        return -LEONOS_EBUSY;
+        return -RELIEFOS_EBUSY;
     }
     entry = entries[request->partition_index];
     ret = disk_format_entry(disk, &entry, request->filesystem);
@@ -1151,7 +1151,7 @@ int storage_disk_format_partition(const struct leonos_disk_partition_format *req
  * @param request Validated disk-management delete request.
  * @return Zero on success or a negative errno-style storage error.
  */
-int storage_disk_delete_partition(const struct leonos_disk_partition_delete *request)
+int storage_disk_delete_partition(const struct reliefos_disk_partition_delete *request)
 {
     struct install_disk_state *disk;
     struct disk_gpt_table table;
@@ -1183,14 +1183,14 @@ int storage_disk_delete_partition(const struct leonos_disk_partition_delete *req
     }
     if (storage_disk_partition_volume_id(request->disk_id, request->partition_index,
                                          &mounted_volume) == 0) {
-        return -LEONOS_EBUSY;
+        return -RELIEFOS_EBUSY;
     }
     storage_memzero(&entries[request->partition_index], sizeof(entries[request->partition_index]));
     return disk_gpt_write(disk, &table);
 }
 
 /** Edit standard GPT type and/or printable partition name in both GPT copies. */
-int storage_disk_edit_partition(const struct leonos_disk_partition_edit *request)
+int storage_disk_edit_partition(const struct reliefos_disk_partition_edit *request)
 {
     struct install_disk_state *disk;
     struct disk_gpt_table table;
@@ -1202,8 +1202,8 @@ int storage_disk_edit_partition(const struct leonos_disk_partition_edit *request
         return ret;
     }
     if (!request || request->edit_mask == 0 ||
-        (request->edit_mask & ~(LEONOS_DISK_PARTITION_EDIT_TYPE |
-                                LEONOS_DISK_PARTITION_EDIT_NAME)) != 0) {
+        (request->edit_mask & ~(RELIEFOS_DISK_PARTITION_EDIT_TYPE |
+                                RELIEFOS_DISK_PARTITION_EDIT_NAME)) != 0) {
         return -22;
     }
     ret = disk_manage_prepare(request->disk_id, &disk, &sector_count);
@@ -1224,15 +1224,15 @@ int storage_disk_edit_partition(const struct leonos_disk_partition_edit *request
     }
     if (storage_disk_partition_volume_id(request->disk_id, request->partition_index,
                                          &mounted_volume) == 0) {
-        return -LEONOS_EBUSY;
+        return -RELIEFOS_EBUSY;
     }
-    if (request->edit_mask & LEONOS_DISK_PARTITION_EDIT_TYPE) {
+    if (request->edit_mask & RELIEFOS_DISK_PARTITION_EDIT_TYPE) {
         ret = disk_gpt_set_partition_type(&entries[request->partition_index], request->type);
         if (ret < 0) {
             return ret;
         }
     }
-    if (request->edit_mask & LEONOS_DISK_PARTITION_EDIT_NAME) {
+    if (request->edit_mask & RELIEFOS_DISK_PARTITION_EDIT_NAME) {
         disk_gpt_set_name(entries[request->partition_index].name, request->name);
     }
     return disk_gpt_write(disk, &table);
@@ -1243,7 +1243,7 @@ int storage_disk_edit_partition(const struct leonos_disk_partition_edit *request
  * @param request Validated disk-management create request.
  * @return Zero on success or a negative errno-style storage error.
  */
-int storage_disk_create_partition(const struct leonos_disk_partition_create *request)
+int storage_disk_create_partition(const struct reliefos_disk_partition_create *request)
 {
     struct install_disk_state *disk;
     struct disk_gpt_table table;
@@ -1251,13 +1251,13 @@ int storage_disk_create_partition(const struct leonos_disk_partition_create *req
     uint64_t sector_count;
     uint64_t required_sectors;
     uint64_t first_lba;
-    uint32_t free_index = LEONOS_DISK_MAX_PARTITIONS;
+    uint32_t free_index = RELIEFOS_DISK_MAX_PARTITIONS;
     int ret = storage_acquire_task_io();
     if (ret < 0) {
         return ret;
     }
     if (!request || request->size_mib == 0 ||
-        (request->filesystem != LEONOS_DISK_FILESYSTEM_UNKNOWN &&
+        (request->filesystem != RELIEFOS_DISK_FILESYSTEM_UNKNOWN &&
          !disk_filesystem_format_supported(request->filesystem))) {
         return -22;
     }
@@ -1281,7 +1281,7 @@ int storage_disk_create_partition(const struct leonos_disk_partition_create *req
             break;
         }
     }
-    if (free_index == LEONOS_DISK_MAX_PARTITIONS ||
+    if (free_index == RELIEFOS_DISK_MAX_PARTITIONS ||
         disk_gpt_find_free_range(&table, required_sectors, &first_lba) < 0 ||
         first_lba > table.primary.last_usable_lba ||
         required_sectors > table.primary.last_usable_lba - first_lba + 1u) {
@@ -1295,12 +1295,12 @@ int storage_disk_create_partition(const struct leonos_disk_partition_create *req
                       disk, sector_count);
     disk_gpt_set_filesystem_type(&entries[free_index], request->filesystem);
     disk_gpt_set_name(entries[free_index].name,
-                      request->name[0] ? request->name : "LeonOS Data");
+                      request->name[0] ? request->name : "ReliefOS Data");
     ret = disk_gpt_write(disk, &table);
     if (ret < 0) {
         return ret;
     }
-    if (request->filesystem == LEONOS_DISK_FILESYSTEM_UNKNOWN) {
+    if (request->filesystem == RELIEFOS_DISK_FILESYSTEM_UNKNOWN) {
         return 0;
     }
     return disk_format_entry(disk, &entries[free_index], request->filesystem);
@@ -1309,7 +1309,7 @@ int storage_disk_create_partition(const struct leonos_disk_partition_create *req
 int storage_disk_partition_volume_id(uint32_t disk_id, uint32_t partition_index,
                                      uint32_t *out_volume_id)
 {
-    if (!out_volume_id || partition_index >= LEONOS_DISK_MAX_PARTITIONS) {
+    if (!out_volume_id || partition_index >= RELIEFOS_DISK_MAX_PARTITIONS) {
         return -22;
     }
     for (uint32_t volume_id = STORAGE_VOLUME_TARGET_ROOT;
@@ -1358,7 +1358,7 @@ static int storage_mount_path_allowed(const char *path)
         return -22;
     }
     length = storage_strlen(path);
-    if (length < 2u || length >= LEONOS_FS_PATH_LEN || path[length] != 0) {
+    if (length < 2u || length >= RELIEFOS_FS_PATH_LEN || path[length] != 0) {
         return -22;
     }
     /* Never let a user mount over a kernel-managed namespace. /target and
@@ -1384,20 +1384,20 @@ static int storage_filesystem_from_name(const char *filesystem, uint32_t *out_fi
         return -22;
     }
     if (!filesystem || !filesystem[0] || storage_text_eq_ci(filesystem, "auto")) {
-        *out_filesystem = LEONOS_DISK_FILESYSTEM_UNKNOWN;
+        *out_filesystem = RELIEFOS_DISK_FILESYSTEM_UNKNOWN;
         return 0;
     }
     if (storage_text_eq_ci(filesystem, "fat") || storage_text_eq_ci(filesystem, "vfat") ||
         storage_text_eq_ci(filesystem, "fat32")) {
-        *out_filesystem = LEONOS_DISK_FILESYSTEM_FAT32;
+        *out_filesystem = RELIEFOS_DISK_FILESYSTEM_FAT32;
         return 0;
     }
     if (storage_text_eq_ci(filesystem, "ext2")) {
-        *out_filesystem = LEONOS_DISK_FILESYSTEM_EXT2;
+        *out_filesystem = RELIEFOS_DISK_FILESYSTEM_EXT2;
         return 0;
     }
     if (storage_text_eq_ci(filesystem, "exfat")) {
-        *out_filesystem = LEONOS_DISK_FILESYSTEM_EXFAT;
+        *out_filesystem = RELIEFOS_DISK_FILESYSTEM_EXFAT;
         return 0;
     }
     return -95;
@@ -1428,7 +1428,7 @@ int storage_mount_block_partition(uint32_t disk_id, uint32_t partition_index,
     uint32_t filesystem;
     uint32_t volume_id;
     int ret;
-    char mounted_path[LEONOS_FS_PATH_LEN];
+    char mounted_path[RELIEFOS_FS_PATH_LEN];
     uint32_t requested_filesystem;
 
     console_printf("[storage] mount enter disk=%u part=%u target=%s fs=%s flags=%llu\n",
@@ -1540,10 +1540,10 @@ int storage_mount_block_partition(uint32_t disk_id, uint32_t partition_index,
     } else {
         storage_copy_text(volume->mount_path, sizeof(volume->mount_path), target);
     }
-    if (filesystem == LEONOS_DISK_FILESYSTEM_FAT32) {
+    if (filesystem == RELIEFOS_DISK_FILESYSTEM_FAT32) {
         volume->esp_start_lba = entry.first_lba;
         volume->esp_sector_count = entry.last_lba - entry.first_lba + 1u;
-    } else if (filesystem == LEONOS_DISK_FILESYSTEM_EXFAT) {
+    } else if (filesystem == RELIEFOS_DISK_FILESYSTEM_EXFAT) {
         volume->exfat_start_lba = entry.first_lba;
         volume->exfat_sector_count = entry.last_lba - entry.first_lba + 1u;
     } else {
@@ -1551,24 +1551,24 @@ int storage_mount_block_partition(uint32_t disk_id, uint32_t partition_index,
         volume->ext2_sector_count = entry.last_lba - entry.first_lba + 1u;
     }
     g_active_volume = volume;
-    ret = filesystem == LEONOS_DISK_FILESYSTEM_FAT32 ? fat32_mount() :
-          (filesystem == LEONOS_DISK_FILESYSTEM_EXFAT ? exfat_mount() : ext2_mount());
+    ret = filesystem == RELIEFOS_DISK_FILESYSTEM_FAT32 ? fat32_mount() :
+          (filesystem == RELIEFOS_DISK_FILESYSTEM_EXFAT ? exfat_mount() : ext2_mount());
     if (ret == 0 &&
-        ((filesystem == LEONOS_DISK_FILESYSTEM_FAT32 &&
+        ((filesystem == RELIEFOS_DISK_FILESYSTEM_FAT32 &&
           volume->filesystem != STORAGE_FILESYSTEM_FAT32) ||
-         (filesystem == LEONOS_DISK_FILESYSTEM_EXFAT &&
+         (filesystem == RELIEFOS_DISK_FILESYSTEM_EXFAT &&
           volume->filesystem != STORAGE_FILESYSTEM_EXFAT) ||
-         (filesystem == LEONOS_DISK_FILESYSTEM_EXT2 &&
+         (filesystem == RELIEFOS_DISK_FILESYSTEM_EXT2 &&
           volume->filesystem != STORAGE_FILESYSTEM_EXT2))) {
         ret = -5;
     }
     if (ret == 0) {
         volume->data_partition_mount = 1;
         volume->ready = true;
-        console_printf("[ntclks] storage mounted data partition disk=%u entry=%u path=%s fs=%s\\n",
+        console_printf("[reliefnt] storage mounted data partition disk=%u entry=%u path=%s fs=%s\\n",
                        disk_id, partition_index, volume->mount_path,
-                       filesystem == LEONOS_DISK_FILESYSTEM_FAT32 ? "fat32" :
-                       (filesystem == LEONOS_DISK_FILESYSTEM_EXFAT ? "exfat" : "ext2"));
+                       filesystem == RELIEFOS_DISK_FILESYSTEM_FAT32 ? "fat32" :
+                       (filesystem == RELIEFOS_DISK_FILESYSTEM_EXFAT ? "exfat" : "ext2"));
         if (out_volume_id) {
             *out_volume_id = volume_id;
         }
@@ -1581,7 +1581,7 @@ int storage_mount_block_partition(uint32_t disk_id, uint32_t partition_index,
 }
 
 /** Legacy ABI adapter retained until all callers have moved to mount(2). */
-int storage_disk_mount_partition(struct leonos_disk_partition_mount *request)
+int storage_disk_mount_partition(struct reliefos_disk_partition_mount *request)
 {
     uint32_t volume_id;
     int ret;
@@ -1646,7 +1646,7 @@ int storage_unmount_path(const char *target, uint32_t *out_volume_id)
     if (g_active_volume == &g_volumes[volume_id]) {
         g_active_volume = &g_volumes[STORAGE_VOLUME_ROOT];
     }
-    console_printf("[ntclks] storage unmounted data partition disk=%u entry=%u path=%s\\n",
+    console_printf("[reliefnt] storage unmounted data partition disk=%u entry=%u path=%s\\n",
                    g_volumes[volume_id].source_disk_id,
                    g_volumes[volume_id].source_partition_index, target);
     tmpfs_destroy(g_volumes[volume_id].tmpfs);
@@ -1663,7 +1663,7 @@ int storage_unmount_path(const char *target, uint32_t *out_volume_id)
  * @param request Disk and GPT-entry selector.
  * @return Zero on success or a negative errno-style storage error.
  */
-int storage_disk_unmount_partition(const struct leonos_disk_partition_unmount *request)
+int storage_disk_unmount_partition(const struct reliefos_disk_partition_unmount *request)
 {
     uint32_t volume_id;
     int ret;
@@ -1685,7 +1685,7 @@ int storage_disk_unmount_partition(const struct leonos_disk_partition_unmount *r
     return storage_unmount_path(g_volumes[volume_id].mount_path, NULL);
 }
 
-int storage_install_list_disks(struct leonos_install_disk *disks,
+int storage_install_list_disks(struct reliefos_install_disk *disks,
                                uint32_t capacity, uint32_t *out_count)
 {
     int ret = storage_acquire_task_io();
@@ -1716,10 +1716,10 @@ int storage_install_list_disks(struct leonos_install_disk *disks,
         disks[i].sector_size = SECTOR_SIZE;
         disks[i].flags = 0;
         if (src->boot_root) {
-            disks[i].flags |= LEONOS_INSTALL_DISK_FLAG_BOOT_ROOT;
+            disks[i].flags |= RELIEFOS_INSTALL_DISK_FLAG_BOOT_ROOT;
         }
         if (src->target_mounted) {
-            disks[i].flags |= LEONOS_INSTALL_DISK_FLAG_TARGET_MOUNTED;
+            disks[i].flags |= RELIEFOS_INSTALL_DISK_FLAG_TARGET_MOUNTED;
         }
         disks[i].sector_count = src->sector_count;
         storage_copy_text(disks[i].name, sizeof(disks[i].name),
@@ -1749,7 +1749,7 @@ int storage_install_format_target(uint32_t disk_id)
     struct install_disk_state *disk = &g_install_disks[disk_id];
     if (disk->target_mounted || storage_disk_has_data_mount(disk_id) ||
         storage_installer_mounts_busy()) {
-        return -LEONOS_EBUSY;
+        return -RELIEFOS_EBUSY;
     }
     ret = storage_prepare_install_disk(disk);
     if (ret < 0) {
@@ -1812,7 +1812,7 @@ int storage_install_mount_target(uint32_t disk_id)
         return 0;
     }
     if (storage_disk_has_data_mount(disk_id) || storage_installer_mounts_busy()) {
-        return -LEONOS_EBUSY;
+        return -RELIEFOS_EBUSY;
     }
     struct storage_volume *target = &g_volumes[STORAGE_VOLUME_TARGET_ROOT];
     struct storage_volume *esp = &g_volumes[STORAGE_VOLUME_BOOT];
@@ -1831,7 +1831,7 @@ int storage_install_mount_target(uint32_t disk_id)
     ret = gpt_find_esp();
     if (ret == 0 && target->exfat_start_lba) {
         ret = exfat_mount();
-        console_printf("[ntclks] installer exFAT target mount returned %d\n", ret);
+        console_printf("[reliefnt] installer exFAT target mount returned %d\n", ret);
     }
     if (ret == 0 && target->filesystem != STORAGE_FILESYSTEM_EXFAT && target->ext2_start_lba) {
         ret = ext2_mount();
@@ -1848,7 +1848,7 @@ int storage_install_mount_target(uint32_t disk_id)
         g_active_volume = esp;
         ret = fat32_mount();
         if (ret < 0) {
-            console_printf("[ntclks] installer ESP mount failed ret=%d lba=%llu sectors=%llu\n",
+            console_printf("[reliefnt] installer ESP mount failed ret=%d lba=%llu sectors=%llu\n",
                            ret, (unsigned long long)esp->esp_start_lba,
                            (unsigned long long)esp->esp_sector_count);
         }
@@ -1856,7 +1856,7 @@ int storage_install_mount_target(uint32_t disk_id)
     }
     if (ret == 0 && (target->filesystem == STORAGE_FILESYSTEM_EXFAT ||
                      target->filesystem == STORAGE_FILESYSTEM_EXT2)) {
-        console_printf("[ntclks] installer target mounted root=/target %s_lba=%llu esp=/target/boot esp_lba=%llu disk=%u port=%u\n",
+        console_printf("[reliefnt] installer target mounted root=/target %s_lba=%llu esp=/target/boot esp_lba=%llu disk=%u port=%u\n",
                        target->filesystem == STORAGE_FILESYSTEM_EXFAT ? "exfat" : "ext2",
                        (unsigned long long)(target->filesystem == STORAGE_FILESYSTEM_EXFAT
                                             ? target->exfat_start_lba : target->ext2_start_lba),

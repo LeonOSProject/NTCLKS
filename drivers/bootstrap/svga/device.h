@@ -1,6 +1,6 @@
-#ifndef LEONOS_SVGA_DEVICE_H
-#define LEONOS_SVGA_DEVICE_H
-#include <ntclks/svga.h>
+#ifndef RELIEFOS_SVGA_DEVICE_H
+#define RELIEFOS_SVGA_DEVICE_H
+#include <reliefnt/svga.h>
 #include "svga_protocol.h"
 
 #define SVGA_CONTEXTS 64u
@@ -90,7 +90,7 @@ struct svga_device {
     struct svga_gmr gmrs[SVGA_GMRS];
     struct svga_gpu_context gpu_contexts[SVGA_GPU_CONTEXTS];
     struct svga_gpu_stats gpu_stats;
-    struct leonos_gpu_diagnostics gpu_error;
+    struct reliefos_gpu_diagnostics gpu_error;
     uint32_t gpu_error_owner;
 };
 struct svga_span { const void *data; uint32_t bytes; };

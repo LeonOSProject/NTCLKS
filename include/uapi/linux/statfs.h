@@ -1,5 +1,5 @@
-#ifndef LEONOS_UAPI_LINUX_STATFS_H
-#define LEONOS_UAPI_LINUX_STATFS_H
+#ifndef RELIEFOS_UAPI_LINUX_STATFS_H
+#define RELIEFOS_UAPI_LINUX_STATFS_H
 #include <stdint.h>
 
 /* Linux v6.12 asm-generic/statfs.h with native x86-64 word widths. */

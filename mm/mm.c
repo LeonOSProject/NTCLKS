@@ -1,23 +1,23 @@
 /*
- * LeonOS physical memory manager: tracks usable and reserved page ranges.
+ * ReliefOS physical memory manager: tracks usable and reserved page ranges.
  * Allocates, frees, zeroes, and reference-counts physical memory pages.
  */
-#include <ntclks/console.h>
-#include <ntclks/framebuffer.h>
-#include <ntclks/mm.h>
-#include <ntclks/paging.h>
-#include <ntclks/lock.h>
+#include <reliefnt/console.h>
+#include <reliefnt/framebuffer.h>
+#include <reliefnt/mm.h>
+#include <reliefnt/paging.h>
+#include <reliefnt/lock.h>
 
 static uint64_t total_kib;
 
 #define PAGE_SIZE 4096ULL
 /* A user CR3 replaces the low identity mapping for every 2 MiB chunk of
- * NTCLKS_USER_TOP it covers, and kernel code dereferences frame addresses as
+ * RELIEFNT_USER_TOP it covers, and kernel code dereferences frame addresses as
  * plain pointers without switching CR3, so the allocator may only hand out
  * frames at or above the top of the user window.  Widening the user window
- * therefore costs that much physical RAM: NTCLKS_USER_TOP is 768 MiB, so a
+ * therefore costs that much physical RAM: RELIEFNT_USER_TOP is 768 MiB, so a
  * guest must have well above 768 MiB before the kernel can manage pages. */
-#define PAGE_ALLOC_MIN NTCLKS_USER_TOP
+#define PAGE_ALLOC_MIN RELIEFNT_USER_TOP
 #define PAGE_ALLOC_LIMIT 0x400000000ULL
 #define FALLBACK_ALLOC_START 0x0a000000ULL
 #define FALLBACK_MEMORY_KIB (512ULL * 1024ULL)
@@ -317,7 +317,7 @@ static void recompute_total_allocatable_kib(void)
  * @brief Protect loader structures, framebuffer, modules, and the handoff regions from allocation.
  */
 static void reserve_boot_ranges(const struct boot_info *boot,
-                                const struct leonos_boot_handoff *handoff)
+                                const struct reliefos_boot_handoff *handoff)
 {
     uint64_t boot_framebuffer_start = 0;
     uint64_t boot_framebuffer_bytes = 0;
@@ -372,8 +372,8 @@ static void reserve_boot_ranges(const struct boot_info *boot,
     for (uint32_t i = 0; i < boot->module_count; ++i) {
         reserve_range(boot->modules[i].start, boot->modules[i].end, "module");
     }
-    if (handoff && handoff->magic == LEONOS_BOOT_HANDOFF_MAGIC &&
-        handoff->version == LEONOS_BOOT_HANDOFF_VERSION) {
+    if (handoff && handoff->magic == RELIEFOS_BOOT_HANDOFF_MAGIC &&
+        handoff->version == RELIEFOS_BOOT_HANDOFF_VERSION) {
         reserve_range(handoff->loader.start, handoff->loader.end, "loader");
         reserve_range((uint64_t)(uintptr_t)handoff,
                       (uint64_t)(uintptr_t)handoff + sizeof(*handoff),
@@ -389,10 +389,10 @@ static void reserve_boot_ranges(const struct boot_info *boot,
  */
 static void print_memory_map(void)
 {
-    console_printf("[ntclks] physical memory free ranges=%u reserved=%u\n",
+    console_printf("[reliefnt] physical memory free ranges=%u reserved=%u\n",
                    free_range_count, reserved_range_count);
     for (uint32_t i = 0; i < reserved_range_count; ++i) {
-        console_printf("[ntclks] reserved[%u] %s 0x%llx-0x%llx (%llu KiB)\n",
+        console_printf("[reliefnt] reserved[%u] %s 0x%llx-0x%llx (%llu KiB)\n",
                        i,
                        reserved_ranges[i].name ? reserved_ranges[i].name : "reserved",
                        (unsigned long long)reserved_ranges[i].start,
@@ -400,7 +400,7 @@ static void print_memory_map(void)
                        (unsigned long long)((reserved_ranges[i].end - reserved_ranges[i].start) / 1024));
     }
     for (uint32_t i = 0; i < free_range_count; ++i) {
-        console_printf("[ntclks] free[%u] 0x%llx-0x%llx (%llu KiB)\n",
+        console_printf("[reliefnt] free[%u] 0x%llx-0x%llx (%llu KiB)\n",
                        i,
                        (unsigned long long)free_ranges[i].start,
                        (unsigned long long)free_ranges[i].end,
@@ -411,7 +411,7 @@ static void print_memory_map(void)
 /**
  * @brief Reset accounting, seed free ranges from boot, reserve kernel-owned areas, then coalesce.
  */
-void mm_init(const struct boot_info *boot, const struct leonos_boot_handoff *handoff)
+void mm_init(const struct boot_info *boot, const struct reliefos_boot_handoff *handoff)
 {
     kernel_spin_init(&mm_lock);
     total_kib = 0;
@@ -437,7 +437,7 @@ void mm_init(const struct boot_info *boot, const struct leonos_boot_handoff *han
         }
     }
     if (!free_pages) {
-        console_printf("[ntclks] no memory for physical page bitmap\n");
+        console_printf("[reliefnt] no memory for physical page bitmap\n");
         free_page_count = 0;
         allocation_hint = MM_PAGE_COUNT;
         return;
@@ -454,7 +454,7 @@ void mm_init(const struct boot_info *boot, const struct leonos_boot_handoff *han
         }
     }
 
-    console_printf("[ntclks] mm initialized usable=%llu KiB mmap_entries=%u efi_mmap_entries=%u\n",
+    console_printf("[reliefnt] mm initialized usable=%llu KiB mmap_entries=%u efi_mmap_entries=%u\n",
                    (unsigned long long)total_kib,
                    boot->mmap_entry_count,
                    boot->efi_mmap_entry_count);

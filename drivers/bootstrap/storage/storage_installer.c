@@ -142,7 +142,7 @@ static int install_format_fat32(struct install_disk_state *disk, uint64_t start_
     bpb->jump[0] = 0xeb;
     bpb->jump[1] = 0x58;
     bpb->jump[2] = 0x90;
-    storage_memcpy(bpb->oem, "LEONOS4 ", 8);
+    storage_memcpy(bpb->oem, "RELIEFOS", 8);
     bpb->bytes_per_sector = SECTOR_SIZE;
     bpb->sectors_per_cluster = (uint8_t)sectors_per_cluster;
     bpb->reserved_sector_count = reserved;
@@ -162,7 +162,7 @@ static int install_format_fat32(struct install_disk_state *disk, uint64_t start_
     bpb->drive_number = 0x80;
     bpb->boot_signature = 0x29;
     bpb->volume_id = 0x4c454f34u;
-    storage_memcpy(bpb->volume_label, "LEONOS4    ", 11);
+    storage_memcpy(bpb->volume_label, "RELIEFOS   ", 11);
     storage_memcpy(bpb->fs_type, "FAT32   ", 8);
     storage_scratch[510] = 0x55;
     storage_scratch[511] = 0xaa;
@@ -208,7 +208,7 @@ static int install_format_fat32(struct install_disk_state *disk, uint64_t start_
     storage_memzero(storage_scratch, SECTOR_SIZE);
     {
         struct fat32_dirent *label = (struct fat32_dirent *)(void *)storage_scratch;
-        storage_memcpy(label->name, "LEONOS4    ", sizeof(label->name));
+        storage_memcpy(label->name, "RELIEFOS   ", sizeof(label->name));
         label->attr = FAT32_ATTR_VOLUME;
     }
     return install_write_sectors(disk, start_lba + data_start, 1u, storage_scratch);
@@ -341,7 +341,7 @@ static int install_format_ext2(struct install_disk_state *disk, uint64_t start_l
     super.first_ino = 11u;
     super.inode_size = 128u;
     super.feature_incompat = EXT2_FEATURE_INCOMPAT_FILETYPE;
-    storage_memcpy(super.volume_name, "LEONOS4-ROOT", 11u);
+    storage_memcpy(super.volume_name, "RELIEFOS", 8u);
 
     /* A non-sparse classic layout keeps a backup superblock and a complete
      * descriptor table at the beginning of every group. Generate one table
@@ -498,7 +498,7 @@ static uint32_t install_exfat_upcase_checksum(uint32_t sum, uint8_t value)
 }
 
 /*
- * Create the standard single-FAT exFAT subset used by LeonOS.  The upcase
+ * Create the standard single-FAT exFAT subset used by ReliefOS.  The upcase
  * file is the Microsoft-recommended compressed UTF-16 table embedded by the
  * storage backend. It is the same standard table used by host mkfs.exfat.
  */
@@ -624,10 +624,9 @@ static int install_format_exfat(struct install_disk_state *disk, uint64_t start_
     /* Root directory system entries: volume label, allocation bitmap, upcase table. */
     storage_memzero(storage_scratch, sizeof(storage_scratch));
     storage_scratch[0] = 0x83u;
-    /* exFAT volume labels are limited to 11 UTF-16 units; the GPT partition
-     * name remains the full LEONOS4_ROOT identifier. */
-    storage_scratch[1] = 11u;
-    for (uint32_t i = 0; i < 11u; ++i) exfat_put_u16(storage_scratch + 2u + i * 2u, "LEONOS4ROOT"[i]);
+    /* Keep the volume label within FAT/exFAT's 11-character limit. */
+    storage_scratch[1] = 8u;
+    for (uint32_t i = 0; i < 8u; ++i) exfat_put_u16(storage_scratch + 2u + i * 2u, "RELIEFOS"[i]);
     storage_scratch[32u] = EXFAT_ENTRY_BITMAP;
     storage_put_u32(storage_scratch + 32u + 20u, bitmap_cluster);
     exfat_put_u64(storage_scratch + 32u + 24u, bitmap_bytes);
@@ -750,14 +749,14 @@ static int install_write_gpt(struct install_disk_state *disk, uint64_t sector_co
     entry->first_lba = first_usable;
     entry->last_lba = esp_last;
     entry->attrs = 0;
-    install_utf16_name(entry->name, "LeonOS 4 ESP");
+    install_utf16_name(entry->name, "RELIEFOS_ESP");
     ++entry;
     storage_memcpy(entry->type_guid, basic_data_guid, sizeof(entry->type_guid));
     storage_memcpy(entry->unique_guid, root_part_guid, sizeof(entry->unique_guid));
     entry->first_lba = root_first;
     entry->last_lba = last_usable;
     entry->attrs = 0;
-    install_utf16_name(entry->name, "LEONOS4_ROOT");
+    install_utf16_name(entry->name, "RELIEFOS_ROOT");
     table_crc = storage_crc32(storage_cluster_buf, table_bytes);
     ret = install_write_sectors(disk, 2, table_sectors, storage_cluster_buf);
     if (ret < 0) {

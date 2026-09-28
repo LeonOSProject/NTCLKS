@@ -1,17 +1,17 @@
-#include <leonos/boot_handoff.h>
-#include <leonos/psf_font.h>
-#include <leonos/utf8_stream.h>
+#include <reliefos/boot_handoff.h>
+#include <reliefos/psf_font.h>
+#include <reliefos/utf8_stream.h>
 
-static struct leonos_utf8_stream console_utf8;
-#include <ntclks/console.h>
-#include <ntclks/framebuffer.h>
-#include <ntclks/time.h>
+static struct reliefos_utf8_stream console_utf8;
+#include <reliefnt/console.h>
+#include <reliefnt/framebuffer.h>
+#include <reliefnt/time.h>
 
 #define CONSOLE_LOG_CAP 8192
 #define CONSOLE_MAX_COLS 512u
 #define CONSOLE_MAX_ROWS 192u
 #define FB_ANSI_MAX_PARAMS 16u
-#define FB_CONSOLE_CURSOR_BYTES (LEONOS_FONT_W * LEONOS_FONT_H * 4u)
+#define FB_CONSOLE_CURSOR_BYTES (RELIEFOS_FONT_W * RELIEFOS_FONT_H * 4u)
 #define CONSOLE_VT_COUNT 6u
 #define CONSOLE_VT_TEXT_CAP 65536u
 
@@ -67,9 +67,9 @@ static const uint32_t fb_ansi_colors[16] = {
     0x009bb7ffu, 0x00e8a5ffu, 0x0088e8fau, 0x00ffffffu,
 };
 
-static bool console_is_ntclks_format(const char *fmt)
+static bool console_is_reliefnt_format(const char *fmt)
 {
-    static const char prefix[] = "[ntclks]";
+    static const char prefix[] = "[reliefnt]";
     if (!fmt) return false;
     for (uint32_t i = 0; i < sizeof(prefix) - 1u; ++i) {
         if (!fmt[i] || fmt[i] != prefix[i]) return false;
@@ -144,8 +144,8 @@ static void fb_console_clear_log_line(uint32_t row)
     if (!fb->available || !fb_cols || row >= fb_rows) {
         return;
     }
-    framebuffer_rect(fb_x, fb_y + row * LEONOS_FONT_H,
-                     fb_cols * LEONOS_FONT_W, LEONOS_FONT_H, fb_console_bg_color);
+    framebuffer_rect(fb_x, fb_y + row * RELIEFOS_FONT_H,
+                     fb_cols * RELIEFOS_FONT_W, RELIEFOS_FONT_H, fb_console_bg_color);
 }
 
 static void fb_console_clear_log(void)
@@ -154,8 +154,8 @@ static void fb_console_clear_log(void)
     if (!fb->available || !fb_cols || !fb_rows) {
         return;
     }
-    framebuffer_rect(fb_x, fb_y, fb_cols * LEONOS_FONT_W,
-                     fb_rows * LEONOS_FONT_H, fb_console_bg_color);
+    framebuffer_rect(fb_x, fb_y, fb_cols * RELIEFOS_FONT_W,
+                     fb_rows * RELIEFOS_FONT_H, fb_console_bg_color);
 }
 
 static void fb_console_hide_tty_cursor(void)
@@ -170,12 +170,12 @@ static void fb_console_hide_tty_cursor(void)
     fb_console_tty_cursor_visible = false;
     if (!fb->available || !fb->pixels || !fb_console_tty_cursor_bpp ||
         fb_console_tty_cursor_bpp > 4u ||
-        fb_console_tty_cursor_x + LEONOS_FONT_W > fb->width ||
-        fb_console_tty_cursor_y + LEONOS_FONT_H > fb->height) {
+        fb_console_tty_cursor_x + RELIEFOS_FONT_W > fb->width ||
+        fb_console_tty_cursor_y + RELIEFOS_FONT_H > fb->height) {
         return;
     }
-    row_bytes = LEONOS_FONT_W * fb_console_tty_cursor_bpp;
-    for (row = 0; row < LEONOS_FONT_H; ++row) {
+    row_bytes = RELIEFOS_FONT_W * fb_console_tty_cursor_bpp;
+    for (row = 0; row < RELIEFOS_FONT_H; ++row) {
         uint8_t *dst = (uint8_t *)fb->pixels +
                        (uint64_t)(fb_console_tty_cursor_y + row) * fb->pitch +
                        (uint64_t)fb_console_tty_cursor_x * fb_console_tty_cursor_bpp;
@@ -198,15 +198,15 @@ static void fb_console_show_tty_cursor(void)
         fb->bytes_per_pixel > 4u) {
         return;
     }
-    fb_console_tty_cursor_x = fb_x + fb_col * LEONOS_FONT_W;
-    fb_console_tty_cursor_y = fb_y + fb_row * LEONOS_FONT_H;
-    if (fb_console_tty_cursor_x + LEONOS_FONT_W > fb->width ||
-        fb_console_tty_cursor_y + LEONOS_FONT_H > fb->height) {
+    fb_console_tty_cursor_x = fb_x + fb_col * RELIEFOS_FONT_W;
+    fb_console_tty_cursor_y = fb_y + fb_row * RELIEFOS_FONT_H;
+    if (fb_console_tty_cursor_x + RELIEFOS_FONT_W > fb->width ||
+        fb_console_tty_cursor_y + RELIEFOS_FONT_H > fb->height) {
         return;
     }
     fb_console_tty_cursor_bpp = fb->bytes_per_pixel;
-    row_bytes = LEONOS_FONT_W * fb_console_tty_cursor_bpp;
-    for (row = 0; row < LEONOS_FONT_H; ++row) {
+    row_bytes = RELIEFOS_FONT_W * fb_console_tty_cursor_bpp;
+    for (row = 0; row < RELIEFOS_FONT_H; ++row) {
         const uint8_t *src = (const uint8_t *)fb->pixels +
                              (uint64_t)(fb_console_tty_cursor_y + row) * fb->pitch +
                              (uint64_t)fb_console_tty_cursor_x * fb_console_tty_cursor_bpp;
@@ -216,8 +216,8 @@ static void fb_console_show_tty_cursor(void)
         }
     }
     framebuffer_rect(fb_console_tty_cursor_x,
-                     fb_console_tty_cursor_y + LEONOS_FONT_H - 2u,
-                     LEONOS_FONT_W, 2u, fb_console_fg_color);
+                     fb_console_tty_cursor_y + RELIEFOS_FONT_H - 2u,
+                     RELIEFOS_FONT_W, 2u, fb_console_fg_color);
     fb_console_tty_cursor_visible = true;
 }
 
@@ -236,25 +236,25 @@ static void fb_console_scroll(void)
         return;
     }
 
-    uint32_t width = fb_cols * LEONOS_FONT_W;
+    uint32_t width = fb_cols * RELIEFOS_FONT_W;
     if (width > fb->width - fb_x) {
         width = fb->width - fb_x;
     }
 
-    uint32_t src_y = fb_y + (top + 1u) * LEONOS_FONT_H;
+    uint32_t src_y = fb_y + (top + 1u) * RELIEFOS_FONT_H;
     if (src_y >= fb->height) {
         fb_console_clear_log();
         fb_row = 0;
         return;
     }
 
-    uint32_t copy_h = (bottom - top) * LEONOS_FONT_H;
+    uint32_t copy_h = (bottom - top) * RELIEFOS_FONT_H;
     if (copy_h > fb->height - src_y) {
         copy_h = fb->height - src_y;
     }
 
     for (uint32_t y = 0; y < copy_h; ++y) {
-        uint8_t *dst = (uint8_t *)fb->pixels + (uint64_t)(fb_y + top * LEONOS_FONT_H + y) * fb->pitch +
+        uint8_t *dst = (uint8_t *)fb->pixels + (uint64_t)(fb_y + top * RELIEFOS_FONT_H + y) * fb->pitch +
                        (uint64_t)fb_x * fb->bytes_per_pixel;
         const uint8_t *src = (const uint8_t *)fb->pixels +
                              (uint64_t)(src_y + y) * fb->pitch +
@@ -295,9 +295,9 @@ static void fb_console_scalar(uint32_t ch)
     if (ch == '\b') {
         if (fb_col) {
             --fb_col;
-            framebuffer_rect(fb_x + fb_col * LEONOS_FONT_W,
-                             fb_y + fb_row * LEONOS_FONT_H,
-                             LEONOS_FONT_W, LEONOS_FONT_H, fb_console_bg_color);
+            framebuffer_rect(fb_x + fb_col * RELIEFOS_FONT_W,
+                             fb_y + fb_row * RELIEFOS_FONT_H,
+                             RELIEFOS_FONT_W, RELIEFOS_FONT_H, fb_console_bg_color);
         }
         return;
     }
@@ -321,15 +321,15 @@ static void fb_console_scalar(uint32_t ch)
     {
         uint32_t fg = fb_console_reverse ? fb_console_bg_color : fb_console_fg_color;
         uint32_t bg = fb_console_reverse ? fb_console_fg_color : fb_console_bg_color;
-        uint32_t x = fb_x + fb_col * LEONOS_FONT_W;
-        uint32_t y = fb_y + fb_row * LEONOS_FONT_H;
-        framebuffer_rect(x, y, LEONOS_FONT_W, LEONOS_FONT_H, bg);
+        uint32_t x = fb_x + fb_col * RELIEFOS_FONT_W;
+        uint32_t y = fb_y + fb_row * RELIEFOS_FONT_H;
+        framebuffer_rect(x, y, RELIEFOS_FONT_W, RELIEFOS_FONT_H, bg);
         framebuffer_codepoint(x, y, ch, fg, bg);
         if (fb_console_bold && x + 1u < framebuffer_get()->width) {
             framebuffer_codepoint(x + 1u, y, ch, fg, bg);
         }
         if (fb_console_underline) {
-            framebuffer_rect(x, y + LEONOS_FONT_H - 2u, LEONOS_FONT_W, 1u,
+            framebuffer_rect(x, y + RELIEFOS_FONT_H - 2u, RELIEFOS_FONT_W, 1u,
                              fb_console_underline_color_set ? fb_console_underline_color : fg);
         }
     }
@@ -340,9 +340,9 @@ static void fb_console_scalar(uint32_t ch)
 static void fb_console_putc(char ch)
 {
     uint32_t cp;
-    int result = leonos_utf8_feed(&console_utf8, (unsigned char)ch, &cp);
+    int result = reliefos_utf8_feed(&console_utf8, (unsigned char)ch, &cp);
     if (result) fb_console_scalar(cp);
-    if (result < 0 && leonos_utf8_feed(&console_utf8, (unsigned char)ch, &cp))
+    if (result < 0 && reliefos_utf8_feed(&console_utf8, (unsigned char)ch, &cp))
         fb_console_scalar(cp);
 }
 
@@ -366,9 +366,9 @@ static void fb_console_clear_row_range(uint32_t row, uint32_t first, uint32_t la
     if (last <= first) {
         return;
     }
-    framebuffer_rect(fb_x + first * LEONOS_FONT_W,
-                     fb_y + row * LEONOS_FONT_H,
-                     (last - first) * LEONOS_FONT_W, LEONOS_FONT_H,
+    framebuffer_rect(fb_x + first * RELIEFOS_FONT_W,
+                     fb_y + row * RELIEFOS_FONT_H,
+                     (last - first) * RELIEFOS_FONT_W, RELIEFOS_FONT_H,
                      fb_console_bg_color);
 }
 
@@ -755,7 +755,7 @@ static void fb_console_ansi_feed(char ch)
     fb_console_reset_ansi();
 }
 
-static bool fb_console_use_handoff_state(const struct leonos_boot_log_state *boot_log)
+static bool fb_console_use_handoff_state(const struct reliefos_boot_log_state *boot_log)
 {
     const struct framebuffer *fb = framebuffer_get();
     if (!boot_log || !fb->available || !boot_log->columns || !boot_log->rows ||
@@ -768,11 +768,11 @@ static bool fb_console_use_handoff_state(const struct leonos_boot_log_state *boo
     fb_y = boot_log->log_y;
     fb_cols = boot_log->columns;
     fb_rows = boot_log->rows;
-    if (fb_cols * LEONOS_FONT_W > fb->width - fb_x) {
-        fb_cols = (fb->width - fb_x) / LEONOS_FONT_W;
+    if (fb_cols * RELIEFOS_FONT_W > fb->width - fb_x) {
+        fb_cols = (fb->width - fb_x) / RELIEFOS_FONT_W;
     }
-    if (fb_rows * LEONOS_FONT_H > fb->height - fb_y) {
-        fb_rows = (fb->height - fb_y) / LEONOS_FONT_H;
+    if (fb_rows * RELIEFOS_FONT_H > fb->height - fb_y) {
+        fb_rows = (fb->height - fb_y) / RELIEFOS_FONT_H;
     }
     if (!fb_cols || !fb_rows) {
         return false;
@@ -797,8 +797,8 @@ static void fb_console_initialize_fullscreen(void)
     }
     fb_x = 0;
     fb_y = 0;
-    fb_cols = fb->width / LEONOS_FONT_W;
-    fb_rows = fb->height / LEONOS_FONT_H;
+    fb_cols = fb->width / RELIEFOS_FONT_W;
+    fb_rows = fb->height / RELIEFOS_FONT_H;
     if (fb_cols > CONSOLE_MAX_COLS) {
         fb_cols = CONSOLE_MAX_COLS;
     }
@@ -816,7 +816,7 @@ static void fb_console_initialize_fullscreen(void)
     framebuffer_rect(0, 0, fb->width, fb->height, console_panel());
     /* The repaint covers the whole screen, so it must be published as a
      * whole: the scanout only refreshes regions an update command names, and
-     * the grid (`fb_rows * LEONOS_FONT_H`) cannot reach the remainder strip
+     * the grid (`fb_rows * RELIEFOS_FONT_H`) cannot reach the remainder strip
      * below the last font row. Publishing only the grid left that strip
      * showing the previous graphical picture after a switch to text. */
     framebuffer_present();
@@ -847,8 +847,8 @@ static void console_present(void)
     fb_console_show_tty_cursor();
     if (fb_cols && fb_rows) {
         framebuffer_present_region(fb_x, fb_y,
-                                   fb_cols * LEONOS_FONT_W,
-                                   fb_rows * LEONOS_FONT_H);
+                                   fb_cols * RELIEFOS_FONT_W,
+                                   fb_rows * RELIEFOS_FONT_H);
     }
     console_presenting = false;
 }
@@ -996,7 +996,7 @@ void console_printf(const char *fmt, ...)
 {
     va_list ap;
 
-    if (console_runtime_quiet && console_is_ntclks_format(fmt)) {
+    if (console_runtime_quiet && console_is_reliefnt_format(fmt)) {
         return;
     }
 
@@ -1079,7 +1079,7 @@ void console_printf(const char *fmt, ...)
     console_present();
 }
 
-void console_enable_framebuffer(const struct leonos_boot_log_state *boot_log)
+void console_enable_framebuffer(const struct reliefos_boot_log_state *boot_log)
 {
     if (!framebuffer_get()->available) {
         return;

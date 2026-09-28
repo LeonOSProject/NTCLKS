@@ -1,5 +1,5 @@
 /*
- * LeonOS storage facade.
+ * ReliefOS storage facade.
  *
  * The implementation is split by responsibility under storage/.  These
  * modules are included into one translation unit deliberately: the storage
@@ -7,7 +7,7 @@
  * to the storage subsystem while each feature has a focused source file.
  */
 #include "storage/storage_internal.h"
-#include <ntclks/tmpfs.h>
+#include <reliefnt/tmpfs.h>
 #include "storage/storage_state.c"
 #include "storage/storage_ext2_cache.c"
 #include "storage/storage_ide.c"

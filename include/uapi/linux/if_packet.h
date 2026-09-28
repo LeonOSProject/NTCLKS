@@ -1,5 +1,5 @@
-#ifndef LEONOS_UAPI_LINUX_IF_PACKET_H
-#define LEONOS_UAPI_LINUX_IF_PACKET_H
+#ifndef RELIEFOS_UAPI_LINUX_IF_PACKET_H
+#define RELIEFOS_UAPI_LINUX_IF_PACKET_H
 #include <linux/types.h>
 /* Linux v6.12 native sockaddr_ll layout; protocol is in network byte order. */
 struct sockaddr_ll {

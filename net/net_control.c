@@ -1,10 +1,10 @@
-#include <leonos/net_control.h>
-#include <ntclks/net.h>
-#include <ntclks/net_udp.h>
-#include <ntclks/net_packet.h>
-#include <ntclks/sched.h>
-#include <ntclks/syscall.h>
-#include <ntclks/usercopy.h>
+#include <reliefos/net_control.h>
+#include <reliefnt/net.h>
+#include <reliefnt/net_udp.h>
+#include <reliefnt/net_packet.h>
+#include <reliefnt/sched.h>
+#include <reliefnt/syscall.h>
+#include <reliefnt/usercopy.h>
 #include <linux/capability.h>
 #include <linux/errno.h>
 #include <linux/tty.h>
@@ -15,8 +15,8 @@ int task_net_control(struct task_file *file, uint32_t request, uint64_t address)
     if (!file || !(file->flags & TASK_FILE_FLAG_SOCKET_INET)) return -LINUX_ENOTTY;
     if (request == FIONBIO) {
         if (!user_range_ok(address, sizeof(int))) return -LINUX_EFAULT;
-        if (*(int *)(uintptr_t)address) file->flags |= LEONOS_O_NONBLOCK;
-        else file->flags &= ~LEONOS_O_NONBLOCK;
+        if (*(int *)(uintptr_t)address) file->flags |= RELIEFOS_O_NONBLOCK;
+        else file->flags &= ~RELIEFOS_O_NONBLOCK;
         return 0;
     }
     if (request == FIONREAD) {
@@ -30,35 +30,35 @@ int task_net_control(struct task_file *file, uint32_t request, uint64_t address)
     }
     if (request >= 0x8900 && request <= 0x89ff)
         return net_interface_ioctl(request, address);
-    if (request != LEONOS_NET_CONTROL_IOCTL) return -LINUX_ENOTTY;
-    struct leonos_net_control control;
+    if (request != RELIEFOS_NET_CONTROL_IOCTL) return -LINUX_ENOTTY;
+    struct reliefos_net_control control;
     if (!user_range_ok(address, sizeof(control)) || !user_range_writable(address, sizeof(control)))
         return -LINUX_EFAULT;
     __builtin_memcpy(&control, (void *)(uintptr_t)address, sizeof(control));
-    if (control.version != LEONOS_NET_CONTROL_VERSION || control.reserved) return -LINUX_EINVAL;
+    if (control.version != RELIEFOS_NET_CONTROL_VERSION || control.reserved) return -LINUX_EINVAL;
     struct task *task = sched_current_task();
     if (!task) return -LINUX_EPERM;
-    bool change = control.operation == LEONOS_NET_CONTROL_DHCP ||
-        (control.operation == LEONOS_NET_CONTROL_DNS_POLICY &&
-         control.data.dns_policy.mode != LEONOS_NET_DNS_MODE_QUERY);
+    bool change = control.operation == RELIEFOS_NET_CONTROL_DHCP ||
+        (control.operation == RELIEFOS_NET_CONTROL_DNS_POLICY &&
+         control.data.dns_policy.mode != RELIEFOS_NET_DNS_MODE_QUERY);
     if (change && !(task->cap_effective & (1ULL << CAP_NET_ADMIN))) return -LINUX_EPERM;
     switch (control.operation) {
-    case LEONOS_NET_CONTROL_CONFIG:
+    case RELIEFOS_NET_CONTROL_CONFIG:
         control.result = net_get_config(&control.data.config);
         break;
-    case LEONOS_NET_CONTROL_DNS_POLICY:
+    case RELIEFOS_NET_CONTROL_DNS_POLICY:
         control.result = net_set_dns_policy(&control.data.dns_policy);
         break;
-    case LEONOS_NET_CONTROL_DHCP:
+    case RELIEFOS_NET_CONTROL_DHCP:
         /* DHCP is an upstream userspace client; there is no kernel fallback. */
         control.result = -LINUX_EOPNOTSUPP;
         break;
-    case LEONOS_NET_CONTROL_PING:
+    case RELIEFOS_NET_CONTROL_PING:
         control.result = net_ping(&control.data.ping);
         break;
-    case LEONOS_NET_CONTROL_CONNECTIONS: {
-        struct leonos_net_connection_list list = {
-            .capacity = LEONOS_NET_SOCKET_MAX, .entries = control.data.connections.entries,
+    case RELIEFOS_NET_CONTROL_CONNECTIONS: {
+        struct reliefos_net_connection_list list = {
+            .capacity = RELIEFOS_NET_SOCKET_MAX, .entries = control.data.connections.entries,
         };
         __builtin_memset(&control.data, 0, sizeof(control.data));
         control.result = net_connections(&list, task);

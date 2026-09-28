@@ -1,5 +1,5 @@
-#ifndef LEONOS_UAPI_LINUX_IOCTL_H
-#define LEONOS_UAPI_LINUX_IOCTL_H
+#ifndef RELIEFOS_UAPI_LINUX_IOCTL_H
+#define RELIEFOS_UAPI_LINUX_IOCTL_H
 
 /* Linux ioctl encoding, shared by device drivers and applications. */
 #define _IOC_NRBITS 8

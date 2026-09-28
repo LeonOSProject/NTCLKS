@@ -193,7 +193,7 @@ static int storage_read_device(const struct storage_volume *volume, uint64_t lba
 out:
     kernel_spin_unlock(&storage_transport_lock);
     /* Pending DMA is resumed by the syscall dispatcher, not a device error. */
-    if (ret < 0 && ret != -LEONOS_EAGAIN) {
+    if (ret < 0 && ret != -RELIEFOS_EAGAIN) {
         console_printf("[storage] device read failed volume=%u kind=%u transport=%u lba=%llu sectors=%u ret=%d\n",
                        volume->volume_id, volume->kind, volume->transport,
                        (unsigned long long)start_lba, sector_count, ret);
@@ -332,7 +332,7 @@ static int storage_gpt_guid_empty(const uint8_t guid[16])
 }
 
 /* Validate the primary GPT before allocating or reading its entry array. The
- * implementation supports up to LeonOS's fixed 128-entry in-memory limit,
+ * implementation supports up to ReliefOS's fixed 128-entry in-memory limit,
  * but does not require the table itself to start at LBA 2: valid GPT tools
  * may choose another table position. */
 static int storage_gpt_header_valid_for_root(const struct gpt_header *header)
@@ -405,7 +405,7 @@ static int storage_gpt_entries_valid_for_root(const struct gpt_header *header,
 }
 
 /* GPT names are UTF-16LE on disk, but partition editors commonly differ in
- * ASCII case.  Compare the canonical LeonOS root label without making the
+ * ASCII case.  Compare the canonical ReliefOS root label without making the
  * filesystem probe depend on a particular editor's spelling. */
 static int storage_gpt_name_matches(const uint16_t name[36], const char *ascii)
 {
@@ -522,7 +522,7 @@ static int storage_write_sectors(uint64_t lba, uint32_t sector_count, const void
              * Retry the same idempotent payload one sector at a time so a
              * filesystem transaction is not abandoned after a transient
              * controller error. */
-            console_printf("[ntclks] storage write batch fallback lba=%llu sectors=%u ret=%d\n",
+            console_printf("[reliefnt] storage write batch fallback lba=%llu sectors=%u ret=%d\n",
                            (unsigned long long)lba, chunk, ret);
             ret = 0;
             for (uint32_t i = 0; i < chunk; ++i) {
@@ -566,12 +566,12 @@ static int gpt_find_esp(void)
     uint32_t total_sectors;
     uint32_t table_crc;
     if (storage_gpt_header_valid_for_root(hdr) < 0) {
-        console_printf("[ntclks] GPT primary header invalid\n");
+        console_printf("[reliefnt] GPT primary header invalid\n");
         return -22;
     }
     count = hdr->partition_entry_count;
     size = hdr->partition_entry_size;
-    console_printf("[ntclks] GPT found entries=%u entry_size=%u\n", count, size);
+    console_printf("[reliefnt] GPT found entries=%u entry_size=%u\n", count, size);
     total_bytes = count * size;
     total_sectors = (total_bytes + SECTOR_SIZE - 1u) / SECTOR_SIZE;
     uint64_t phys = mm_alloc_pages((total_sectors + 7u) / 8u);
@@ -588,20 +588,20 @@ static int gpt_find_esp(void)
     if (table_crc != hdr->partition_entries_crc32 ||
         storage_gpt_entries_valid_for_root(hdr, table) < 0) {
         mm_free_pages(phys, (total_sectors + 7u) / 8u);
-        console_printf("[ntclks] GPT partition table invalid\n");
+        console_printf("[reliefnt] GPT partition table invalid\n");
         return -5;
     }
     for (uint32_t i = 0; i < count; ++i) {
         struct gpt_entry *entry = (struct gpt_entry *)(void *)(table + (uint64_t)i * size);
         if (!entry->first_lba || entry->last_lba < entry->first_lba) {
             if (i < 3) {
-                console_printf("[ntclks] GPT entry %u: first=%llu last=%llu (skip)\n",
+                console_printf("[reliefnt] GPT entry %u: first=%llu last=%llu (skip)\n",
                                i, (unsigned long long)entry->first_lba,
                                (unsigned long long)entry->last_lba);
             }
             continue;
         }
-        console_printf("[ntclks] GPT entry %u: first=%llu last=%llu guid=%x%x%x%x\n",
+        console_printf("[reliefnt] GPT entry %u: first=%llu last=%llu guid=%x%x%x%x\n",
                        i, (unsigned long long)entry->first_lba,
                        (unsigned long long)entry->last_lba,
                        (unsigned)entry->type_guid[0], (unsigned)entry->type_guid[1],
@@ -617,19 +617,20 @@ static int gpt_find_esp(void)
                 storage_guid_valid(g_storage.gpt_disk_guid) &&
                 storage_guid_valid(g_storage.esp_unique_guid);
             esp_found = 1;
-            console_printf("[ntclks] GPT ESP found lba=%llu\n",
+            console_printf("[reliefnt] GPT ESP found lba=%llu\n",
                            (unsigned long long)entry->first_lba);
         } else if (storage_memcmp(entry->type_guid, basic_data_guid, 16) == 0) {
             uint8_t is_exfat = 0;
             uint8_t canonical_name = 0;
             int signature_ret;
-            console_printf("[ntclks] GPT basic data partition found lba=%llu name[0]=0x%04x\n",
+            console_printf("[reliefnt] GPT basic data partition found lba=%llu name[0]=0x%04x\n",
                            (unsigned long long)entry->first_lba, (unsigned int)entry->name[0]);
             if (!basic_data_candidate_found) {
                 basic_data_candidate_found = 1;
                 basic_data_candidate_lba = entry->first_lba;
             }
-            canonical_name = storage_gpt_name_matches(entry->name, "LEONOS4_ROOT");
+            canonical_name = storage_gpt_name_matches(entry->name, "RELIEFOS_ROOT") ||
+                             storage_gpt_name_matches(entry->name, "LEONOS4_ROOT");
             signature_ret = storage_probe_exfat_signature(entry->first_lba);
             is_exfat = signature_ret > 0;
             if (!fat32_candidate_found && storage_probe_fat32_signature(entry->first_lba) > 0) {
@@ -637,7 +638,7 @@ static int gpt_find_esp(void)
                 fat32_candidate_lba = entry->first_lba;
             }
             if (is_exfat && !canonical_name && !canonical_exfat_root_found) {
-                console_printf("[ntclks] GPT exFAT signature found lba=%llu\n",
+                console_printf("[reliefnt] GPT exFAT signature found lba=%llu\n",
                                (unsigned long long)entry->first_lba);
             }
             if (is_exfat && (canonical_name || !canonical_exfat_root_found)) {
@@ -646,7 +647,7 @@ static int gpt_find_esp(void)
                 if (canonical_name) {
                     canonical_exfat_root_found = 1;
                 }
-                console_printf("[ntclks] GPT exFAT root found lba=%llu sectors=%u\n",
+                console_printf("[reliefnt] GPT exFAT root found lba=%llu sectors=%u\n",
                                (unsigned long long)entry->first_lba,
                                (unsigned int)(entry->last_lba - entry->first_lba + 1u));
             }
@@ -671,7 +672,7 @@ static int gpt_find_esp(void)
                 g_storage.exfat_start_lba = candidate->first_lba;
                 g_storage.exfat_sector_count =
                     candidate->last_lba - candidate->first_lba + 1u;
-                console_printf("[ntclks] GPT exFAT signature found lba=%llu type=non-basic\n",
+                console_printf("[reliefnt] GPT exFAT signature found lba=%llu type=non-basic\n",
                                (unsigned long long)candidate->first_lba);
                 break;
             }
@@ -709,7 +710,7 @@ static int gpt_find_esp(void)
             }
         }
         esp_found = 1;
-        console_printf("[ntclks] GPT ESP signature found without ESP type lba=%llu\n",
+        console_printf("[reliefnt] GPT ESP signature found without ESP type lba=%llu\n",
                        (unsigned long long)fat32_candidate_lba);
     }
     /* If the signature itself is damaged, retain the first Basic Data extent
@@ -727,7 +728,7 @@ static int gpt_find_esp(void)
                 break;
             }
         }
-        console_printf("[ntclks] GPT exFAT signature not confirmed; trying Basic Data root lba=%llu\n",
+        console_printf("[reliefnt] GPT exFAT signature not confirmed; trying Basic Data root lba=%llu\n",
                        (unsigned long long)g_storage.exfat_start_lba);
     }
     /* Preserve the identities of the actual boot-selected extents. */

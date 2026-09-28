@@ -1,5 +1,5 @@
-#ifndef LEONOS_UAPI_LINUX_MSG_H
-#define LEONOS_UAPI_LINUX_MSG_H
+#ifndef RELIEFOS_UAPI_LINUX_MSG_H
+#define RELIEFOS_UAPI_LINUX_MSG_H
 
 #include <linux/ipc.h>
 

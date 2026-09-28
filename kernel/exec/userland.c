@@ -1,30 +1,30 @@
 /*
- * LeonOS userland launcher: prepares process images, stacks, and arguments.
+ * ReliefOS userland launcher: prepares process images, stacks, and arguments.
  * Creates user tasks, maps executables, and enters the Ring-3 scheduler path.
  */
-#include <ntclks/arch.h>
-#include <ntclks/console.h>
-#include <ntclks/elf.h>
-#include <ntclks/input.h>
-#include <ntclks/kernel.h>
-#include <ntclks/mm.h>
-#include <ntclks/pty.h>
-#include <ntclks/random.h>
-#include <ntclks/sched.h>
-#include <ntclks/storage.h>
-#include <ntclks/uts.h>
-#include <ntclks/syscall.h>
-#include <ntclks/lock.h>
-#include <ntclks/smp.h>
-#include <ntclks/userland.h>
-#include <ntclks/svga.h>
-#include <leonos/layout.h>
-#include <ntclks/permissions.h>
+#include <reliefnt/arch.h>
+#include <reliefnt/console.h>
+#include <reliefnt/elf.h>
+#include <reliefnt/input.h>
+#include <reliefnt/kernel.h>
+#include <reliefnt/mm.h>
+#include <reliefnt/pty.h>
+#include <reliefnt/random.h>
+#include <reliefnt/sched.h>
+#include <reliefnt/storage.h>
+#include <reliefnt/uts.h>
+#include <reliefnt/syscall.h>
+#include <reliefnt/lock.h>
+#include <reliefnt/smp.h>
+#include <reliefnt/userland.h>
+#include <reliefnt/svga.h>
+#include <reliefos/layout.h>
+#include <reliefnt/permissions.h>
 #include <linux/capability.h>
 #include <linux/securebits.h>
 #include <linux/mount.h>
 
-#define USER_STACK_TOP (NTCLKS_USER_TOP - 0x1000ULL)
+#define USER_STACK_TOP (RELIEFNT_USER_TOP - 0x1000ULL)
 #define EXEC_STACK_ALIGN 16ULL
 
 struct exec_launch {
@@ -43,11 +43,11 @@ struct exec_launch {
  * TASK_FLAG_WINDOW_SERVER for the window-server role). The path name grants
  * nothing. Mirrored by the rootfs staging plan and guest /etc/group:
  *
- *     leonos-window-server:x:60001:  desktop.elf          role window server
- *     leonos-service:x:60002:        windowd.elf, imd.elf role service
+ *     reliefos-window-server:x:60001:  desktop.elf          role window server
+ *     reliefos-service:x:60002:        windowd.elf, imd.elf role service
  */
-#define LEONOS_GID_WINDOW_SERVER 60001u
-#define LEONOS_GID_SERVICE 60002u
+#define RELIEFOS_GID_WINDOW_SERVER 60001u
+#define RELIEFOS_GID_SERVICE 60002u
 
 static uint32_t init_pid;
 static uint32_t desktop_pid;
@@ -286,7 +286,7 @@ static int prepare_user_exec_stack(struct task *task, const char *execfn)
     argv_base = argc_base + sizeof(uint64_t);
     envp_base = argv_base + argv_bytes;
     auxv_base = envp_base + envp_bytes;
-    if (argc_base < task->stack_top - (uint64_t)NTCLKS_USER_STACK_PAGES * 4096ULL) {
+    if (argc_base < task->stack_top - (uint64_t)RELIEFNT_USER_STACK_PAGES * 4096ULL) {
         return -12;
     }
 
@@ -402,7 +402,7 @@ static int prepare_user_exec_stack(struct task *task, const char *execfn)
  */
 static int userland_prepare_exec_credentials(struct task *next, const struct task *old)
 {
-    struct leonos_permissions file;
+    struct reliefos_permissions file;
     uint64_t mount_flags;
     int ret = fs_permissions_get(next->path, &next->image_node, &file);
     if (ret < 0) return ret;
@@ -457,24 +457,24 @@ static int userland_load_task_image_locked(struct task *task, const struct task 
      * from the ELF entry would hide a scheduler ownership bug and lose the
      * rest of the register state, so fail it instead of changing semantics. */
     if ((task->flags & TASK_FLAG_STARTED) && task->entry != 0 && task->frame.rip == 0) {
-        console_printf("[ntclks] refusing started task with zero RIP pid=%u entry=0x%llx\n",
+        console_printf("[reliefnt] refusing started task with zero RIP pid=%u entry=0x%llx\n",
                        task->pid, (unsigned long long)task->entry);
         return -8;
     }
     int entropy_result = kernel_random_fill(task->dynamic_launch.random, sizeof(task->dynamic_launch.random));
     if (entropy_result < 0) {
-        console_printf("[ntclks] image entropy failed path=%s ret=%d\n", task->path, entropy_result);
+        console_printf("[reliefnt] image entropy failed path=%s ret=%d\n", task->path, entropy_result);
         return entropy_result;
     }
     if (task->flags & TASK_FLAG_PENDING_LOAD) {
-        if (task->image_node.type != LEONOS_FS_TYPE_FILE) {
-            char resolved[LEONOS_FS_PATH_LEN];
+        if (task->image_node.type != RELIEFOS_FS_TYPE_FILE) {
+            char resolved[RELIEFOS_FS_PATH_LEN];
             int ret = fs_permissions_resolve(task, sched_task_cwd(task), task->path,
                                              resolved, sizeof(resolved), false);
             if (!ret) ret = storage_lookup_path(resolved, &task->image_node);
             if (!ret) copy_text(task->path, sizeof(task->path), resolved);
-            if (ret < 0 || task->image_node.type != LEONOS_FS_TYPE_FILE) {
-                console_printf("[ntclks] executable lookup failed path=%s ret=%d\n",
+            if (ret < 0 || task->image_node.type != RELIEFOS_FS_TYPE_FILE) {
+                console_printf("[reliefnt] executable lookup failed path=%s ret=%d\n",
                                task->path, ret < 0 ? ret : -21);
                 return ret < 0 ? ret : -13;
             }
@@ -483,7 +483,7 @@ static int userland_load_task_image_locked(struct task *task, const struct task 
         if (ret < 0) return ret;
         ret = elf64_map_task_image(task, &task->image_node, &loaded);
         if (ret < 0) {
-            console_printf("[ntclks] failed to map executable %s\n", task->name);
+            console_printf("[reliefnt] failed to map executable %s\n", task->name);
             return ret;
         }
         task->program_break_base = loaded.program_break;
@@ -494,14 +494,14 @@ static int userland_load_task_image_locked(struct task *task, const struct task 
         task->flags &= ~TASK_FLAG_PENDING_LOAD;
     } else if (task->image && task->image_len) {
         if (!elf64_load_address_space(sched_task_as(task), task->image, task->image_len, &loaded)) {
-            console_printf("[ntclks] failed to load %s into private address space\n", task->name);
+            console_printf("[reliefnt] failed to load %s into private address space\n", task->name);
             return -8;
         }
         free_image_buffer(task->image, task->image_len);
         task->image = NULL;
         task->image_len = 0;
     } else {
-        console_printf("[ntclks] image has no pending load path=%s flags=0x%x node=%u\n",
+        console_printf("[reliefnt] image has no pending load path=%s flags=0x%x node=%u\n",
                        task->path, task->flags, task->image_node.type);
         return -8;
     }
@@ -514,20 +514,20 @@ static int userland_load_task_image_locked(struct task *task, const struct task 
     task->frame.rip = task->entry;
     task->frame.rsp = task->stack_top;
     task->frame.rflags = 0x202;
-    task->frame.cs = NTCLKS_USER_CS;
-    task->frame.ss = NTCLKS_USER_DS;
+    task->frame.cs = RELIEFNT_USER_CS;
+    task->frame.ss = RELIEFNT_USER_DS;
     if (old) {
         int ret = userland_prepare_exec_credentials(task, old);
         if (ret < 0) return ret;
     }
     int ret = prepare_user_exec_stack(task, execfn);
     if (ret < 0) {
-        console_printf("[ntclks] failed to prepare argv/envp for %s\n", task->name);
+        console_printf("[reliefnt] failed to prepare argv/envp for %s\n", task->name);
         return ret;
     }
     task->flags |= TASK_FLAG_STARTED;
 
-    console_printf("[ntclks] %s prepared lazy Ring-3 image entry=0x%llx cr3=0x%llx\n",
+    console_printf("[reliefnt] %s prepared lazy Ring-3 image entry=0x%llx cr3=0x%llx\n",
                    task->name,
                    (unsigned long long)task->entry,
                    (unsigned long long)(*sched_task_as(task)).cr3);
@@ -551,7 +551,7 @@ static bool userland_load_task_image(struct task *task)
     int load_result = userland_load_task_image_locked(task, NULL, NULL);
     result = load_result == 0;
     if (!result)
-        console_printf("[ntclks] image load failed pid=%u path=%s flags=0x%x ret=%d\n",
+        console_printf("[reliefnt] image load failed pid=%u path=%s flags=0x%x ret=%d\n",
                        task->pid, task->path, task->flags, load_result);
     userland_loader_unlock(loader_flags);
     kernel_execution_unlock_irqrestore(execution_flags);
@@ -616,8 +616,8 @@ static int64_t spawn_path_internal_ex(const char *path, const char *task_name,
     int ret;
     if (flags & TASK_FLAG_SERVICE) {
         ret = storage_lookup_path(path, &node);
-        if (ret < 0 || node.type != LEONOS_FS_TYPE_FILE) {
-            console_printf("[ntclks] spawn lookup failed path=%s ret=%d\n", path,
+        if (ret < 0 || node.type != RELIEFOS_FS_TYPE_FILE) {
+            console_printf("[reliefnt] spawn lookup failed path=%s ret=%d\n", path,
                            ret < 0 ? ret : -21);
             return ret < 0 ? ret : -21;
         }
@@ -692,7 +692,7 @@ retry:
             arch_fpu_save(current->fpu_state);
             (void)kernel_signal_deliver_pending(current, frame);
             if (current->state != TASK_EXITED && !sched_capture_current_user_frame(frame)) {
-                console_printf("[ntclks] rejected scheduler frame pid=%u rip=0x%llx cs=0x%llx\n",
+                console_printf("[reliefnt] rejected scheduler frame pid=%u rip=0x%llx cs=0x%llx\n",
                                current->pid,
                                (unsigned long long)frame->rip,
                                (unsigned long long)frame->cs);
@@ -700,7 +700,7 @@ retry:
                 return NULL;
             }
         } else {
-            console_printf("[ntclks] ignored invalid scheduler frame pid=%u rip=0x%llx cs=0x%llx\n",
+            console_printf("[reliefnt] ignored invalid scheduler frame pid=%u rip=0x%llx cs=0x%llx\n",
                            current->pid,
                            (unsigned long long)frame->rip,
                            (unsigned long long)frame->cs);
@@ -755,10 +755,10 @@ static void userland_enter_task(struct task *task) __attribute__((noreturn));
 static void userland_enter_task(struct task *task)
 {
     if (!task) {
-        console_printf("[ntclks] no runnable Ring-3 task, entering idle\n");
+        console_printf("[reliefnt] no runnable Ring-3 task, entering idle\n");
         kernel_idle_loop();
     }
-    console_printf("[ntclks] scheduler entering pid=%u name=%s rip=0x%llx rsp=0x%llx cr3=0x%llx\n",
+    console_printf("[reliefnt] scheduler entering pid=%u name=%s rip=0x%llx rsp=0x%llx cr3=0x%llx\n",
                    task->pid,
                    task->name,
                    (unsigned long long)task->frame.rip,
@@ -777,23 +777,23 @@ static void userland_enter_task(struct task *task)
  */
 static int userland_clear_transient_tree(const char *root)
 {
-    char path[LEONOS_FS_PATH_LEN];
+    char path[RELIEFOS_FS_PATH_LEN];
     struct storage_node base;
     uint32_t root_length = (uint32_t)__builtin_strlen(root);
     int ret = storage_lookup_path(root, &base);
     if (ret < 0) return ret;
-    if (base.type != LEONOS_FS_TYPE_DIR || !(base.flags & STORAGE_NODE_FLAG_EXT2))
+    if (base.type != RELIEFOS_FS_TYPE_DIR || !(base.flags & STORAGE_NODE_FLAG_EXT2))
         return -20;
     copy_text(path, sizeof(path), root);
     for (;;) {
         struct storage_node directory;
-        struct leonos_dir_entry entry;
+        struct reliefos_dir_entry entry;
         uint64_t cursor = 0;
         uint32_t length = (uint32_t)__builtin_strlen(path);
         ret = storage_lookup_path(path, &directory);
         if (ret < 0) return ret;
         if (directory.volume_id != base.volume_id) return -18;
-        if (directory.type != LEONOS_FS_TYPE_DIR) return -20;
+        if (directory.type != RELIEFOS_FS_TYPE_DIR) return -20;
         do {
             ret = storage_readdir_node(&directory, &cursor, &entry);
         } while (ret > 0 && entry.name[0] == '.' &&
@@ -820,7 +820,7 @@ static int userland_clear_transient_tree(const char *root)
         ret = storage_lookup_path(path, &child);
         if (ret < 0) return ret;
         if (child.volume_id != base.volume_id) return -18;
-        if (child.type == LEONOS_FS_TYPE_DIR) continue;
+        if (child.type == RELIEFOS_FS_TYPE_DIR) continue;
         ret = storage_unlink(path); /* literal link/socket/file, never its target */
         if (ret < 0) return ret;
         path[length] = 0;
@@ -840,7 +840,7 @@ static int userland_prepare_runtime(void)
     if (ret < 0) return ret;
     for (uint32_t i = 0; i < sizeof(directories) / sizeof(directories[0]); ++i) {
         struct storage_node node;
-        struct leonos_permissions mode = {directories[i].mode, 0, 0};
+        struct reliefos_permissions mode = {directories[i].mode, 0, 0};
         ret = storage_lookup_path(directories[i].path, &node);
         if (ret == -2) {
             ret = storage_mkdir(directories[i].path);
@@ -848,7 +848,7 @@ static int userland_prepare_runtime(void)
             ret = storage_lookup_path(directories[i].path, &node);
         }
         if (ret < 0) return ret;
-        if (node.type != LEONOS_FS_TYPE_DIR) return -20;
+        if (node.type != RELIEFOS_FS_TYPE_DIR) return -20;
         ret = storage_inode_permissions(&node, &mode, true);
         if (ret < 0) return ret;
     }
@@ -873,22 +873,22 @@ void userland_init(const struct boot_info *boot)
 {
     int64_t pid;
 
-    console_printf("[ntclks] userland storage load started modules=%u\n",
+    console_printf("[reliefnt] userland storage load started modules=%u\n",
                    boot ? boot->module_count : 0);
     boot_cmdline = boot ? boot->cmdline : 0;
 
     if (!storage_ready()) {
-        console_printf("[ntclks] no block-backed root filesystem available for userland\n");
+        console_printf("[reliefnt] no block-backed root filesystem available for userland\n");
         kernel_idle_loop();
     }
 
     int runtime_ret = userland_prepare_runtime();
     if (runtime_ret < 0) {
-        console_printf("[ntclks] runtime directory initialization failed ret=%d\n", runtime_ret);
+        console_printf("[reliefnt] runtime directory initialization failed ret=%d\n", runtime_ret);
         kernel_idle_loop();
     }
 
-    const char *env[] = {"PATH=" LEONOS_DEFAULT_PATH, "HOME=/root", "PWD=/",
+    const char *env[] = {"PATH=" RELIEFOS_DEFAULT_PATH, "HOME=/root", "PWD=/",
                         "TERM=xterm-256color", NULL};
     char init_path[256] = "/sbin/init";
     if (boot) {
@@ -900,7 +900,7 @@ void userland_init(const struct boot_info *boot)
             if (end - arg > 5 && __builtin_memcmp(arg, "init=", 5) == 0) {
                 size_t length = (size_t)(end - arg - 5);
                 if (arg[5] != '/' || length >= sizeof(init_path)) {
-                    console_printf("[ntclks] invalid init= override\n");
+                    console_printf("[reliefnt] invalid init= override\n");
                     kernel_idle_loop();
                 }
                 __builtin_memcpy(init_path, arg + 5, length);
@@ -912,17 +912,17 @@ void userland_init(const struct boot_info *boot)
     const char *argv[] = {init_path, NULL};
     struct exec_launch launch = {0};
     if (build_exec_launch(&launch, init_path, argv, env) < 0) {
-        console_printf("[ntclks] cannot prepare PID 1 arguments\n");
+        console_printf("[reliefnt] cannot prepare PID 1 arguments\n");
         kernel_idle_loop();
     }
     pid = spawn_path_internal_deferred(init_path, "init", &launch, 0, 0, 0, -1, -1, -1);
     if (pid != 1) {
-        console_printf("[ntclks] cannot execute PID 1 path=%s ret=%lld; boot stopped\n",
+        console_printf("[reliefnt] cannot execute PID 1 path=%s ret=%lld; boot stopped\n",
                        init_path, (long long)pid);
         kernel_idle_loop();
     }
     init_pid = (uint32_t)pid;
-    console_printf("[ntclks] PID 1 path=%s console=tty1\n", init_path);
+    console_printf("[reliefnt] PID 1 path=%s console=tty1\n", init_path);
     sched_mark_ready(init_pid);
 }
 
@@ -933,7 +933,7 @@ void userland_enter_first(void)
 {
     struct task *first;
     if (!init_pid && !desktop_pid && !windowd_pid && !tty_pid) {
-        console_printf("[ntclks] no Ring-3 userland loaded\n");
+        console_printf("[reliefnt] no Ring-3 userland loaded\n");
         kernel_idle_loop();
     }
     /* Load and reserve the first task on the BSP before releasing APs. This
@@ -949,7 +949,7 @@ void userland_enter_first(void)
 void userland_process_exit(uint64_t code)
 {
     uint32_t pid = sched_current_pid();
-    console_printf("[ntclks] Ring-3 pid=%u exited code=%llu\n",
+    console_printf("[reliefnt] Ring-3 pid=%u exited code=%llu\n",
                    pid,
                    (unsigned long long)code);
     sched_exit(pid, code);
@@ -988,7 +988,7 @@ int userland_exec_current_node(const char *path, const struct storage_node *held
     }
     if (held) { node = *held; ret = storage_inode_refresh(&node); }
     else ret = storage_lookup_path(path, &node);
-    if (ret < 0 || node.type != LEONOS_FS_TYPE_FILE) {
+    if (ret < 0 || node.type != RELIEFOS_FS_TYPE_FILE) {
         return ret < 0 ? ret : -13;
     }
     ret = fs_permissions_check_node(task, path, &node, FS_ACCESS_EXEC, false);
@@ -1004,7 +1004,7 @@ int userland_exec_current_node(const char *path, const struct storage_node *held
     copy_text(prepared->root_dir, sizeof(prepared->root_dir), sched_task_root(task));
     prepared->limits = *sched_task_limits(task);
     prepared->stack_top = USER_STACK_TOP;
-    prepared->stack_low = USER_STACK_TOP - (uint64_t)NTCLKS_USER_STACK_PAGES * 4096ULL;
+    prepared->stack_low = USER_STACK_TOP - (uint64_t)RELIEFNT_USER_STACK_PAGES * 4096ULL;
     prepared->address_space.initial_stack_top = prepared->stack_top;
     prepared->address_space.initial_stack_low = prepared->stack_low;
     prepared->image_node = node;
@@ -1047,15 +1047,15 @@ int userland_exec_current_node(const char *path, const struct storage_node *held
     preserved_flags = task->flags & (TASK_FLAG_ELEVATED_ADMIN | TASK_FLAG_WAITABLE_CHILD);
     /* Authority is tied to a root-owned, non-writable image, root
      * credentials and the image's reserved role gid, never to ancestry,
-     * argv, or a user-selected path (see LEONOS_GID_* above). */
-    struct leonos_permissions permissions;
+     * argv, or a user-selected path (see RELIEFOS_GID_* above). */
+    struct reliefos_permissions permissions;
     if (!task->uid && !task->euid &&
         storage_inode_permissions(&node, &permissions, false) == 0 &&
         permissions.uid == 0 && !(permissions.mode & 0022)) {
-        if (permissions.gid == LEONOS_GID_WINDOW_SERVER) {
+        if (permissions.gid == RELIEFOS_GID_WINDOW_SERVER) {
             preserved_flags |= TASK_FLAG_SERVICE | TASK_FLAG_WINDOW_SERVER;
             desktop_pid = task->pid;
-        } else if (permissions.gid == LEONOS_GID_SERVICE) {
+        } else if (permissions.gid == RELIEFOS_GID_SERVICE) {
             preserved_flags |= TASK_FLAG_SERVICE;
             windowd_pid = task->pid;
         }
@@ -1068,7 +1068,7 @@ int userland_exec_current_node(const char *path, const struct storage_node *held
     arch_fpu_task_init(task->fpu_state);
     arch_fpu_restore(task->fpu_state);
     kernel_free(prepared);
-    console_printf("[ntclks] exec pid=%u path=%s pty=%u committed cr3=0x%llx\n",
+    console_printf("[reliefnt] exec pid=%u path=%s pty=%u committed cr3=0x%llx\n",
                    task->pid, path, task->pty_id,
                    (unsigned long long)(*sched_task_as(task)).cr3);
     return 0;
@@ -1108,7 +1108,7 @@ int64_t userland_spawn_path_argv(const char *path,
 
     pid = spawn_path_internal(path, task_name, &launch, parent, 0, pty_id, -1, -1, -1);
     if (pid > 0) {
-        console_printf("[ntclks] spawn path=%s pid=%u parent=%u\n",
+        console_printf("[reliefnt] spawn path=%s pid=%u parent=%u\n",
                        path,
                        (unsigned)pid,
                        parent);
@@ -1118,7 +1118,7 @@ int64_t userland_spawn_path_argv(const char *path,
 
 /**
  * @brief Spawns a user executable with explicitly inherited standard streams.
- * @param path NUL-terminated executable path in LeonOS Unix syntax.
+ * @param path NUL-terminated executable path in ReliefOS Unix syntax.
  * @param argv Optional NUL-terminated argument vector copied into the child.
  * @param envp Optional NUL-terminated environment vector copied into the child.
  * @param pty_id Active PTY inherited by the child; it must belong to the caller.
@@ -1146,7 +1146,7 @@ int64_t userland_spawn_path_argv_with_fds(const char *path,
     pid = spawn_path_internal(path, task_name, &launch, parent, 0, pty_id,
                               stdin_fd, stdout_fd, stderr_fd);
     if (pid > 0) {
-        console_printf("[ntclks] spawn path=%s pid=%u parent=%u fds=%d,%d,%d\n",
+        console_printf("[reliefnt] spawn path=%s pid=%u parent=%u fds=%d,%d,%d\n",
                        path, (unsigned)pid, parent, stdin_fd, stdout_fd, stderr_fd);
     }
     return pid;
@@ -1159,7 +1159,7 @@ int64_t userland_spawn_path_argv_for_user(const char *path,
                                           const char *const argv[],
                                           const char *const envp[],
                                           uint32_t parent_pid,
-                                          const struct leonos_user_info *user,
+                                          const struct reliefos_user_info *user,
                                           uint32_t session_id)
 {
     char task_name[SCHED_TASK_NAME_LEN];
@@ -1181,7 +1181,7 @@ int64_t userland_spawn_path_argv_for_user(const char *path,
     pid = spawn_path_internal(path, task_name, &launch, parent_pid, 0, 0, -1, -1, -1);
     if (pid > 0) {
         sched_set_task_identity((uint32_t)pid, user, session_id);
-        console_printf("[ntclks] spawn trusted path=%s pid=%u parent=%u user=%u\n",
+        console_printf("[reliefnt] spawn trusted path=%s pid=%u parent=%u user=%u\n",
                        path, (unsigned)pid, parent_pid, user->uid);
     }
     return pid;
@@ -1206,7 +1206,7 @@ int64_t userland_spawn_path(const char *path)
 /**
  * @brief List directory entries into entries (special-casing /dev) and set *out_count; returns count or a negative errno.
  */
-int userland_list_dir(const char *path, struct leonos_dir_entry *entries,
+int userland_list_dir(const char *path, struct reliefos_dir_entry *entries,
                       uint32_t capacity, uint32_t *out_count)
 {
     uint32_t count = 0;
@@ -1215,8 +1215,8 @@ int userland_list_dir(const char *path, struct leonos_dir_entry *entries,
     if (!path || !out_count) {
         return -22;
     }
-    if (capacity > LEONOS_FS_MAX_ENTRIES) {
-        capacity = LEONOS_FS_MAX_ENTRIES;
+    if (capacity > RELIEFOS_FS_MAX_ENTRIES) {
+        capacity = RELIEFOS_FS_MAX_ENTRIES;
     }
 
     ret = storage_list_dir(path, entries, capacity, &count);

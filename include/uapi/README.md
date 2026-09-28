@@ -1,7 +1,7 @@
-# LeonOS user/kernel boundary
+# ReliefOS user/kernel boundary
 
-`linux/` owns the Linux v6.12 **native x86-64** wire ABI. `leonos/` owns
-LeonOS-specific extensions. Neither i386 nor x32 is included.
+`linux/` owns the Linux v6.12 **native x86-64** wire ABI. `reliefos/` owns
+ReliefOS-specific extensions. Neither i386 nor x32 is included.
 
 - Add syscall numbers only to the pinned upstream table and regenerate
   `linux/syscall.h` with `tools/generate_linux_syscalls.py`. Kernel dispatch
@@ -12,21 +12,22 @@ LeonOS-specific extensions. Neither i386 nor x32 is included.
   Public libc structures may differ: TCGETS transfers 36 bytes although musl's
   public termios is larger; musl performs the kernel conversion.
 - Kernel-only objects, scheduler state, pointers and helper declarations stay
-  under `kernel/ntclks/include`. Public LeonOS convenience functions stay in
-  `include/leonos` or `userland/libc/include/leonos` and import these definitions.
+  under `kernel/reliefnt/include`. Public ReliefOS convenience functions stay in
+  `include/reliefos` or `userland/libc/include/reliefos` and import these definitions.
 - musl sources and headers remain upstream. Verify their actual installed
   headers against UAPI with `python3 build.py test musl-abi`. Never patch a
   musl constant to match a divergent kernel. Removed legacy adapters historically
   translate its API; its installed fcntl definitions use the shared wire flags.
 - SDK packagers export this directory without flattening `linux/` and
-  `leonos/`. Current source headers override legacy `devtools/include` templates.
+  `reliefos/`. Current source headers override legacy `devtools/include` templates.
   Build the SDK archive; the checked-in template is not a current sysroot.
-- Run `python3 build.py test uapi` after changing wire declarations. Compile
+- Run `python3 tools/test_uapi.py` in the main repository after changing wire declarations. Compile
   checks only certify declarations. Syscall behavior, errors, blocking, signal
   delivery and object lifetime require separate guest regression evidence.
 
 ABI 1 binaries must be rebuilt after the Linux boundary corrections. The musl
-runtime uses `/lib/ld-musl-x86_64.so.1` and `libleonos.so.2`; its FILE, errno, TLS
+runtime uses `/lib/ld-musl-x86_64.so.1` and canonical `libreliefos.so.2`;
+`libleonos.so.2` remains a separately linked compatibility SONAME. Its FILE, errno, TLS
 and allocation objects cannot be mixed with the Picolibc runtime. See
 `docs/MUSL_MIGRATION_2026-09-08.md` for current migration and guest-test status.
 
@@ -34,7 +35,7 @@ Permission wire records use independent 32-bit UID/GID values and Linux mode
 bits. `linux/stat.h`, `linux/statfs.h`, `linux/fcntl.h` and `linux/errno.h` are
 shared declarations, not duplicate libc policy. The kernel's internal
 mode/UID/GID triple is not a published ABI and lives in
-`kernel/ntclks/include/ntclks/storage.h`; userland observes and changes POSIX
+`kernel/reliefnt/include/reliefnt/storage.h`; userland observes and changes POSIX
 permissions only through stat/chmod/chown.
 On FAT/exFAT, version-1 ACL records remain readable and gain explicit POSIX
 metadata on their next write. ext2 uses its native inode fields. Legacy calls

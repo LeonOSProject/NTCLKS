@@ -1,6 +1,6 @@
 /* Linux keyboard/display mode UAPI for virtual consoles. */
-#ifndef LEONOS_UAPI_LINUX_KD_H
-#define LEONOS_UAPI_LINUX_KD_H
+#ifndef RELIEFOS_UAPI_LINUX_KD_H
+#define RELIEFOS_UAPI_LINUX_KD_H
 
 #define KDSETMODE  0x4B3A
 #define KDGETMODE  0x4B3B

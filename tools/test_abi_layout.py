@@ -24,39 +24,39 @@ GOLDEN = ROOT / "tools/tests/abi_layout_golden.json"
 
 # Headers that hold user/kernel wire contracts (pre- and post-split).
 WIRE_HEADERS = [
-    "uapi/leonos/auth_user.h", "uapi/leonos/fs_abi.h", "uapi/leonos/net_control.h",
-    "uapi/leonos/rootfs.h", "uapi/leonos/syscall_abi.h",
-    "leonos/audio.h", "leonos/auth.h", "leonos/boot_handoff.h", "leonos/device.h",
-    "leonos/driver.h", "leonos/elf_abi.h", "leonos/gpu.h", "leonos/inputm.h",
-    "leonos/kernel_debug.h", "leonos/net.h", "leonos/pty.h", "leonos/signal.h",
-    "leonos/startup.h", "leonos/system.h",
+    "uapi/reliefos/auth_user.h", "uapi/reliefos/fs_abi.h", "uapi/reliefos/net_control.h",
+    "uapi/reliefos/rootfs.h", "uapi/reliefos/syscall_abi.h",
+    "reliefos/audio.h", "reliefos/auth.h", "reliefos/boot_handoff.h", "reliefos/device.h",
+    "reliefos/driver.h", "reliefos/elf_abi.h", "reliefos/gpu.h", "reliefos/inputm.h",
+    "reliefos/kernel_debug.h", "reliefos/net.h", "reliefos/pty.h", "reliefos/signal.h",
+    "reliefos/startup.h", "reliefos/system.h",
     # split targets, once they exist
-    "uapi/leonos/audio_abi.h", "uapi/leonos/auth_abi.h", "uapi/leonos/device_abi.h",
-    "uapi/leonos/driver_abi.h", "uapi/leonos/gpu_abi.h", "uapi/leonos/inputm_abi.h",
-    "uapi/leonos/kernel_debug_abi.h", "uapi/leonos/net_abi.h",
-    "uapi/leonos/startup_abi.h", "uapi/leonos/system_abi.h",
-    "uapi/leonos/pty_abi.h", "uapi/leonos/signal_abi.h",
+    "uapi/reliefos/audio_abi.h", "uapi/reliefos/auth_abi.h", "uapi/reliefos/device_abi.h",
+    "uapi/reliefos/driver_abi.h", "uapi/reliefos/gpu_abi.h", "uapi/reliefos/inputm_abi.h",
+    "uapi/reliefos/kernel_debug_abi.h", "uapi/reliefos/net_abi.h",
+    "uapi/reliefos/startup_abi.h", "uapi/reliefos/system_abi.h",
+    "uapi/reliefos/pty_abi.h", "uapi/reliefos/signal_abi.h",
 ]
 
 # Numeric constants whose value is ABI (ioctl/magic/version/enum encodings).
 CONSTANTS = [
-    "LEONOS_SYS_NICE",
-    "LEONOS_BOOT_HANDOFF_VERSION",
-    "LEONOS_DRIVER_MODULE_MAGIC", "LEONOS_DRIVER_ABI_VERSION",
-    "LEONOS_DRIVER_CONTROL_IOCTL",
-    "LEONOS_VT_GETGENERATION", "LEONOS_EVIOCSVT",
-    "LEONOS_NET_CONTROL_IOCTL",
-    "LEONOS_KERNEL_DEBUG_CONTROL_GET_STATE", "LEONOS_KERNEL_DEBUG_CONTROL_SET_ENABLED",
-    "LEONOS_KERNEL_DEBUG_CONTROL_ARM_NEXT_BOOT", "LEONOS_KERNEL_DEBUG_CONTROL_CLEAR",
-    "LEONOS_IOCTL_GPU_INFO", "LEONOS_IOCTL_GPU_CREATE", "LEONOS_IOCTL_GPU_DESTROY",
-    "LEONOS_IOCTL_GPU_RENDER", "LEONOS_IOCTL_GPU_DIAGNOSTICS",
-    "LEONOS_AUTH_ROLE_NONE", "LEONOS_AUTH_ROLE_USER", "LEONOS_AUTH_ROLE_ADMIN",
-    "LEONOS_AUTH_USER_DISABLED", "LEONOS_AUTH_UPDATE_ROLE", "LEONOS_AUTH_UPDATE_FLAGS",
-    "LEONOS_PERF_MAX_CPUS",
-    "LEONOS_TASK_AFFINITY_GET", "LEONOS_TASK_AFFINITY_SET",
-    "LEONOS_PTY_NCCS", "LEONOS_PTY_PATH_LEN",
-    "LEONOS_INPUTM_MAX_PROVIDERS", "LEONOS_INPUTM_MAX_CANDIDATES",
-    "LEONOS_FS_TYPE_FILE", "LEONOS_FS_TYPE_DIR",
+    "RELIEFOS_SYS_NICE",
+    "RELIEFOS_BOOT_HANDOFF_VERSION",
+    "RELIEFOS_DRIVER_MODULE_MAGIC", "RELIEFOS_DRIVER_ABI_VERSION",
+    "RELIEFOS_DRIVER_CONTROL_IOCTL",
+    "RELIEFOS_VT_GETGENERATION", "RELIEFOS_EVIOCSVT",
+    "RELIEFOS_NET_CONTROL_IOCTL",
+    "RELIEFOS_KERNEL_DEBUG_CONTROL_GET_STATE", "RELIEFOS_KERNEL_DEBUG_CONTROL_SET_ENABLED",
+    "RELIEFOS_KERNEL_DEBUG_CONTROL_ARM_NEXT_BOOT", "RELIEFOS_KERNEL_DEBUG_CONTROL_CLEAR",
+    "RELIEFOS_IOCTL_GPU_INFO", "RELIEFOS_IOCTL_GPU_CREATE", "RELIEFOS_IOCTL_GPU_DESTROY",
+    "RELIEFOS_IOCTL_GPU_RENDER", "RELIEFOS_IOCTL_GPU_DIAGNOSTICS",
+    "RELIEFOS_AUTH_ROLE_NONE", "RELIEFOS_AUTH_ROLE_USER", "RELIEFOS_AUTH_ROLE_ADMIN",
+    "RELIEFOS_AUTH_USER_DISABLED", "RELIEFOS_AUTH_UPDATE_ROLE", "RELIEFOS_AUTH_UPDATE_FLAGS",
+    "RELIEFOS_PERF_MAX_CPUS",
+    "RELIEFOS_TASK_AFFINITY_GET", "RELIEFOS_TASK_AFFINITY_SET",
+    "RELIEFOS_PTY_NCCS", "RELIEFOS_PTY_PATH_LEN",
+    "RELIEFOS_INPUTM_MAX_PROVIDERS", "RELIEFOS_INPUTM_MAX_CANDIDATES",
+    "RELIEFOS_FS_TYPE_FILE", "RELIEFOS_FS_TYPE_DIR",
 ]
 
 INCLUDES = ["-I", str(ROOT / "include/uapi"), "-I", str(ROOT / "include"),
@@ -79,8 +79,8 @@ def discover_structs(paths):
     Maps name -> "struct"/"union" kind so the probe uses the right keyword.
     """
     found = {}
-    definition = re.compile(r"^\s*struct\s+(leonos_\w+)\s*\{", re.M)
-    union_definition = re.compile(r"^\s*union\s+(leonos_\w+)\s*\{", re.M)
+    definition = re.compile(r"^\s*struct\s+(reliefos_\w+)\s*\{", re.M)
+    union_definition = re.compile(r"^\s*union\s+(reliefos_\w+)\s*\{", re.M)
     for path in paths:
         text = path.read_text()
         for match in definition.finditer(text):
@@ -91,9 +91,9 @@ def discover_structs(paths):
 
 
 def probe_source(structs):
-    lines = ['#include <leonos/%s>' % p.name for p in
+    lines = ['#include <reliefos/%s>' % p.name for p in
              sorted({p for p in wire_header_paths()})]
-    # Include by wire path so uapi/leonos files resolve as <leonos/...> too.
+    # Include by wire path so uapi/reliefos files resolve as <reliefos/...> too.
     # A sizeof assertion forces clang to complete each record's layout here;
     # -fdump-record-layouts only reports records whose layout was computed.
     for name in sorted(structs):
@@ -109,7 +109,7 @@ def probe_source(structs):
 
 
 # clang names anonymous members after the absolute path of the header they live
-# in ("(unnamed at /abs/path/include/uapi/leonos/net_control.h:18:5)"). That is
+# in ("(unnamed at /abs/path/include/uapi/reliefos/net_control.h:18:5)"). That is
 # build-location trivia, not ABI: collapse the directory prefix to the
 # repository-relative include path so the golden file is location independent.
 _DECL_PATH = re.compile(r"/[^() ]*/include/")
@@ -123,7 +123,7 @@ def parse_record_layouts(dump, wanted):
     """clang -fdump-record-layouts text -> {record: {size, align, members}}."""
     records = {}
     current = None
-    start = re.compile(r"^\s*\d+ \| (?:struct|union) (leonos_\w+)\s*$")
+    start = re.compile(r"^\s*\d+ \| (?:struct|union) (reliefos_\w+)\s*$")
     member = re.compile(r"^\s*(\d+) \| (.+)$")
     finish = re.compile(r"^\s*\| \[sizeof=(\d+), align=(\d+)\]")
     for line in dump.splitlines():
@@ -151,7 +151,7 @@ def parse_record_layouts(dump, wanted):
 
 
 def collect(structs):
-    with tempfile.TemporaryDirectory(prefix="leonos-abi-") as directory:
+    with tempfile.TemporaryDirectory(prefix="reliefos-abi-") as directory:
         temp = Path(directory)
         source = temp / "probe.c"
         source.write_text(probe_source(structs))

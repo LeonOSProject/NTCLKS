@@ -1,20 +1,15 @@
+/* Transitional compatibility forwarder (ReliefOS / ReliefNT rename).
+ * Canonical declarations: <reliefos/signal_abi.h>.
+ * No second layout definition exists behind these names. */
 #ifndef LEONOS_UAPI_SIGNAL_ABI_H
 #define LEONOS_UAPI_SIGNAL_ABI_H
-/*
- * Signal disposition wire ABI shared by ntclks and userland. UAPI only:
- * nothing here may include a non-UAPI header.
- */
-#include <stdint.h>
-#include <linux/signal.h>
+#include <reliefos/signal_abi.h>
 
-/* Minimal process-disposition ABI used by the shared POSIX signal wrappers. */
-#define LEONOS_SIGNAL_ACTION_GET 1U
-#define LEONOS_SIGNAL_ACTION_SET 2U
-#define LEONOS_SIGNAL_DISPOSITION_DEFAULT 0U
-#define LEONOS_SIGNAL_DISPOSITION_IGNORE 1U
-
-/* Historical source alias. Native frames and records
- * have one owner in UAPI; the former magic/version frame is no longer used. */
-#define leonos_linux_sigaction linux_sigaction
+/* Old names are macro aliases to the same declarations. */
+#define LEONOS_SIGNAL_ACTION_GET RELIEFOS_SIGNAL_ACTION_GET
+#define LEONOS_SIGNAL_ACTION_SET RELIEFOS_SIGNAL_ACTION_SET
+#define LEONOS_SIGNAL_DISPOSITION_DEFAULT RELIEFOS_SIGNAL_DISPOSITION_DEFAULT
+#define LEONOS_SIGNAL_DISPOSITION_IGNORE RELIEFOS_SIGNAL_DISPOSITION_IGNORE
+#define leonos_linux_sigaction reliefos_linux_sigaction
 
 #endif /* LEONOS_UAPI_SIGNAL_ABI_H */

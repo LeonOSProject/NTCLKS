@@ -1,5 +1,5 @@
-#ifndef NTCLKS_KEYBOARD_LED_H
-#define NTCLKS_KEYBOARD_LED_H
+#ifndef RELIEFNT_KEYBOARD_LED_H
+#define RELIEFNT_KEYBOARD_LED_H
 
 /* IRQ1 consumes ACK/RESEND; the timer sends at most one byte per poll.
  * No controller waits are allowed inside either interrupt handler. */

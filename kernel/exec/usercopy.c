@@ -1,11 +1,11 @@
 /*
- * LeonOS user-copy implementation: performs checked Ring-3 buffer access.
+ * ReliefOS user-copy implementation: performs checked Ring-3 buffer access.
  * Validates pointers and transfers strings or bytes without kernel overreach.
  */
-#include <ntclks/usercopy.h>
-#include <ntclks/paging.h>
-#include <ntclks/sched.h>
-#include <ntclks/syscall.h>
+#include <reliefnt/usercopy.h>
+#include <reliefnt/paging.h>
+#include <reliefnt/sched.h>
+#include <reliefnt/syscall.h>
 
 #define PAGE_SIZE 4096ULL
 
@@ -28,10 +28,10 @@ bool user_range_ok(uint64_t ptr, uint64_t len)
     if (len == 0) {
         return true;
     }
-    if (ptr < NTCLKS_USER_BASE || ptr > NTCLKS_USER_TOP) {
+    if (ptr < RELIEFNT_USER_BASE || ptr > RELIEFNT_USER_TOP) {
         return false;
     }
-    if (len > NTCLKS_USER_TOP - ptr) {
+    if (len > RELIEFNT_USER_TOP - ptr) {
         return false;
     }
     end = ptr + len;

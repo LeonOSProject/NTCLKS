@@ -1,9 +1,9 @@
-#include <ntclks/tmpfs.h>
-#include <ntclks/heap.h>
-#include <ntclks/mm.h>
-#include <ntclks/time.h>
-#include <ntclks/page_cache.h>
-#include <ntclks/sched.h>
+#include <reliefnt/tmpfs.h>
+#include <reliefnt/heap.h>
+#include <reliefnt/mm.h>
+#include <reliefnt/time.h>
+#include <reliefnt/page_cache.h>
+#include <reliefnt/sched.h>
 #include <linux/mount.h>
 
 #define TMPFS_PAGE 4096u
@@ -17,7 +17,7 @@ struct tmpfs_entry {
     struct tmpfs_entry *next;
     struct tmpfs_inode *inode;
     uint64_t cookie;
-    char name[LEONOS_FS_NAME_LEN];
+    char name[RELIEFOS_FS_NAME_LEN];
 };
 struct tmpfs_inode {
     struct tmpfs_inode *next, *parent;
@@ -35,7 +35,7 @@ struct tmpfs_super {
 
 static int64_t tmpfs_now(void)
 {
-    struct leonos_time_info now;
+    struct reliefos_time_info now;
     return time_wall_clock(&now) == 0 ? (int64_t)now.unix_seconds : 0;
 }
 static void tmpfs_changed(struct tmpfs_inode *inode, bool data)
@@ -65,11 +65,11 @@ static void tmpfs_node(struct tmpfs_super *fs, struct tmpfs_inode *n, struct sto
                               .first_cluster = n->stat.st_ino,
                               .size = n->stat.st_size,
                               .flags = STORAGE_NODE_FLAG_TMPFS | (n == fs->root ? STORAGE_NODE_FLAG_ROOT : 0),
-                              .type = mode == LINUX_S_IFDIR    ? LEONOS_FS_TYPE_DIR
-                                      : mode == LINUX_S_IFLNK  ? LEONOS_FS_TYPE_SYMLINK
-                                      : mode == LINUX_S_IFIFO  ? LEONOS_FS_TYPE_FIFO
-                                      : mode == LINUX_S_IFSOCK ? LEONOS_FS_TYPE_SOCKET
-                                                               : LEONOS_FS_TYPE_FILE};
+                              .type = mode == LINUX_S_IFDIR    ? RELIEFOS_FS_TYPE_DIR
+                                      : mode == LINUX_S_IFLNK  ? RELIEFOS_FS_TYPE_SYMLINK
+                                      : mode == LINUX_S_IFIFO  ? RELIEFOS_FS_TYPE_FIFO
+                                      : mode == LINUX_S_IFSOCK ? RELIEFOS_FS_TYPE_SOCKET
+                                                               : RELIEFOS_FS_TYPE_FILE};
 }
 static void tmpfs_free_inode(struct tmpfs_super *fs, struct tmpfs_inode *n)
 {
@@ -297,7 +297,7 @@ static int tmpfs_walk(struct tmpfs_super *fs, const char *path, bool parent, str
             break;
         if (!tmpfs_dir(n))
             return -20;
-        char name[LEONOS_FS_NAME_LEN];
+        char name[RELIEFOS_FS_NAME_LEN];
         unsigned length = 0;
         while (*p && *p != '/') {
             if (length + 1 == sizeof(name))
@@ -374,7 +374,7 @@ int tmpfs_create(struct tmpfs_super *fs, const char *path, uint32_t mode, const 
     if (fs->flags & MS_RDONLY)
         return -30;
     struct tmpfs_inode *parent, *n;
-    char name[LEONOS_FS_NAME_LEN];
+    char name[RELIEFOS_FS_NAME_LEN];
     int ret = tmpfs_walk(fs, path, true, &parent, name);
     if (ret)
         return ret;
@@ -393,7 +393,7 @@ int tmpfs_create(struct tmpfs_super *fs, const char *path, uint32_t mode, const 
     n->parent = parent;
     if (target) {
         size_t length = __builtin_strlen(target);
-        if (length >= LEONOS_FS_PATH_LEN) {
+        if (length >= RELIEFOS_FS_PATH_LEN) {
             tmpfs_free_inode(fs, n);
             return -36;
         }
@@ -621,7 +621,7 @@ int tmpfs_unlink(struct tmpfs_super *fs, const char *path, bool directory)
 {
     if (fs->flags & MS_RDONLY)
         return -30;
-    char name[LEONOS_FS_NAME_LEN];
+    char name[RELIEFOS_FS_NAME_LEN];
     struct tmpfs_inode *parent;
     int ret = tmpfs_walk(fs, path, true, &parent, name);
     if (ret)
@@ -641,7 +641,7 @@ int tmpfs_link(struct tmpfs_super *fs, const char *old_path, const char *new_pat
 {
     if (fs->flags & MS_RDONLY)
         return -30;
-    char name[LEONOS_FS_NAME_LEN];
+    char name[RELIEFOS_FS_NAME_LEN];
     struct tmpfs_inode *n, *parent;
     int ret = tmpfs_walk(fs, old_path, false, &n, NULL);
     if (ret)
@@ -671,7 +671,7 @@ int tmpfs_rename(struct tmpfs_super *fs, const char *old_path, const char *new_p
 {
     if (fs->flags & MS_RDONLY)
         return -30;
-    char old_name[LEONOS_FS_NAME_LEN], new_name[LEONOS_FS_NAME_LEN];
+    char old_name[RELIEFOS_FS_NAME_LEN], new_name[RELIEFOS_FS_NAME_LEN];
     struct tmpfs_inode *old_parent, *new_parent;
     int ret = tmpfs_walk(fs, old_path, true, &old_parent, old_name);
     if (ret)
@@ -717,7 +717,7 @@ int tmpfs_rename(struct tmpfs_super *fs, const char *old_path, const char *new_p
     tmpfs_changed(n, false);
     return 0;
 }
-int tmpfs_readdir(struct tmpfs_super *fs, uint32_t ino, uint64_t *offset, struct leonos_dir_entry *out)
+int tmpfs_readdir(struct tmpfs_super *fs, uint32_t ino, uint64_t *offset, struct reliefos_dir_entry *out)
 {
     struct tmpfs_inode *n = tmpfs_inode(fs, ino);
     if (!n)
@@ -774,7 +774,7 @@ int tmpfs_stat(struct tmpfs_super *fs, uint32_t ino, struct linux_stat_abi *out)
     *out = n->stat;
     return 0;
 }
-int tmpfs_permissions(struct tmpfs_super *fs, uint32_t ino, struct leonos_permissions *value, bool write)
+int tmpfs_permissions(struct tmpfs_super *fs, uint32_t ino, struct reliefos_permissions *value, bool write)
 {
     struct tmpfs_inode *n = tmpfs_inode(fs, ino);
     if (!n)
@@ -787,7 +787,7 @@ int tmpfs_permissions(struct tmpfs_super *fs, uint32_t ino, struct leonos_permis
         n->stat.st_gid = value->gid;
         tmpfs_changed(n, false);
     } else
-        *value = (struct leonos_permissions){n->stat.st_mode & 07777, n->stat.st_uid, n->stat.st_gid};
+        *value = (struct reliefos_permissions){n->stat.st_mode & 07777, n->stat.st_uid, n->stat.st_gid};
     return 0;
 }
 int tmpfs_utimens(struct tmpfs_super *fs, uint32_t ino, int64_t atime, int64_t mtime, bool set_atime,
@@ -817,7 +817,7 @@ void tmpfs_statfs(struct tmpfs_super *fs, struct linux_statfs_abi *out)
         .f_bavail = fs->max_pages ? fs->max_pages - fs->used_pages : 0,
         .f_files = fs->max_inodes,
         .f_ffree = fs->max_inodes ? fs->max_inodes - fs->used_inodes : 0,
-        .f_namelen = LEONOS_FS_NAME_LEN - 1,
+        .f_namelen = RELIEFOS_FS_NAME_LEN - 1,
         .f_flags = LINUX_ST_VALID |
                    (fs->flags & (MS_RDONLY | MS_NOSUID | MS_NODEV | MS_NOEXEC | MS_NOATIME | MS_NODIRATIME)) |
                    ((fs->flags & MS_RELATIME) ? LINUX_ST_RELATIME : 0)};

@@ -37,7 +37,7 @@ static int fat32_mount(void)
     data_sectors = total_sectors - g_storage.data_start_sector;
     g_storage.data_cluster_count = data_sectors / g_storage.sectors_per_cluster;
     if (g_storage.cluster_bytes > sizeof(storage_cluster_buf)) {
-        console_printf("[ntclks] storage FAT32 cluster too large=%u\n", g_storage.cluster_bytes);
+        console_printf("[reliefnt] storage FAT32 cluster too large=%u\n", g_storage.cluster_bytes);
         return -2;
     }
     if (fs_info_sector > 0 && fs_info_sector < bpb->reserved_sector_count &&
@@ -572,7 +572,7 @@ static int fat32_free_chain(uint32_t first_cluster)
 }
 static int fat32_name_match_short(const struct fat32_dirent *de, const char *name)
 {
-    char short_name[LEONOS_FS_NAME_LEN];
+    char short_name[RELIEFOS_FS_NAME_LEN];
     uint32_t pos = 0;
     for (uint32_t i = 0; i < 8 && de->name[i] != ' '; ++i) {
         char ch = (char)de->name[i];
@@ -684,7 +684,7 @@ static int fat32_validate_name(const char *name)
     uint32_t len = (uint32_t)storage_strlen(name);
     uint16_t utf16[260];
     uint32_t utf16_len = 0;
-    if (!name || !name[0] || len >= LEONOS_FS_NAME_LEN) {
+    if (!name || !name[0] || len >= RELIEFOS_FS_NAME_LEN) {
         return -22;
     }
     if (storage_text_eq(name, ".") || storage_text_eq(name, "..")) {
@@ -784,7 +784,7 @@ static int fat32_make_short_alias(uint32_t dir_cluster, const char *name, uint8_
     const char *ext_start = 0;
     uint32_t base_len = 0;
     uint32_t ext_len = 0;
-    char base_part[LEONOS_FS_NAME_LEN];
+    char base_part[RELIEFOS_FS_NAME_LEN];
     char ext_part[4];
     fat32_name_split(name, &base_start, &base_len, &ext_start, &ext_len);
     fat32_collect_short_fragment(base_start, base_len, base_part, sizeof(base_part));
@@ -941,14 +941,14 @@ static int fat32_find_in_dir(uint32_t dir_cluster, const char *name, struct stor
             }
             int matched = 0;
             struct storage_node candidate = {
-                .type = (de->attr & FAT32_ATTR_DIRECTORY) ? LEONOS_FS_TYPE_DIR : LEONOS_FS_TYPE_FILE,
+                .type = (de->attr & FAT32_ATTR_DIRECTORY) ? RELIEFOS_FS_TYPE_DIR : RELIEFOS_FS_TYPE_FILE,
                 .flags = 0,
                 .first_cluster = ((uint32_t)de->first_cluster_hi << 16) | de->first_cluster_lo,
                 .volume_id = g_storage.volume_id,
                 .size = de->size,
             };
             if (lfn_count) {
-                char full[LEONOS_FS_NAME_LEN];
+                char full[RELIEFOS_FS_NAME_LEN];
                 fat32_build_lfn_name(lfn_parts, lfn_count, full, sizeof(full));
                 storage_dir_index_store(dir_cluster, full, &candidate);
                 matched = storage_text_eq_ci(full, name) || fat32_name_match_short(de, name);
@@ -1019,7 +1019,7 @@ static int fat32_find_dirent_ref_in_dir(uint32_t dir_cluster, const char *name, 
             {
                 int matched = 0;
                 if (lfn_count) {
-                    char full[LEONOS_FS_NAME_LEN];
+                    char full[RELIEFOS_FS_NAME_LEN];
                     fat32_build_lfn_name(lfn_parts, lfn_count, full, sizeof(full));
                     matched = storage_text_eq_ci(full, name) || fat32_name_match_short(de, name);
                 } else {
@@ -1077,7 +1077,7 @@ static int fat32_name_needs_lfn(const char *name, uint8_t short_name[11], uint8_
     }
     *need_lfn = 0;
     if (ret == 0) {
-        char rendered[LEONOS_FS_NAME_LEN];
+        char rendered[RELIEFOS_FS_NAME_LEN];
         uint32_t pos = 0;
         for (uint32_t i = 0; i < 8 && short_name[i] != ' '; ++i) {
             char ch = (char)short_name[i];
@@ -1287,7 +1287,7 @@ static int fat32_delete_dirent(uint32_t dir_cluster, const char *name,
             {
                 int matched;
                 if (lfn_count) {
-                    char full[LEONOS_FS_NAME_LEN];
+                    char full[RELIEFOS_FS_NAME_LEN];
                     fat32_build_lfn_name(lfn_parts, lfn_count, full, sizeof(full));
                     matched = storage_text_eq_ci(full, name) || fat32_name_match_short(de, name);
                 } else {
@@ -1338,7 +1338,7 @@ static int fat32_delete_acl_metadata_file(uint32_t dir_cluster)
     if (ret < 0) {
         return ret;
     }
-    if (meta.type != LEONOS_FS_TYPE_FILE) {
+    if (meta.type != RELIEFOS_FS_TYPE_FILE) {
         return 0;
     }
     ret = fat32_delete_dirent(dir_cluster, "LEONACL.SYS", 0);
@@ -1393,7 +1393,7 @@ static int fat32_dir_is_empty(uint32_t dir_cluster)
     }
 }
 
-static int fat32_iter_dir_entry(uint32_t dir_cluster, uint64_t index, struct leonos_dir_entry *entry)
+static int fat32_iter_dir_entry(uint32_t dir_cluster, uint64_t index, struct reliefos_dir_entry *entry)
 {
     uint32_t cluster = dir_cluster;
     uint64_t emitted = 0;
@@ -1446,7 +1446,7 @@ static int fat32_iter_dir_entry(uint32_t dir_cluster, uint64_t index, struct leo
                 lfn_count = 0;
                 continue;
             }
-            char name[LEONOS_FS_NAME_LEN];
+            char name[RELIEFOS_FS_NAME_LEN];
             if (lfn_count) {
                 fat32_build_lfn_name(lfn_parts, lfn_count, name, sizeof(name));
             } else {
@@ -1487,7 +1487,7 @@ static int fat32_iter_dir_entry(uint32_t dir_cluster, uint64_t index, struct leo
             if (emitted++ != index) {
                 continue;
             }
-            entry->type = (de->attr & FAT32_ATTR_DIRECTORY) ? LEONOS_FS_TYPE_DIR : LEONOS_FS_TYPE_FILE;
+            entry->type = (de->attr & FAT32_ATTR_DIRECTORY) ? RELIEFOS_FS_TYPE_DIR : RELIEFOS_FS_TYPE_FILE;
             storage_copy_text(entry->name, sizeof(entry->name), name);
             storage_dir_iter_cache.volume = g_active_volume;
             storage_dir_iter_cache.first_cluster = dir_cluster;

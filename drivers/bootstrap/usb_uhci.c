@@ -1,9 +1,9 @@
-#include <ntclks/console.h>
-#include <ntclks/framebuffer.h>
-#include <ntclks/input.h>
-#include <ntclks/pci.h>
-#include <ntclks/time.h>
-#include <ntclks/usb.h>
+#include <reliefnt/console.h>
+#include <reliefnt/framebuffer.h>
+#include <reliefnt/input.h>
+#include <reliefnt/pci.h>
+#include <reliefnt/time.h>
+#include <reliefnt/usb.h>
 
 #include "../../arch/x86_64/port.h"
 

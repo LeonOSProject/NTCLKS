@@ -1,12 +1,12 @@
 /*
- * LeonOS x86_64 GDT setup: defines kernel and user segment descriptors.
+ * ReliefOS x86_64 GDT setup: defines kernel and user segment descriptors.
  * Loads the descriptor table required for protected-mode execution.
  */
-#include <ntclks/arch.h>
-#include <ntclks/console.h>
-#include <ntclks/framebuffer.h>
-#include <ntclks/paging.h>
-#include <ntclks/mm.h>
+#include <reliefnt/arch.h>
+#include <reliefnt/console.h>
+#include <reliefnt/framebuffer.h>
+#include <reliefnt/paging.h>
+#include <reliefnt/mm.h>
 
 #define ARCH_MAX_CPUS 64u
 /* Exception handlers must not depend on the interrupted task's kernel stack.
@@ -161,12 +161,12 @@ static void arch_setup_cpu(uint32_t cpu_index, void *kernel_stack_top)
     if (!syscall_entry_stack[cpu_index]) {
         syscall_entry_stack[cpu_index] = mm_alloc_pages(ARCH_SYSCALL_STACK_SIZE / 4096u);
         if (!syscall_entry_stack[cpu_index]) {
-            console_printf("[ntclks] CPU%u syscall stack allocation failed\n", cpu_index);
+            console_printf("[reliefnt] CPU%u syscall stack allocation failed\n", cpu_index);
             for (;;) __asm__ volatile("cli; hlt");
         }
     }
     x86_64_syscall_cpu_data[cpu_index].kernel_stack_top =
-        NTCLKS_KERNEL_DIRECT_MAP_BASE + syscall_entry_stack[cpu_index] +
+        RELIEFNT_KERNEL_DIRECT_MAP_BASE + syscall_entry_stack[cpu_index] +
         ARCH_SYSCALL_STACK_SIZE;
     /* STAR encodes kernel CS=0x08 and the user base selector=0x10, producing
      * user CS=0x23 and SS=0x1b for this GDT. */

@@ -1,7 +1,7 @@
 /* ext2 ownership and mode live in the inode, including Linux's high uid/gid
  * words. Other backends use the versioned metadata sidecar. */
 int storage_inode_permissions(const struct storage_node *node,
-                              struct leonos_permissions *value, bool write)
+                              struct reliefos_permissions *value, bool write)
 {
     struct storage_volume *previous = NULL;
     struct ext2_inode inode;
@@ -19,7 +19,7 @@ int storage_inode_permissions(const struct storage_node *node,
     ret = ext2_read_inode(node->first_cluster, &inode);
     if (ret < 0) goto restore;
     if (write) {
-        struct leonos_time_info now;
+        struct reliefos_time_info now;
         if (time_wall_clock(&now) == 0) inode.ctime = (uint32_t)now.unix_seconds;
         inode.mode = (inode.mode & 0170000u) | (value->mode & 07777u);
         inode.uid = (uint16_t)value->uid;

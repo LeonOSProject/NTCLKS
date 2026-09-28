@@ -1,8 +1,8 @@
-#include <leonos/driver.h>
+#include <reliefos/driver.h>
 
 #define COM1 0x3f8
 
-static const struct leonos_driver_kernel_api *kernel_api;
+static const struct reliefos_driver_kernel_api *kernel_api;
 static int serial_ready;
 
 static int serial_transmit_empty(void)
@@ -53,13 +53,13 @@ static void serial_write(const char *s)
     }
 }
 
-static int serial_driver_init(const struct leonos_driver_kernel_api *api)
+static int serial_driver_init(const struct reliefos_driver_kernel_api *api)
 {
-    static const struct leonos_driver_serial_ops ops = {
+    static const struct reliefos_driver_serial_ops ops = {
         .is_ready = serial_is_ready,
         .write = serial_write,
     };
-    if (!api || api->abi_version != LEONOS_DRIVER_ABI_VERSION ||
+    if (!api || api->abi_version != RELIEFOS_DRIVER_ABI_VERSION ||
         api->struct_size < sizeof(*api)) {
         return -22;
     }
@@ -76,11 +76,11 @@ static void serial_driver_fini(void)
     serial_ready = 0;
 }
 
-struct leonos_driver_module leonos_driver_module = {
-    .magic = LEONOS_DRIVER_MODULE_MAGIC,
-    .abi_version = LEONOS_DRIVER_ABI_VERSION,
-    .struct_size = sizeof(struct leonos_driver_module),
-    .kind = LEONOS_DRIVER_KIND_SERIAL,
+struct reliefos_driver_module reliefos_driver_module = {
+    .magic = RELIEFOS_DRIVER_MODULE_MAGIC,
+    .abi_version = RELIEFOS_DRIVER_ABI_VERSION,
+    .struct_size = sizeof(struct reliefos_driver_module),
+    .kind = RELIEFOS_DRIVER_KIND_SERIAL,
     .name = "serial",
     .version = 1U,
     .reserved = 0,

@@ -1,44 +1,31 @@
+/* Transitional compatibility forwarder (ReliefOS / ReliefNT rename).
+ * Canonical declarations: <reliefos/pty_abi.h>.
+ * No second layout definition exists behind these names. */
 #ifndef LEONOS_UAPI_PTY_ABI_H
 #define LEONOS_UAPI_PTY_ABI_H
-/*
- * PTY wire ABI: Linux termios alias layer and winsize shared by ntclks and
- * userland. Userland wrappers live in <leonos/pty.h>.
- * UAPI only: nothing here may include a non-UAPI header.
- */
+#include <reliefos/pty_abi.h>
 
-
-#include <stdint.h>
-#include <linux/termios.h>
-
-#define LEONOS_PTY_PATH_LEN 160U
-#define LEONOS_PTY_NCCS LINUX_NCCS
-#define LEONOS_PTY_IFLAG_ICRNL LINUX_ICRNL
-#define LEONOS_PTY_LFLAG_ECHO LINUX_ECHO
-#define LEONOS_PTY_LFLAG_ECHONL LINUX_ECHONL
-#define LEONOS_PTY_LFLAG_ICANON LINUX_ICANON
-#define LEONOS_PTY_LFLAG_IEXTEN LINUX_IEXTEN
-#define LEONOS_PTY_LFLAG_ISIG LINUX_ISIG
-
-#define LEONOS_PTY_CC_VEOF LINUX_VEOF
-#define LEONOS_PTY_CC_VEOL LINUX_VEOL
-#define LEONOS_PTY_CC_VERASE LINUX_VERASE
-#define LEONOS_PTY_CC_VINTR LINUX_VINTR
-#define LEONOS_PTY_CC_VKILL LINUX_VKILL
-#define LEONOS_PTY_CC_VMIN LINUX_VMIN
-#define LEONOS_PTY_CC_VQUIT LINUX_VQUIT
-#define LEONOS_PTY_CC_VSTART LINUX_VSTART
-#define LEONOS_PTY_CC_VSTOP LINUX_VSTOP
-#define LEONOS_PTY_CC_VSUSP LINUX_VSUSP
-#define LEONOS_PTY_CC_VTIME LINUX_VTIME
-
-/* Source compatibility only: old Picolibc wire layouts require rebuilding. */
-#define leonos_pty_termios linux_termios2
-
-/* The terminal host owns a session but is not itself attached to it. Keep
- * host-side controls separate from the stdio-based child-process requests. */
-struct leonos_pty_winsize {
-    uint16_t ws_row;
-    uint16_t ws_col;
-};
+/* Old names are macro aliases to the same declarations. */
+#define LEONOS_PTY_CC_VEOF RELIEFOS_PTY_CC_VEOF
+#define LEONOS_PTY_CC_VEOL RELIEFOS_PTY_CC_VEOL
+#define LEONOS_PTY_CC_VERASE RELIEFOS_PTY_CC_VERASE
+#define LEONOS_PTY_CC_VINTR RELIEFOS_PTY_CC_VINTR
+#define LEONOS_PTY_CC_VKILL RELIEFOS_PTY_CC_VKILL
+#define LEONOS_PTY_CC_VMIN RELIEFOS_PTY_CC_VMIN
+#define LEONOS_PTY_CC_VQUIT RELIEFOS_PTY_CC_VQUIT
+#define LEONOS_PTY_CC_VSTART RELIEFOS_PTY_CC_VSTART
+#define LEONOS_PTY_CC_VSTOP RELIEFOS_PTY_CC_VSTOP
+#define LEONOS_PTY_CC_VSUSP RELIEFOS_PTY_CC_VSUSP
+#define LEONOS_PTY_CC_VTIME RELIEFOS_PTY_CC_VTIME
+#define LEONOS_PTY_IFLAG_ICRNL RELIEFOS_PTY_IFLAG_ICRNL
+#define LEONOS_PTY_LFLAG_ECHO RELIEFOS_PTY_LFLAG_ECHO
+#define LEONOS_PTY_LFLAG_ECHONL RELIEFOS_PTY_LFLAG_ECHONL
+#define LEONOS_PTY_LFLAG_ICANON RELIEFOS_PTY_LFLAG_ICANON
+#define LEONOS_PTY_LFLAG_IEXTEN RELIEFOS_PTY_LFLAG_IEXTEN
+#define LEONOS_PTY_LFLAG_ISIG RELIEFOS_PTY_LFLAG_ISIG
+#define LEONOS_PTY_NCCS RELIEFOS_PTY_NCCS
+#define LEONOS_PTY_PATH_LEN RELIEFOS_PTY_PATH_LEN
+#define leonos_pty_termios reliefos_pty_termios
+#define leonos_pty_winsize reliefos_pty_winsize
 
 #endif /* LEONOS_UAPI_PTY_ABI_H */

@@ -1,5 +1,5 @@
-#ifndef LEONOS_UAPI_LINUX_SIGNALFD_H
-#define LEONOS_UAPI_LINUX_SIGNALFD_H
+#ifndef RELIEFOS_UAPI_LINUX_SIGNALFD_H
+#define RELIEFOS_UAPI_LINUX_SIGNALFD_H
 #include <stdint.h>
 #include <linux/fcntl.h>
 

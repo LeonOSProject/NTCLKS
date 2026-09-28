@@ -1,5 +1,5 @@
-#ifndef LEONOS_UAPI_LINUX_MMAN_H
-#define LEONOS_UAPI_LINUX_MMAN_H
+#ifndef RELIEFOS_UAPI_LINUX_MMAN_H
+#define RELIEFOS_UAPI_LINUX_MMAN_H
 
 /* Linux v6.12 native x86-64 mmap/mprotect wire flags. */
 #define LINUX_PROT_NONE 0x0u

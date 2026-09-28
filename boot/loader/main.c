@@ -1,5 +1,5 @@
-#include <leonos/boot_handoff.h>
-#include <leonos/psf_font.h>
+#include <reliefos/boot_handoff.h>
+#include <reliefos/psf_font.h>
 #include <generated/autoconf.h>
 #include <generated/loader_integrity.h>
 #include <stdint.h>
@@ -33,7 +33,8 @@
 #define EM_X86_64 62
 #define PT_LOAD 1
 
-#define KERNEL_PATH "/leonos/kernel.sys"
+#define KERNEL_PATH "/reliefos/kernel.sys"
+#define LEGACY_KERNEL_PATH "/leonos/kernel.sys"
 /* Kernel images can exceed one MiB once debug-safe ELF
  * sections are retained. Keep the EFI fallback buffer above the largest
  * shipped image while preserving the module-based fast path. */
@@ -335,13 +336,14 @@ static uint8_t read_buffer[READ_BUFFER_SIZE] __attribute__((aligned(4096)));
 /* Captured after all EFI file reads.  The buffer lives inside the loader
  * image, which the kernel reserves before reclaiming usable pages. */
 static uint8_t efi_memory_map[EFI_MEMORY_MAP_BYTES] __attribute__((aligned(4096)));
-static struct leonos_boot_handoff handoff;
+static struct reliefos_boot_handoff handoff;
 static struct efi_boot_services *boot_services;
 static uint8_t loader_log_line_start = 1u;
 static uint64_t loader_tsc_start;
 static uint64_t loader_tsc_hz;
 static uint8_t loader_tsc_ready;
 static struct efi_file_protocol *root_dir;
+static const char *efi_kernel_path = KERNEL_PATH;
 static struct efi_simple_text_output_protocol *text_out;
 static struct efi_simple_text_input_protocol *text_in;
 
@@ -699,18 +701,18 @@ static void loader_framebuffer_char(uint32_t x, uint32_t y, char ch,
     const uint8_t *glyph;
     uint32_t native_foreground;
     uint32_t native_background;
-    if (!framebuffer_console.enabled || x + LEONOS_FONT_W > framebuffer_console.width ||
-        y + LEONOS_FONT_H > framebuffer_console.height) {
+    if (!framebuffer_console.enabled || x + RELIEFOS_FONT_W > framebuffer_console.width ||
+        y + RELIEFOS_FONT_H > framebuffer_console.height) {
         return;
     }
-    glyph = leonos_psf_glyph(ch);
+    glyph = reliefos_psf_glyph(ch);
     native_foreground = loader_framebuffer_native_color(foreground);
     native_background = loader_framebuffer_native_color(background);
-    for (uint32_t row = 0; row < LEONOS_FONT_H; ++row) {
+    for (uint32_t row = 0; row < RELIEFOS_FONT_H; ++row) {
         uint8_t *line = framebuffer_console.pixels +
                         (uint64_t)(y + row) * framebuffer_console.pitch +
                         (uint64_t)x * framebuffer_console.bytes_per_pixel;
-        for (uint32_t column = 0; column < LEONOS_FONT_W; ++column) {
+        for (uint32_t column = 0; column < RELIEFOS_FONT_W; ++column) {
             loader_framebuffer_write_native(line +
                                                 (uint64_t)column * framebuffer_console.bytes_per_pixel,
                                             (glyph[row] & (uint8_t)(0x80u >> column))
@@ -724,8 +726,8 @@ static void loader_framebuffer_text(uint32_t x, uint32_t y, const char *text,
 {
     uint32_t column = 0;
     while (text && text[column] &&
-           x + (column + 1U) * LEONOS_FONT_W <= framebuffer_console.width) {
-        loader_framebuffer_char(x + column * LEONOS_FONT_W, y, text[column],
+           x + (column + 1U) * RELIEFOS_FONT_W <= framebuffer_console.width) {
+        loader_framebuffer_char(x + column * RELIEFOS_FONT_W, y, text[column],
                                 foreground, background);
         ++column;
     }
@@ -740,7 +742,7 @@ static void loader_framebuffer_redraw_log(void)
                             framebuffer_console.height, framebuffer_console.panel);
     for (uint32_t row = 0; row < framebuffer_console.line_count; ++row) {
         loader_framebuffer_text(framebuffer_console.log_x,
-                                framebuffer_console.log_y + row * LEONOS_FONT_H,
+                                framebuffer_console.log_y + row * RELIEFOS_FONT_H,
                                 framebuffer_log_lines[row],
                                 framebuffer_console.text,
                                 framebuffer_console.panel);
@@ -804,8 +806,8 @@ static void loader_framebuffer_init(void)
     if (!handoff.framebuffer_addr ||
         (handoff.framebuffer_bpp != 24U && handoff.framebuffer_bpp != 32U) ||
         !bytes_per_pixel ||
-        handoff.framebuffer_width < LEONOS_FONT_W * 4U ||
-        handoff.framebuffer_height < LEONOS_FONT_H * 4U ||
+        handoff.framebuffer_width < RELIEFOS_FONT_W * 4U ||
+        handoff.framebuffer_height < RELIEFOS_FONT_H * 4U ||
         handoff.framebuffer_pitch <
             (uint64_t)handoff.framebuffer_width * bytes_per_pixel) {
         return;
@@ -815,8 +817,8 @@ static void loader_framebuffer_init(void)
     framebuffer_console.height = handoff.framebuffer_height;
     framebuffer_console.pitch = handoff.framebuffer_pitch;
     framebuffer_console.bytes_per_pixel = bytes_per_pixel;
-    framebuffer_console.columns = framebuffer_console.width / LEONOS_FONT_W;
-    framebuffer_console.rows = framebuffer_console.height / LEONOS_FONT_H;
+    framebuffer_console.columns = framebuffer_console.width / RELIEFOS_FONT_W;
+    framebuffer_console.rows = framebuffer_console.height / RELIEFOS_FONT_H;
     if (framebuffer_console.columns > LOADER_LOG_MAX_COLUMNS) {
         framebuffer_console.columns = LOADER_LOG_MAX_COLUMNS;
     }
@@ -832,7 +834,7 @@ static void loader_framebuffer_init(void)
 static void loader_framebuffer_save_state(void)
 {
     if (!loader_boot_log_screen || !framebuffer_console.enabled) {
-        handoff.boot_log = (struct leonos_boot_log_state){0};
+        handoff.boot_log = (struct reliefos_boot_log_state){0};
         return;
     }
 
@@ -889,8 +891,8 @@ static void loader_framebuffer_putc(char ch)
     if (framebuffer_console.column >= framebuffer_console.columns) {
         loader_framebuffer_newline();
     }
-    x = framebuffer_console.log_x + framebuffer_console.column * LEONOS_FONT_W;
-    y = framebuffer_console.log_y + framebuffer_console.row * LEONOS_FONT_H;
+    x = framebuffer_console.log_x + framebuffer_console.column * RELIEFOS_FONT_W;
+    y = framebuffer_console.log_y + framebuffer_console.row * RELIEFOS_FONT_H;
     framebuffer_log_lines[framebuffer_console.row][framebuffer_console.column] = ch;
     framebuffer_log_lines[framebuffer_console.row][framebuffer_console.column + 1U] = 0;
     loader_framebuffer_char(x, y, ch, framebuffer_console.text,
@@ -1240,6 +1242,13 @@ static struct loader_module *find_loader_module(const char *name)
     return 0;
 }
 
+static struct loader_module *find_loader_module_compat(const char *name,
+                                                       const char *legacy_name)
+{
+    struct loader_module *module = find_loader_module(name);
+    return module ? module : find_loader_module(legacy_name);
+}
+
 /** @brief Returns nonzero when two half-open physical ranges intersect. */
 static int loader_ranges_intersect(uint64_t left_start, uint64_t left_end,
                                    uint64_t right_start, uint64_t right_end)
@@ -1446,7 +1455,17 @@ static int efi_open_root(uint64_t system_table_addr)
                     fallback->close(fallback);
                 }
                 root_dir = volume;
-                serial_write("[loader] EFI SimpleFS LeonOS root ready\n");
+                efi_kernel_path = KERNEL_PATH;
+                serial_write("[loader] EFI SimpleFS ReliefOS root ready\n");
+                return 0;
+            }
+            if (efi_root_has_file(volume, LEGACY_KERNEL_PATH)) {
+                if (fallback && fallback->close) {
+                    fallback->close(fallback);
+                }
+                root_dir = volume;
+                efi_kernel_path = LEGACY_KERNEL_PATH;
+                serial_write("[loader] EFI SimpleFS legacy boot root ready\n");
                 return 0;
             }
             if (!fallback) {
@@ -1575,19 +1594,26 @@ static int __attribute__((unused)) efi_write_file(const char *path, const void *
 
 static int loader_consume_kernel_debug_marker(void)
 {
-    static const char marker[] = "LEONOS-KDBG-1\n";
+    static const char marker[] = "RELIEFOS-KDBG-1\n";
+    static const char legacy_marker[] = "LEONOS-KDBG-1\n";
+    const char *path = "/reliefos/state/kerneldebug.next";
+    const char *expected = marker;
     char value[sizeof(marker) + 8U];
     uint64_t len = 0;
-    if (efi_read_file("/leonos/state/kerneldebug.next", value, sizeof(value) - 1U, &len) < 0) {
-        return 0;
+    if (efi_read_file(path, value, sizeof(value) - 1U, &len) < 0) {
+        path = "/leonos/state/kerneldebug.next";
+        expected = legacy_marker;
+        if (efi_read_file(path, value, sizeof(value) - 1U, &len) < 0) {
+            return 0;
+        }
     }
-    if (efi_delete_file("/leonos/state/kerneldebug.next") < 0) {
+    if (efi_delete_file(path) < 0) {
         serial_write("[loader] kernel debug marker could not be consumed\n");
         return 0;
     }
-    if (len != sizeof(marker) - 1U) return 0;
-    for (uint32_t i = 0; i + 1U < sizeof(marker); ++i) {
-        if (value[i] != marker[i]) return 0;
+    if (len != (expected == marker ? sizeof(marker) : sizeof(legacy_marker)) - 1U) return 0;
+    for (uint32_t i = 0; i < len; ++i) {
+        if (value[i] != expected[i]) return 0;
     }
     handoff.kernel_debug_mode = 1U;
     serial_write("[loader] kernel debug one-shot marker consumed\n");
@@ -1657,7 +1683,7 @@ static void loader_load_ui_theme(void)
 }
 
 static int elf_load_exec(const void *image, uint64_t len,
-                         struct leonos_boot_module_info *module)
+                         struct reliefos_boot_module_info *module)
 {
     const struct elf64_ehdr *eh = (const struct elf64_ehdr *)image;
     uint64_t low = UINT64_MAX;
@@ -1714,8 +1740,8 @@ static void parse_multiboot2(uint32_t magic, uint32_t info_addr)
 {
     memset_local(&handoff, 0, sizeof(handoff));
     loader_module_count = 0;
-    handoff.magic = LEONOS_BOOT_HANDOFF_MAGIC;
-    handoff.version = LEONOS_BOOT_HANDOFF_VERSION;
+    handoff.magic = RELIEFOS_BOOT_HANDOFF_MAGIC;
+    handoff.version = RELIEFOS_BOOT_HANDOFF_VERSION;
     handoff.multiboot_magic = magic;
     handoff.multiboot_info = info_addr;
     handoff.loader.start = (uint64_t)(uintptr_t)__loader_start;
@@ -1816,15 +1842,16 @@ void loader_main(uint32_t magic, uint32_t multiboot_info)
 
     loader_tsc_start = loader_rdtsc();
     serial_init();
-    serial_write("[loader] LeonOS two-stage loader starting\n");
+    serial_write("[loader] ReliefOS two-stage loader starting\n");
     parse_multiboot2(magic, multiboot_info);
     /* The loader always hands a visible console log to the kernel. */
     loader_boot_log_screen = 1u;
-    installer_root_module = find_loader_module("leonos-installer-root");
+    installer_root_module = find_loader_module_compat("reliefos-installer-root",
+                                                      "leonos-installer-root");
     if (installer_root_module && installer_root_module->end > installer_root_module->start) {
         handoff.installer_root.start = installer_root_module->start;
         handoff.installer_root.end = installer_root_module->end;
-        handoff.installer_root.path = "leonos-installer-root";
+        handoff.installer_root.path = installer_root_module->name;
         serial_write("[loader] installer root module bytes=");
         serial_write_hex(installer_root_module->end - installer_root_module->start);
         serial_write("\n");
@@ -1837,7 +1864,7 @@ void loader_main(uint32_t magic, uint32_t multiboot_info)
         loader_load_ui_theme();
         loader_framebuffer_set_theme(handoff.ui_theme);
     }
-    kernel_module = find_loader_module("leonos-kernel");
+    kernel_module = find_loader_module_compat("reliefos-kernel", "leonos-kernel");
     if (loader_protect_installer_root(installer_root_module,
                                       kernel_module) < 0) {
         serial_write("[loader] unable to protect installer root module\n");
@@ -1849,13 +1876,15 @@ void loader_main(uint32_t magic, uint32_t multiboot_info)
 
     if (kernel_module) {
         len = kernel_module->end - kernel_module->start;
-        serial_write("[loader] using module leonos-kernel bytes=");
+        serial_write("[loader] using module ");
+        serial_write(kernel_module->name);
+        serial_write(" bytes=");
         serial_write_hex(len);
         serial_write("\n");
         if (verify_image_integrity("kernel.sys",
                                    (const void *)(uintptr_t)kernel_module->start,
                                    len,
-                                   LEONOS_LOADER_KERNEL_SHA256) < 0) {
+                                   RELIEFOS_LOADER_KERNEL_SHA256) < 0) {
             for (;;) {
                 __asm__ volatile("hlt");
             }
@@ -1874,11 +1903,11 @@ void loader_main(uint32_t magic, uint32_t multiboot_info)
                 __asm__ volatile("hlt");
             }
         }
-        if (efi_read_file(KERNEL_PATH, read_buffer, sizeof(read_buffer), &len) < 0 ||
+        if (efi_read_file(efi_kernel_path, read_buffer, sizeof(read_buffer), &len) < 0 ||
             verify_image_integrity("kernel.sys",
                                    read_buffer,
                                    len,
-                                   LEONOS_LOADER_KERNEL_SHA256) < 0 ||
+                                   RELIEFOS_LOADER_KERNEL_SHA256) < 0 ||
             elf_load_exec(read_buffer, len, &handoff.kernel) < 0) {
             serial_write("[loader] kernel.sys load failed\n");
             for (;;) {
@@ -1892,7 +1921,10 @@ void loader_main(uint32_t magic, uint32_t multiboot_info)
             __asm__ volatile("hlt");
         }
     }
-    handoff.kernel.path = "/boot/leonos/kernel.sys";
+    handoff.kernel.path = kernel_module && text_eq(kernel_module->name, "leonos-kernel")
+        ? "/boot/leonos/kernel.sys"
+        : (text_eq(efi_kernel_path, LEGACY_KERNEL_PATH) ? "/boot/leonos/kernel.sys"
+                                                        : "/boot/reliefos/kernel.sys");
     serial_write("[loader] kernel loaded entry=");
     serial_write_hex(handoff.kernel.entry);
     serial_write(" range=");
@@ -1908,8 +1940,8 @@ void loader_main(uint32_t magic, uint32_t multiboot_info)
     serial_write("[loader] jumping to kernel\n");
     handoff.boot_uptime_us = loader_uptime_us();
     loader_framebuffer_save_state();
-    void (*entry)(const struct leonos_boot_handoff *) =
-        (void (*)(const struct leonos_boot_handoff *))(uintptr_t)handoff.kernel.entry;
+    void (*entry)(const struct reliefos_boot_handoff *) =
+        (void (*)(const struct reliefos_boot_handoff *))(uintptr_t)handoff.kernel.entry;
     entry(&handoff);
     for (;;) {
         __asm__ volatile("hlt");

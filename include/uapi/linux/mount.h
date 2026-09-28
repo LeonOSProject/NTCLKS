@@ -1,7 +1,7 @@
-#ifndef LEONOS_UAPI_LINUX_MOUNT_H
-#define LEONOS_UAPI_LINUX_MOUNT_H
+#ifndef RELIEFOS_UAPI_LINUX_MOUNT_H
+#define RELIEFOS_UAPI_LINUX_MOUNT_H
 
-/* Linux mount(2) flags supported by the LeonOS VFS. */
+/* Linux mount(2) flags supported by the ReliefOS VFS. */
 #define MS_RDONLY       1UL
 #define MS_NOSUID       2UL
 #define MS_NODEV        4UL

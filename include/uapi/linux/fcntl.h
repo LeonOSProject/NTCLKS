@@ -1,5 +1,5 @@
-#ifndef LEONOS_UAPI_LINUX_FCNTL_H
-#define LEONOS_UAPI_LINUX_FCNTL_H
+#ifndef RELIEFOS_UAPI_LINUX_FCNTL_H
+#define RELIEFOS_UAPI_LINUX_FCNTL_H
 
 /* Linux v6.12 native x86-64. Prefixes allow checking libc headers together. */
 #define LINUX_O_RDONLY 0x0000

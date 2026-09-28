@@ -36,7 +36,7 @@ static int storage_acquire_task_io(void)
         storage_task_io_owner = pid;
         return 0;
     }
-    return -LEONOS_EAGAIN;
+    return -RELIEFOS_EAGAIN;
 }
 
 void storage_release_task_io(uint32_t pid)
@@ -332,7 +332,7 @@ static int storage_guid_valid(const uint8_t guid[16])
 static void storage_format_guid(const uint8_t guid[16], char *out, uint32_t cap)
 {
     uint32_t pos = 0;
-    if (!out || cap < LEONOS_MACHINE_IDENTITY_UUID_LEN) {
+    if (!out || cap < RELIEFOS_MACHINE_IDENTITY_UUID_LEN) {
         if (out && cap) {
             out[0] = 0;
         }
@@ -474,8 +474,8 @@ static int storage_backend_path(const char *path, char *backend_path, uint32_t b
 
 int storage_path_volume_id(const char *path, uint32_t *out_volume_id)
 {
-    char resolved[LEONOS_FS_PATH_LEN];
-    char backend_path[LEONOS_FS_PATH_LEN];
+    char resolved[RELIEFOS_FS_PATH_LEN];
+    char backend_path[RELIEFOS_FS_PATH_LEN];
     struct storage_volume *volume;
     if (!out_volume_id || storage_resolve_path("/", path, resolved, sizeof(resolved)) < 0) {
         return -22;
@@ -500,7 +500,7 @@ int storage_path_volume_id(const char *path, uint32_t *out_volume_id)
 static int storage_parent_path(const char *path, char *parent, uint32_t parent_cap,
                                char *name, uint32_t name_cap)
 {
-    char resolved[LEONOS_FS_PATH_LEN];
+    char resolved[RELIEFOS_FS_PATH_LEN];
     uint32_t slash = 0;
     if (!path || !parent || !name || parent_cap < 2 || name_cap == 0) {
         return -22;

@@ -1,75 +1,45 @@
+/* Transitional compatibility forwarder (ReliefOS / ReliefNT rename).
+ * Canonical declarations: <reliefos/device_abi.h>.
+ * No second layout definition exists behind these names. */
 #ifndef LEONOS_UAPI_DEVICE_ABI_H
 #define LEONOS_UAPI_DEVICE_ABI_H
-/*
- * Device wire ABI between ntclks and userland. Userland wrappers live in
- * <leonos/device.h>.
- * UAPI only: nothing here may include a non-UAPI header.
- */
+#include <reliefos/device_abi.h>
 
-#include <stdint.h>
-
-
-#define LEONOS_DEVICE_MAX 24U
-#define LEONOS_DEVICE_NAME_LEN 32U
-#define LEONOS_DEVICE_STATUS_LEN 32U
-#define LEONOS_DEVICE_DETAIL_LEN 96U
-
-#define LEONOS_DEVICE_CLASS_SYSTEM 1U
-#define LEONOS_DEVICE_CLASS_INPUT 2U
-#define LEONOS_DEVICE_CLASS_DISPLAY 3U
-#define LEONOS_DEVICE_CLASS_STORAGE 4U
-#define LEONOS_DEVICE_CLASS_SERIAL 5U
-#define LEONOS_DEVICE_CLASS_NETWORK 6U
-#define LEONOS_DEVICE_CLASS_AUDIO 7U
-
-#define LEONOS_DEVICE_FLAG_PRESENT 0x00000001U
-#define LEONOS_DEVICE_FLAG_ACTIVE 0x00000002U
-#define LEONOS_DEVICE_FLAG_BOOT 0x00000004U
-#define LEONOS_DEVICE_FLAG_REMOVABLE 0x00000008U
-
-/* Canonical devfs paths. The historical fd 3 control descriptor no longer
- * exists; applications must open the device node they intend to use. */
-#define LEONOS_DEV_NULL "/dev/null"
-#define LEONOS_DEV_ZERO "/dev/zero"
-#define LEONOS_DEV_FULL "/dev/full"
-#define LEONOS_DEV_RANDOM "/dev/random"
-#define LEONOS_DEV_URANDOM "/dev/urandom"
-#define LEONOS_DEV_TTY "/dev/tty"
-#define LEONOS_DEV_CONSOLE "/dev/console"
-#define LEONOS_DEV_PTMX "/dev/ptmx"
-#define LEONOS_DEV_FB0 "/dev/fb0"
-#define LEONOS_DEV_INPUT_EVENT0 "/dev/input/event0"
-#define LEONOS_DEV_INPUT_EVENT1 "/dev/input/event1"
-/* Query uint64 display invalidation generation on a fixed VT descriptor. */
-#define LEONOS_VT_GETGENERATION 0x800856f0UL
-
-/* evdev extension: uint32_t input, 0 for raw events, 1-6 for events that
- * originated while that VT was graphical. The setting belongs to the open
- * file description and applies to read and poll. */
-#define LEONOS_EVIOCSVT 0x400445f0UL
-/* Linux OSS PCM playback device. */
-#define LEONOS_DEV_DSP "/dev/dsp"
-#define LEONOS_DEV_SERIAL0 "/dev/serial0"
-#define LEONOS_DEV_DISK0 "/dev/disk0"
-#define LEONOS_DEV_GPU "/dev/gpu"
-#define LEONOS_DEV_SHM0 "/dev/shm0"
-
-struct leonos_device_info {
-    uint32_t id;
-    uint32_t device_class;
-    uint32_t flags;
-    uint32_t reserved;
-    uint64_t value0;
-    uint64_t value1;
-    char name[LEONOS_DEVICE_NAME_LEN];
-    char status[LEONOS_DEVICE_STATUS_LEN];
-    char detail[LEONOS_DEVICE_DETAIL_LEN];
-};
-
-struct leonos_device_list {
-    uint32_t capacity;
-    uint32_t count;
-    struct leonos_device_info *devices;
-};
+/* Old names are macro aliases to the same declarations. */
+#define LEONOS_DEVICE_CLASS_AUDIO RELIEFOS_DEVICE_CLASS_AUDIO
+#define LEONOS_DEVICE_CLASS_DISPLAY RELIEFOS_DEVICE_CLASS_DISPLAY
+#define LEONOS_DEVICE_CLASS_INPUT RELIEFOS_DEVICE_CLASS_INPUT
+#define LEONOS_DEVICE_CLASS_NETWORK RELIEFOS_DEVICE_CLASS_NETWORK
+#define LEONOS_DEVICE_CLASS_SERIAL RELIEFOS_DEVICE_CLASS_SERIAL
+#define LEONOS_DEVICE_CLASS_STORAGE RELIEFOS_DEVICE_CLASS_STORAGE
+#define LEONOS_DEVICE_CLASS_SYSTEM RELIEFOS_DEVICE_CLASS_SYSTEM
+#define LEONOS_DEVICE_DETAIL_LEN RELIEFOS_DEVICE_DETAIL_LEN
+#define LEONOS_DEVICE_FLAG_ACTIVE RELIEFOS_DEVICE_FLAG_ACTIVE
+#define LEONOS_DEVICE_FLAG_BOOT RELIEFOS_DEVICE_FLAG_BOOT
+#define LEONOS_DEVICE_FLAG_PRESENT RELIEFOS_DEVICE_FLAG_PRESENT
+#define LEONOS_DEVICE_FLAG_REMOVABLE RELIEFOS_DEVICE_FLAG_REMOVABLE
+#define LEONOS_DEVICE_MAX RELIEFOS_DEVICE_MAX
+#define LEONOS_DEVICE_NAME_LEN RELIEFOS_DEVICE_NAME_LEN
+#define LEONOS_DEVICE_STATUS_LEN RELIEFOS_DEVICE_STATUS_LEN
+#define LEONOS_DEV_CONSOLE RELIEFOS_DEV_CONSOLE
+#define LEONOS_DEV_DISK0 RELIEFOS_DEV_DISK0
+#define LEONOS_DEV_DSP RELIEFOS_DEV_DSP
+#define LEONOS_DEV_FB0 RELIEFOS_DEV_FB0
+#define LEONOS_DEV_FULL RELIEFOS_DEV_FULL
+#define LEONOS_DEV_GPU RELIEFOS_DEV_GPU
+#define LEONOS_DEV_INPUT_EVENT0 RELIEFOS_DEV_INPUT_EVENT0
+#define LEONOS_DEV_INPUT_EVENT1 RELIEFOS_DEV_INPUT_EVENT1
+#define LEONOS_DEV_NULL RELIEFOS_DEV_NULL
+#define LEONOS_DEV_PTMX RELIEFOS_DEV_PTMX
+#define LEONOS_DEV_RANDOM RELIEFOS_DEV_RANDOM
+#define LEONOS_DEV_SERIAL0 RELIEFOS_DEV_SERIAL0
+#define LEONOS_DEV_SHM0 RELIEFOS_DEV_SHM0
+#define LEONOS_DEV_TTY RELIEFOS_DEV_TTY
+#define LEONOS_DEV_URANDOM RELIEFOS_DEV_URANDOM
+#define LEONOS_DEV_ZERO RELIEFOS_DEV_ZERO
+#define LEONOS_EVIOCSVT RELIEFOS_EVIOCSVT
+#define LEONOS_VT_GETGENERATION RELIEFOS_VT_GETGENERATION
+#define leonos_device_info reliefos_device_info
+#define leonos_device_list reliefos_device_list
 
 #endif /* LEONOS_UAPI_DEVICE_ABI_H */

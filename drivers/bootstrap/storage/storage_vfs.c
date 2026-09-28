@@ -14,53 +14,53 @@ struct storage_dev_entry {
  * their portable userspace ABI through these names; the legacy ioctl entry
  * points remain available for applications that have not migrated yet. */
 static const struct storage_dev_entry storage_dev_entries[] = {
-    {"null",      STORAGE_DEV_KIND_NULL,     LEONOS_FS_TYPE_DEVICE, 0},
-    {"zero",      STORAGE_DEV_KIND_ZERO,     LEONOS_FS_TYPE_DEVICE, 0},
-    {"full",      STORAGE_DEV_KIND_FULL,     LEONOS_FS_TYPE_DEVICE, 0},
-    {"random",    STORAGE_DEV_KIND_RANDOM,   LEONOS_FS_TYPE_DEVICE, 0},
-    {"urandom",   STORAGE_DEV_KIND_URANDOM,  LEONOS_FS_TYPE_DEVICE, 0},
-    {"tty",       STORAGE_DEV_KIND_TTY,      LEONOS_FS_TYPE_DEVICE, 0},
-    {"tty1",      STORAGE_DEV_KIND_TTY,      LEONOS_FS_TYPE_DEVICE, 0},
-    {"tty2",      STORAGE_DEV_KIND_TTY,      LEONOS_FS_TYPE_DEVICE, 0},
-    {"tty3",      STORAGE_DEV_KIND_TTY,      LEONOS_FS_TYPE_DEVICE, 0},
-    {"tty4",      STORAGE_DEV_KIND_TTY,      LEONOS_FS_TYPE_DEVICE, 0},
-    {"tty5",      STORAGE_DEV_KIND_TTY,      LEONOS_FS_TYPE_DEVICE, 0},
-    {"tty6",      STORAGE_DEV_KIND_TTY,      LEONOS_FS_TYPE_DEVICE, 0},
-    {"console",   STORAGE_DEV_KIND_CONSOLE,  LEONOS_FS_TYPE_DEVICE, 0},
-    {"ptmx",      STORAGE_DEV_KIND_PTMX,     LEONOS_FS_TYPE_DEVICE, 0},
-    {"fb0",       STORAGE_DEV_KIND_FB0,      LEONOS_FS_TYPE_DEVICE, 0},
-    {"keyboard",  STORAGE_DEV_KIND_KEYBOARD, LEONOS_FS_TYPE_DEVICE, 0},
-    {"mouse",     STORAGE_DEV_KIND_MOUSE,    LEONOS_FS_TYPE_DEVICE, 0},
-    {"dsp",       STORAGE_DEV_KIND_AUDIO,    LEONOS_FS_TYPE_DEVICE, 0},
+    {"null",      STORAGE_DEV_KIND_NULL,     RELIEFOS_FS_TYPE_DEVICE, 0},
+    {"zero",      STORAGE_DEV_KIND_ZERO,     RELIEFOS_FS_TYPE_DEVICE, 0},
+    {"full",      STORAGE_DEV_KIND_FULL,     RELIEFOS_FS_TYPE_DEVICE, 0},
+    {"random",    STORAGE_DEV_KIND_RANDOM,   RELIEFOS_FS_TYPE_DEVICE, 0},
+    {"urandom",   STORAGE_DEV_KIND_URANDOM,  RELIEFOS_FS_TYPE_DEVICE, 0},
+    {"tty",       STORAGE_DEV_KIND_TTY,      RELIEFOS_FS_TYPE_DEVICE, 0},
+    {"tty1",      STORAGE_DEV_KIND_TTY,      RELIEFOS_FS_TYPE_DEVICE, 0},
+    {"tty2",      STORAGE_DEV_KIND_TTY,      RELIEFOS_FS_TYPE_DEVICE, 0},
+    {"tty3",      STORAGE_DEV_KIND_TTY,      RELIEFOS_FS_TYPE_DEVICE, 0},
+    {"tty4",      STORAGE_DEV_KIND_TTY,      RELIEFOS_FS_TYPE_DEVICE, 0},
+    {"tty5",      STORAGE_DEV_KIND_TTY,      RELIEFOS_FS_TYPE_DEVICE, 0},
+    {"tty6",      STORAGE_DEV_KIND_TTY,      RELIEFOS_FS_TYPE_DEVICE, 0},
+    {"console",   STORAGE_DEV_KIND_CONSOLE,  RELIEFOS_FS_TYPE_DEVICE, 0},
+    {"ptmx",      STORAGE_DEV_KIND_PTMX,     RELIEFOS_FS_TYPE_DEVICE, 0},
+    {"fb0",       STORAGE_DEV_KIND_FB0,      RELIEFOS_FS_TYPE_DEVICE, 0},
+    {"keyboard",  STORAGE_DEV_KIND_KEYBOARD, RELIEFOS_FS_TYPE_DEVICE, 0},
+    {"mouse",     STORAGE_DEV_KIND_MOUSE,    RELIEFOS_FS_TYPE_DEVICE, 0},
+    {"dsp",       STORAGE_DEV_KIND_AUDIO,    RELIEFOS_FS_TYPE_DEVICE, 0},
     /* Compatibility aliases for the retired private audio interface. */
-    {"audio",     STORAGE_DEV_KIND_AUDIO,    LEONOS_FS_TYPE_DEVICE, 0},
-    {"ttyS0",     STORAGE_DEV_KIND_SERIAL,   LEONOS_FS_TYPE_DEVICE, 0},
-    {"serial0",   STORAGE_DEV_KIND_SERIAL,   LEONOS_FS_TYPE_DEVICE, 0},
-    {"sda",       STORAGE_DEV_KIND_DISK,     LEONOS_FS_TYPE_DEVICE, 0},
-    {"vda",       STORAGE_DEV_KIND_DISK,     LEONOS_FS_TYPE_DEVICE, 0},
-    {"nvme0n1",   STORAGE_DEV_KIND_DISK,     LEONOS_FS_TYPE_DEVICE, 0},
-    {"disk0",     STORAGE_DEV_KIND_DISK,     LEONOS_FS_TYPE_DEVICE, 0},
-    {"ethernet0", STORAGE_DEV_KIND_NET,      LEONOS_FS_TYPE_DEVICE, 0},
-    {"rtc",       STORAGE_DEV_KIND_RTC,      LEONOS_FS_TYPE_DEVICE, 0},
-    {"driverctl", STORAGE_DEV_KIND_DRIVERCTL, LEONOS_FS_TYPE_DEVICE, 0},
-    {"kmsg",      STORAGE_DEV_KIND_KMSG,      LEONOS_FS_TYPE_DEVICE, 0},
-    {"gpu",         STORAGE_DEV_KIND_GPU,          LEONOS_FS_TYPE_DEVICE, 0},
-    {"shm0",       STORAGE_DEV_KIND_SHM,          LEONOS_FS_TYPE_DEVICE, 0},
-    {"stdin",     STORAGE_DEV_KIND_TTY,      LEONOS_FS_TYPE_DEVICE, 0},
-    {"stdout",    STORAGE_DEV_KIND_CONSOLE,  LEONOS_FS_TYPE_DEVICE, 0},
-    {"stderr",    STORAGE_DEV_KIND_CONSOLE,  LEONOS_FS_TYPE_DEVICE, 0},
-    {"input",     STORAGE_DEV_KIND_INPUT_DIR, LEONOS_FS_TYPE_DIR, 1},
-    {"disk",      STORAGE_DEV_KIND_DISK_DIR, LEONOS_FS_TYPE_DIR, 1},
-    {"pts",       STORAGE_DEV_KIND_PTS_DIR,   LEONOS_FS_TYPE_DIR, 1},
-    {"shm",       0,                          LEONOS_FS_TYPE_DIR, 1},
+    {"audio",     STORAGE_DEV_KIND_AUDIO,    RELIEFOS_FS_TYPE_DEVICE, 0},
+    {"ttyS0",     STORAGE_DEV_KIND_SERIAL,   RELIEFOS_FS_TYPE_DEVICE, 0},
+    {"serial0",   STORAGE_DEV_KIND_SERIAL,   RELIEFOS_FS_TYPE_DEVICE, 0},
+    {"sda",       STORAGE_DEV_KIND_DISK,     RELIEFOS_FS_TYPE_DEVICE, 0},
+    {"vda",       STORAGE_DEV_KIND_DISK,     RELIEFOS_FS_TYPE_DEVICE, 0},
+    {"nvme0n1",   STORAGE_DEV_KIND_DISK,     RELIEFOS_FS_TYPE_DEVICE, 0},
+    {"disk0",     STORAGE_DEV_KIND_DISK,     RELIEFOS_FS_TYPE_DEVICE, 0},
+    {"ethernet0", STORAGE_DEV_KIND_NET,      RELIEFOS_FS_TYPE_DEVICE, 0},
+    {"rtc",       STORAGE_DEV_KIND_RTC,      RELIEFOS_FS_TYPE_DEVICE, 0},
+    {"driverctl", STORAGE_DEV_KIND_DRIVERCTL, RELIEFOS_FS_TYPE_DEVICE, 0},
+    {"kmsg",      STORAGE_DEV_KIND_KMSG,      RELIEFOS_FS_TYPE_DEVICE, 0},
+    {"gpu",         STORAGE_DEV_KIND_GPU,          RELIEFOS_FS_TYPE_DEVICE, 0},
+    {"shm0",       STORAGE_DEV_KIND_SHM,          RELIEFOS_FS_TYPE_DEVICE, 0},
+    {"stdin",     STORAGE_DEV_KIND_TTY,      RELIEFOS_FS_TYPE_DEVICE, 0},
+    {"stdout",    STORAGE_DEV_KIND_CONSOLE,  RELIEFOS_FS_TYPE_DEVICE, 0},
+    {"stderr",    STORAGE_DEV_KIND_CONSOLE,  RELIEFOS_FS_TYPE_DEVICE, 0},
+    {"input",     STORAGE_DEV_KIND_INPUT_DIR, RELIEFOS_FS_TYPE_DIR, 1},
+    {"disk",      STORAGE_DEV_KIND_DISK_DIR, RELIEFOS_FS_TYPE_DIR, 1},
+    {"pts",       STORAGE_DEV_KIND_PTS_DIR,   RELIEFOS_FS_TYPE_DIR, 1},
+    {"shm",       0,                          RELIEFOS_FS_TYPE_DIR, 1},
 };
 
 static const struct storage_dev_entry storage_dev_input_entries[] = {
-    {"event0",    STORAGE_DEV_KIND_KEYBOARD, LEONOS_FS_TYPE_DEVICE, 0},
-    {"event1",    STORAGE_DEV_KIND_MOUSE,    LEONOS_FS_TYPE_DEVICE, 0},
-    {"keyboard",  STORAGE_DEV_KIND_KEYBOARD, LEONOS_FS_TYPE_DEVICE, 0},
-    {"mouse0",    STORAGE_DEV_KIND_MOUSE,    LEONOS_FS_TYPE_DEVICE, 0},
-    {"mouse",     STORAGE_DEV_KIND_MOUSE,    LEONOS_FS_TYPE_DEVICE, 0},
+    {"event0",    STORAGE_DEV_KIND_KEYBOARD, RELIEFOS_FS_TYPE_DEVICE, 0},
+    {"event1",    STORAGE_DEV_KIND_MOUSE,    RELIEFOS_FS_TYPE_DEVICE, 0},
+    {"keyboard",  STORAGE_DEV_KIND_KEYBOARD, RELIEFOS_FS_TYPE_DEVICE, 0},
+    {"mouse0",    STORAGE_DEV_KIND_MOUSE,    RELIEFOS_FS_TYPE_DEVICE, 0},
+    {"mouse",     STORAGE_DEV_KIND_MOUSE,    RELIEFOS_FS_TYPE_DEVICE, 0},
 };
 
 static const struct storage_dev_entry *storage_dev_find(const char *name,
@@ -90,10 +90,10 @@ static int storage_parse_block_name(const char *name, uint32_t *disk_id,
         if (*p >= '1' && *p <= '9') {
             value = 0;
             while (*p >= '0' && *p <= '9') {
-                if (value >= LEONOS_DISK_MAX_PARTITIONS) return -22;
+                if (value >= RELIEFOS_DISK_MAX_PARTITIONS) return -22;
                 value = value * 10u + (uint32_t)(*p++ - '0');
             }
-            if (*p || value == 0 || value > LEONOS_DISK_MAX_PARTITIONS) return -22;
+            if (*p || value == 0 || value > RELIEFOS_DISK_MAX_PARTITIONS) return -22;
             *partition_index = (int32_t)value - 1;
             return 0;
         }
@@ -136,7 +136,7 @@ static int storage_parse_block_name(const char *name, uint32_t *disk_id,
     while (*p >= '0' && *p <= '9') {
         value = value * 10u + (uint32_t)(*p++ - '0');
     }
-    if (*p || value == 0 || value > LEONOS_DISK_MAX_PARTITIONS) return -22;
+    if (*p || value == 0 || value > RELIEFOS_DISK_MAX_PARTITIONS) return -22;
     *partition_index = (int32_t)value - 1;
     return 0;
 }
@@ -217,7 +217,7 @@ bool storage_installer_root_active(void)
 
 int storage_resolve_path(const char *cwd, const char *input, char *out, uint32_t cap)
 {
-    char parts[16][LEONOS_FS_NAME_LEN];
+    char parts[16][RELIEFOS_FS_NAME_LEN];
     uint32_t part_count = 0;
     const char *sources[2];
     uint32_t source_count;
@@ -247,7 +247,7 @@ int storage_resolve_path(const char *cwd, const char *input, char *out, uint32_t
     }
     for (uint32_t src_i = 0; src_i < source_count; ++src_i) {
         const char *p = sources[src_i];
-        char token[LEONOS_FS_NAME_LEN];
+        char token[RELIEFOS_FS_NAME_LEN];
         uint32_t pos = 0;
         while (1) {
             char ch = *p;
@@ -302,8 +302,8 @@ int storage_resolve_path(const char *cwd, const char *input, char *out, uint32_t
 
 static int storage_lookup_path_unlocked(const char *path, struct storage_node *out)
 {
-    char resolved[LEONOS_FS_PATH_LEN];
-    char backend_path[LEONOS_FS_PATH_LEN];
+    char resolved[RELIEFOS_FS_PATH_LEN];
+    char backend_path[RELIEFOS_FS_PATH_LEN];
     struct storage_volume *volume;
     int ret;
     if (!storage_ready()) {
@@ -320,7 +320,7 @@ static int storage_lookup_path_unlocked(const char *path, struct storage_node *o
     if (g_devfs_enabled && storage_text_eq_ci(resolved, "/dev")) {
         if (out) {
             *out = (struct storage_node){
-                .type = LEONOS_FS_TYPE_DIR,
+                .type = RELIEFOS_FS_TYPE_DIR,
                 .flags = STORAGE_NODE_FLAG_DEV_DIR,
                 .first_cluster = STORAGE_DEV_KIND_DIR,
                 .volume_id = STORAGE_VOLUME_ROOT,
@@ -332,7 +332,7 @@ static int storage_lookup_path_unlocked(const char *path, struct storage_node *o
     if (g_devfs_enabled && storage_text_eq_ci(resolved, "/dev/input")) {
         if (out) {
             *out = (struct storage_node){
-                .type = LEONOS_FS_TYPE_DIR,
+                .type = RELIEFOS_FS_TYPE_DIR,
                 .flags = STORAGE_NODE_FLAG_DEV_DIR,
                 .first_cluster = STORAGE_DEV_KIND_INPUT_DIR,
                 .volume_id = STORAGE_VOLUME_ROOT,
@@ -344,7 +344,7 @@ static int storage_lookup_path_unlocked(const char *path, struct storage_node *o
     if (g_devfs_enabled && storage_text_eq_ci(resolved, "/dev/pts")) {
         if (out) {
             *out = (struct storage_node){
-                .type = LEONOS_FS_TYPE_DIR,
+                .type = RELIEFOS_FS_TYPE_DIR,
                 .flags = STORAGE_NODE_FLAG_DEV_DIR,
                 .first_cluster = STORAGE_DEV_KIND_PTS_DIR,
                 .volume_id = STORAGE_VOLUME_ROOT,
@@ -356,7 +356,7 @@ static int storage_lookup_path_unlocked(const char *path, struct storage_node *o
     if (g_devfs_enabled && (storage_text_eq(resolved, "/dev/disk") ||
                               storage_text_eq(resolved, "/dev/disk/by-partuuid"))) {
         if (out) *out = (struct storage_node){
-            .type = LEONOS_FS_TYPE_DIR, .flags = STORAGE_NODE_FLAG_DEV_DIR,
+            .type = RELIEFOS_FS_TYPE_DIR, .flags = STORAGE_NODE_FLAG_DEV_DIR,
             .first_cluster = storage_text_eq(resolved, "/dev/disk")
                 ? STORAGE_DEV_KIND_DISK_DIR : STORAGE_DEV_KIND_PARTUUID_DIR,
         };
@@ -366,7 +366,7 @@ static int storage_lookup_path_unlocked(const char *path, struct storage_node *o
         char target[48];
         ret = storage_devlink_target(resolved, target);
         if (!ret && out) *out = (struct storage_node){
-            .type = LEONOS_FS_TYPE_SYMLINK, .flags = STORAGE_NODE_FLAG_DEV_LINK,
+            .type = RELIEFOS_FS_TYPE_SYMLINK, .flags = STORAGE_NODE_FLAG_DEV_LINK,
             .size = storage_strlen(target),
         };
         return ret;
@@ -420,7 +420,7 @@ static int storage_lookup_path_unlocked(const char *path, struct storage_node *o
                 }
                 if (block_ret == 0) {
                     *out = (struct storage_node){
-                        .type = LEONOS_FS_TYPE_DEVICE,
+                        .type = RELIEFOS_FS_TYPE_DEVICE,
                         .flags = STORAGE_NODE_FLAG_DEV_NODE | STORAGE_NODE_FLAG_DEV_BLOCK,
                         .first_cluster = STORAGE_DEV_KIND_DISK,
                         .volume_id = STORAGE_BLOCK_VOLUME_ID(disk_id, partition_index),
@@ -452,7 +452,7 @@ static int storage_lookup_path_unlocked(const char *path, struct storage_node *o
             if (block_ret == 0) {
                 if (out) {
                     *out = (struct storage_node){
-                        .type = LEONOS_FS_TYPE_DEVICE,
+                        .type = RELIEFOS_FS_TYPE_DEVICE,
                         .flags = STORAGE_NODE_FLAG_DEV_NODE | STORAGE_NODE_FLAG_DEV_BLOCK,
                         .first_cluster = STORAGE_DEV_KIND_DISK,
                         .volume_id = STORAGE_BLOCK_VOLUME_ID(disk_id, partition_index),
@@ -493,7 +493,7 @@ static int storage_lookup_path_unlocked(const char *path, struct storage_node *o
     }
 
     struct storage_node node = {
-        .type = LEONOS_FS_TYPE_DIR,
+        .type = RELIEFOS_FS_TYPE_DIR,
         .flags = STORAGE_NODE_FLAG_ROOT,
         .first_cluster = g_storage.filesystem == STORAGE_FILESYSTEM_ISO9660
                              ? g_storage.iso_root_extent : g_storage.root_cluster,
@@ -502,14 +502,14 @@ static int storage_lookup_path_unlocked(const char *path, struct storage_node *o
                     ? g_storage.iso_root_size : 0,
     };
     const char *p = backend_path + 1;
-    char name[LEONOS_FS_NAME_LEN];
+    char name[RELIEFOS_FS_NAME_LEN];
     uint32_t pos = 0;
     while (1) {
         char ch = *p;
         if (ch == '/' || ch == 0) {
             name[pos] = 0;
             if (pos) {
-                if (node.type != LEONOS_FS_TYPE_DIR || node.flags == STORAGE_NODE_FLAG_DEV_DIR) {
+                if (node.type != RELIEFOS_FS_TYPE_DIR || node.flags == STORAGE_NODE_FLAG_DEV_DIR) {
                     return -20;
                 }
                 int ret = g_storage.filesystem == STORAGE_FILESYSTEM_ISO9660
@@ -581,10 +581,10 @@ static int storage_read_node_cursor_unlocked(const struct storage_node *node, ui
         if (ret < 0) return ret;
         node = &refreshed;
     }
-    if (node->type == LEONOS_FS_TYPE_DEVICE && (node->flags & STORAGE_NODE_FLAG_DEV_FB0)) {
+    if (node->type == RELIEFOS_FS_TYPE_DEVICE && (node->flags & STORAGE_NODE_FLAG_DEV_FB0)) {
         return -21;
     }
-    if (node->type != LEONOS_FS_TYPE_FILE) {
+    if (node->type != RELIEFOS_FS_TYPE_FILE) {
         return -21;
     }
     if (offset >= node->size || len == 0) {
@@ -805,14 +805,14 @@ int storage_read_node_cursor(const struct storage_node *node, uint64_t offset,
 }
 
 static int storage_readdir_node_unlocked(const struct storage_node *node, uint64_t *cursor,
-                         struct leonos_dir_entry *entry)
+                         struct reliefos_dir_entry *entry)
 {
     struct storage_volume *old_volume = 0;
     int ret;
     if (!node || !cursor || !entry) {
         return -22;
     }
-    if (node->type != LEONOS_FS_TYPE_DIR) {
+    if (node->type != RELIEFOS_FS_TYPE_DIR) {
         return -20;
     }
     if (node->flags & STORAGE_NODE_FLAG_DEV_DIR) {
@@ -829,7 +829,7 @@ static int storage_readdir_node_unlocked(const struct storage_node *node, uint64
         if (node->first_cluster == STORAGE_DEV_KIND_DISK_DIR) {
             if (*cursor) return 0;
             ++*cursor;
-            entry->type = LEONOS_FS_TYPE_DIR;
+            entry->type = RELIEFOS_FS_TYPE_DIR;
             storage_copy_text(entry->name, sizeof(entry->name), "by-partuuid");
             return 1;
         }
@@ -837,7 +837,7 @@ static int storage_readdir_node_unlocked(const struct storage_node *node, uint64
             char uuid[37], target[48];
             int step = storage_devlink_next(cursor, uuid, target);
             if (step <= 0) return step;
-            entry->type = LEONOS_FS_TYPE_SYMLINK;
+            entry->type = RELIEFOS_FS_TYPE_SYMLINK;
             storage_copy_text(entry->name, sizeof(entry->name), uuid);
             return 1;
         }
@@ -864,13 +864,13 @@ static int storage_readdir_node_unlocked(const struct storage_node *node, uint64
                 }
                 if (disk_id != 0 && dynamic == 0) {
                     ++(*cursor);
-                    entry->type = LEONOS_FS_TYPE_DEVICE;
+                    entry->type = RELIEFOS_FS_TYPE_DEVICE;
                     storage_format_u32(entry->name, sizeof(entry->name),
                                        "disk", disk_id, -1);
                     return 1;
                 }
                 if (disk_id != 0) --dynamic;
-                for (uint32_t part = 0; part < LEONOS_DISK_MAX_PARTITIONS; ++part) {
+                for (uint32_t part = 0; part < RELIEFOS_DISK_MAX_PARTITIONS; ++part) {
                     block_ret = storage_disk_block_info(disk_id, (int32_t)part,
                                                         &first_lba, &sectors);
                     if (block_ret < 0) {
@@ -879,7 +879,7 @@ static int storage_readdir_node_unlocked(const struct storage_node *node, uint64
                     }
                     if (dynamic == 0) {
                         ++(*cursor);
-                        entry->type = LEONOS_FS_TYPE_DEVICE;
+                        entry->type = RELIEFOS_FS_TYPE_DEVICE;
                         storage_format_u32(entry->name, sizeof(entry->name),
                                            "disk", disk_id, (int32_t)part);
                         return 1;
@@ -945,7 +945,7 @@ static int storage_readdir_node_unlocked(const struct storage_node *node, uint64
 }
 
 int storage_readdir_node(const struct storage_node *node, uint64_t *cursor,
-                         struct leonos_dir_entry *entry)
+                         struct reliefos_dir_entry *entry)
 {
     int ret;
     uint64_t flags;
@@ -972,7 +972,7 @@ int storage_read_file(const char *path, const void **out_data, size_t *out_len)
         storage_restore_volume(old_volume);
         return ret;
     }
-    if (node.type != LEONOS_FS_TYPE_FILE) {
+    if (node.type != RELIEFOS_FS_TYPE_FILE) {
         storage_restore_volume(old_volume);
         return -21;
     }
@@ -1005,7 +1005,7 @@ int storage_write_node(const char *path, uint64_t offset,
                        const void *buf, uint32_t len, uint32_t *out_written)
 {
     struct storage_node node;
-    char backend_path[LEONOS_FS_PATH_LEN];
+    char backend_path[RELIEFOS_FS_PATH_LEN];
     uint64_t end64;
     uint32_t total_len;
     uint32_t final_len;
@@ -1033,7 +1033,7 @@ int storage_write_node(const char *path, uint64_t offset,
      * the file. Invalidate cached directory metadata before changing the
      * directory entry so a later open sees the new first cluster and size. */
     storage_cache_invalidate();
-    if (node.type != LEONOS_FS_TYPE_FILE) {
+    if (node.type != RELIEFOS_FS_TYPE_FILE) {
         return -21;
     }
     if (g_storage.filesystem == STORAGE_FILESYSTEM_TMPFS) {
@@ -1072,8 +1072,8 @@ int storage_write_node(const char *path, uint64_t offset,
      * pre-read/modify/write sequences in one non-replayable transaction. */
     storage_begin_mutation();
     if (offset <= node.size) {
-        char parent[LEONOS_FS_PATH_LEN];
-        char name[LEONOS_FS_NAME_LEN];
+        char parent[RELIEFOS_FS_PATH_LEN];
+        char name[RELIEFOS_FS_NAME_LEN];
         struct storage_node parent_node;
         struct fat32_dir_ref ref;
 
@@ -1259,10 +1259,10 @@ int storage_write_node(const char *path, uint64_t offset,
 
 int storage_write_file(const char *path, const void *buf, uint32_t len)
 {
-    char resolved[LEONOS_FS_PATH_LEN];
-    char backend_path[LEONOS_FS_PATH_LEN];
-    char parent[LEONOS_FS_PATH_LEN];
-    char name[LEONOS_FS_NAME_LEN];
+    char resolved[RELIEFOS_FS_PATH_LEN];
+    char backend_path[RELIEFOS_FS_PATH_LEN];
+    char parent[RELIEFOS_FS_PATH_LEN];
+    char name[RELIEFOS_FS_NAME_LEN];
     struct storage_node parent_node;
     struct storage_node existing;
     struct fat32_dir_ref ref;
@@ -1292,7 +1292,7 @@ int storage_write_file(const char *path, const void *buf, uint32_t len)
     if (ret < 0) {
         return ret;
     }
-    if (parent_node.type != LEONOS_FS_TYPE_DIR) {
+    if (parent_node.type != RELIEFOS_FS_TYPE_DIR) {
         return -20;
     }
     if (g_storage.filesystem == STORAGE_FILESYSTEM_EXT2) {
@@ -1330,7 +1330,7 @@ int storage_write_file(const char *path, const void *buf, uint32_t len)
     }
     ret = fat32_make_short_name(name, short_name);
     if (ret == 0) {
-        char rendered[LEONOS_FS_NAME_LEN];
+        char rendered[RELIEFOS_FS_NAME_LEN];
         uint32_t pos = 0;
         for (uint32_t i = 0; i < 8 && short_name[i] != ' '; ++i) {
             char ch = (char)short_name[i];
@@ -1365,7 +1365,7 @@ int storage_write_file(const char *path, const void *buf, uint32_t len)
 
     ret = storage_lookup_path(resolved, &existing);
     if (ret == 0) {
-        if (existing.type != LEONOS_FS_TYPE_FILE) {
+        if (existing.type != RELIEFOS_FS_TYPE_FILE) {
             return -21;
         }
         ret = fat32_find_dirent_ref_in_dir(parent_node.first_cluster, name, &ref);
@@ -1507,7 +1507,7 @@ int storage_truncate_file(const char *path, uint64_t length)
     if (ret < 0) {
         return ret;
     }
-    if (node.type != LEONOS_FS_TYPE_FILE) {
+    if (node.type != RELIEFOS_FS_TYPE_FILE) {
         return -21;
     }
     if (g_storage.filesystem == STORAGE_FILESYSTEM_EXT2) {
@@ -1520,7 +1520,7 @@ int storage_truncate_file(const char *path, uint64_t length)
     }
     if (length > 0xffffffffULL) return -22;
     if (g_storage.filesystem == STORAGE_FILESYSTEM_EXFAT) {
-        char backend_path[LEONOS_FS_PATH_LEN];
+        char backend_path[RELIEFOS_FS_PATH_LEN];
         ret = storage_backend_path(path, backend_path, sizeof(backend_path));
         if (ret < 0) return ret;
         storage_begin_mutation();
@@ -1554,10 +1554,10 @@ int storage_truncate_file(const char *path, uint64_t length)
 
 int storage_mkdir(const char *path)
 {
-    char resolved[LEONOS_FS_PATH_LEN];
-    char backend_path[LEONOS_FS_PATH_LEN];
-    char parent[LEONOS_FS_PATH_LEN];
-    char name[LEONOS_FS_NAME_LEN];
+    char resolved[RELIEFOS_FS_PATH_LEN];
+    char backend_path[RELIEFOS_FS_PATH_LEN];
+    char parent[RELIEFOS_FS_PATH_LEN];
+    char name[RELIEFOS_FS_NAME_LEN];
     struct storage_node parent_node;
     struct storage_node existing;
     uint32_t cluster = 0;
@@ -1587,7 +1587,7 @@ int storage_mkdir(const char *path)
     if (ret < 0) {
         return ret;
     }
-    if (parent_node.type != LEONOS_FS_TYPE_DIR) {
+    if (parent_node.type != RELIEFOS_FS_TYPE_DIR) {
         return -20;
     }
     if (g_storage.filesystem == STORAGE_FILESYSTEM_EXT2) {
@@ -1672,10 +1672,10 @@ int storage_mkdir(const char *path)
 
 int storage_unlink(const char *path)
 {
-    char resolved[LEONOS_FS_PATH_LEN];
-    char backend_path[LEONOS_FS_PATH_LEN];
-    char parent[LEONOS_FS_PATH_LEN];
-    char name[LEONOS_FS_NAME_LEN];
+    char resolved[RELIEFOS_FS_PATH_LEN];
+    char backend_path[RELIEFOS_FS_PATH_LEN];
+    char parent[RELIEFOS_FS_PATH_LEN];
+    char name[RELIEFOS_FS_NAME_LEN];
     struct storage_node parent_node;
     struct storage_node node;
     struct fat32_dirent deleted;
@@ -1696,7 +1696,7 @@ int storage_unlink(const char *path)
     if (ret < 0) {
         return ret;
     }
-    if (parent_node.type != LEONOS_FS_TYPE_DIR || (parent_node.flags & STORAGE_NODE_FLAG_DEV_DIR)) {
+    if (parent_node.type != RELIEFOS_FS_TYPE_DIR || (parent_node.flags & STORAGE_NODE_FLAG_DEV_DIR)) {
         return -20;
     }
     ret = storage_lookup_path(resolved, &node);
@@ -1704,7 +1704,7 @@ int storage_unlink(const char *path)
         return ret;
     }
     if (g_storage.filesystem == STORAGE_FILESYSTEM_EXT2) {
-        if (node.type == LEONOS_FS_TYPE_DIR) return -21;
+        if (node.type == RELIEFOS_FS_TYPE_DIR) return -21;
         if (storage_backend_path(resolved, backend_path, sizeof(backend_path)) < 0) {
             return -22;
         }
@@ -1718,7 +1718,7 @@ int storage_unlink(const char *path)
         return tmpfs_unlink(g_storage.tmpfs, backend_path, false);
     }
     if (g_storage.filesystem == STORAGE_FILESYSTEM_EXFAT) {
-        if (node.type == LEONOS_FS_TYPE_DIR) return -21;
+        if (node.type == RELIEFOS_FS_TYPE_DIR) return -21;
         ret = storage_backend_path(resolved, backend_path, sizeof(backend_path));
         if (ret < 0) return ret;
         storage_begin_mutation();
@@ -1727,7 +1727,7 @@ int storage_unlink(const char *path)
     if (g_storage.filesystem != STORAGE_FILESYSTEM_FAT32) {
         return -30;
     }
-    if (node.type == LEONOS_FS_TYPE_DIR) {
+    if (node.type == RELIEFOS_FS_TYPE_DIR) {
         return -21;
     }
     storage_begin_mutation();
@@ -1750,8 +1750,8 @@ int storage_write_boot_esp_file(const char *path, const void *buf, uint32_t len)
     if (!path || !storage_mount_path_matches(path, "/boot")) {
         return -22;
     }
-    (void)storage_mkdir("/boot/leonos");
-    (void)storage_mkdir("/boot/leonos/state");
+    (void)storage_mkdir("/boot/reliefos");
+    (void)storage_mkdir("/boot/reliefos/state");
     return storage_write_file(path, buf, len);
 }
 
@@ -1767,10 +1767,10 @@ int storage_unlink_boot_esp_file(const char *path)
 
 int storage_rmdir(const char *path)
 {
-    char resolved[LEONOS_FS_PATH_LEN];
-    char backend_path[LEONOS_FS_PATH_LEN];
-    char parent[LEONOS_FS_PATH_LEN];
-    char name[LEONOS_FS_NAME_LEN];
+    char resolved[RELIEFOS_FS_PATH_LEN];
+    char backend_path[RELIEFOS_FS_PATH_LEN];
+    char parent[RELIEFOS_FS_PATH_LEN];
+    char name[RELIEFOS_FS_NAME_LEN];
     struct storage_node parent_node;
     struct storage_node node;
     struct fat32_dirent deleted;
@@ -1795,7 +1795,7 @@ int storage_rmdir(const char *path)
     if (ret < 0) {
         return ret;
     }
-    if (parent_node.type != LEONOS_FS_TYPE_DIR || (parent_node.flags & STORAGE_NODE_FLAG_DEV_DIR)) {
+    if (parent_node.type != RELIEFOS_FS_TYPE_DIR || (parent_node.flags & STORAGE_NODE_FLAG_DEV_DIR)) {
         return -20;
     }
     ret = storage_lookup_path(resolved, &node);
@@ -1803,7 +1803,7 @@ int storage_rmdir(const char *path)
         return ret;
     }
     if (g_storage.filesystem == STORAGE_FILESYSTEM_EXT2) {
-        if (node.type != LEONOS_FS_TYPE_DIR) return -20;
+        if (node.type != RELIEFOS_FS_TYPE_DIR) return -20;
         if (storage_backend_path(resolved, backend_path, sizeof(backend_path)) < 0) {
             return -22;
         }
@@ -1817,7 +1817,7 @@ int storage_rmdir(const char *path)
         return tmpfs_unlink(g_storage.tmpfs, backend_path, true);
     }
     if (g_storage.filesystem == STORAGE_FILESYSTEM_EXFAT) {
-        if (node.type != LEONOS_FS_TYPE_DIR) return -20;
+        if (node.type != RELIEFOS_FS_TYPE_DIR) return -20;
         ret = storage_backend_path(resolved, backend_path, sizeof(backend_path));
         if (ret < 0) return ret;
         storage_begin_mutation();
@@ -1826,7 +1826,7 @@ int storage_rmdir(const char *path)
     if (g_storage.filesystem != STORAGE_FILESYSTEM_FAT32) {
         return -30;
     }
-    if (node.type != LEONOS_FS_TYPE_DIR || (node.flags & STORAGE_NODE_FLAG_DEV_DIR)) {
+    if (node.type != RELIEFOS_FS_TYPE_DIR || (node.flags & STORAGE_NODE_FLAG_DEV_DIR)) {
         return -20;
     }
     empty = fat32_dir_is_empty(node.first_cluster);
@@ -1856,14 +1856,14 @@ int storage_rmdir(const char *path)
 
 int storage_rename(const char *old_path, const char *new_path)
 {
-    char old_resolved[LEONOS_FS_PATH_LEN];
-    char new_resolved[LEONOS_FS_PATH_LEN];
-    char old_backend_path[LEONOS_FS_PATH_LEN];
-    char new_backend_path[LEONOS_FS_PATH_LEN];
-    char old_parent[LEONOS_FS_PATH_LEN];
-    char new_parent[LEONOS_FS_PATH_LEN];
-    char old_name[LEONOS_FS_NAME_LEN];
-    char new_name[LEONOS_FS_NAME_LEN];
+    char old_resolved[RELIEFOS_FS_PATH_LEN];
+    char new_resolved[RELIEFOS_FS_PATH_LEN];
+    char old_backend_path[RELIEFOS_FS_PATH_LEN];
+    char new_backend_path[RELIEFOS_FS_PATH_LEN];
+    char old_parent[RELIEFOS_FS_PATH_LEN];
+    char new_parent[RELIEFOS_FS_PATH_LEN];
+    char old_name[RELIEFOS_FS_NAME_LEN];
+    char new_name[RELIEFOS_FS_NAME_LEN];
     struct storage_node parent_node;
     struct storage_node node;
     struct storage_node existing;
@@ -1903,7 +1903,7 @@ int storage_rename(const char *old_path, const char *new_path)
     if (ret < 0) {
         return ret;
     }
-    if (parent_node.type != LEONOS_FS_TYPE_DIR || (parent_node.flags & STORAGE_NODE_FLAG_DEV_DIR)) {
+    if (parent_node.type != RELIEFOS_FS_TYPE_DIR || (parent_node.flags & STORAGE_NODE_FLAG_DEV_DIR)) {
         return -20;
     }
     ret = storage_lookup_path(old_resolved, &node);
@@ -1947,8 +1947,8 @@ int storage_rename(const char *old_path, const char *new_path)
     ret = storage_lookup_path(new_resolved, &existing);
     if (ret == 0) {
         struct fat32_dir_ref target;
-        if (node.type != existing.type) return node.type == LEONOS_FS_TYPE_DIR ? -20 : -21;
-        if (existing.type == LEONOS_FS_TYPE_DIR) {
+        if (node.type != existing.type) return node.type == RELIEFOS_FS_TYPE_DIR ? -20 : -21;
+        if (existing.type == RELIEFOS_FS_TYPE_DIR) {
             ret = fat32_dir_is_empty(existing.first_cluster);
             if (ret <= 0) return ret < 0 ? ret : -39;
         }
@@ -1957,7 +1957,7 @@ int storage_rename(const char *old_path, const char *new_path)
         struct fat32_dirent saved = target.dirent;
         target.dirent.first_cluster_hi = (uint16_t)(node.first_cluster >> 16);
         target.dirent.first_cluster_lo = (uint16_t)node.first_cluster;
-        target.dirent.size = node.type == LEONOS_FS_TYPE_FILE ? (uint32_t)node.size : 0;
+        target.dirent.size = node.type == RELIEFOS_FS_TYPE_FILE ? (uint32_t)node.size : 0;
         storage_begin_mutation();
         ret = fat32_update_dirent(&target);
         if (ret < 0) return ret;
@@ -1967,7 +1967,7 @@ int storage_rename(const char *old_path, const char *new_path)
             (void)fat32_update_dirent(&target);
             return ret;
         }
-        if (existing.type == LEONOS_FS_TYPE_DIR) ret = fat32_delete_acl_metadata_file(existing.first_cluster);
+        if (existing.type == RELIEFOS_FS_TYPE_DIR) ret = fat32_delete_acl_metadata_file(existing.first_cluster);
         if (!ret && existing.first_cluster >= 2) ret = fat32_free_chain(existing.first_cluster);
         storage_cache_invalidate();
         return ret;
@@ -1978,8 +1978,8 @@ int storage_rename(const char *old_path, const char *new_path)
     first_cluster = node.first_cluster;
     storage_begin_mutation();
     ret = fat32_create_dirent(parent_node.first_cluster, new_name,
-                              node.type == LEONOS_FS_TYPE_DIR ? FAT32_ATTR_DIRECTORY : FAT32_ATTR_ARCHIVE,
-                              first_cluster, node.type == LEONOS_FS_TYPE_FILE ? (uint32_t)node.size : 0);
+                              node.type == RELIEFOS_FS_TYPE_DIR ? FAT32_ATTR_DIRECTORY : FAT32_ATTR_ARCHIVE,
+                              first_cluster, node.type == RELIEFOS_FS_TYPE_FILE ? (uint32_t)node.size : 0);
     if (ret < 0) {
         return ret;
     }
@@ -1993,10 +1993,10 @@ int storage_rename(const char *old_path, const char *new_path)
 
 int storage_link(const char *old_path, const char *new_path)
 {
-    char old_resolved[LEONOS_FS_PATH_LEN];
-    char new_resolved[LEONOS_FS_PATH_LEN];
-    char old_backend_path[LEONOS_FS_PATH_LEN];
-    char new_backend_path[LEONOS_FS_PATH_LEN];
+    char old_resolved[RELIEFOS_FS_PATH_LEN];
+    char new_resolved[RELIEFOS_FS_PATH_LEN];
+    char old_backend_path[RELIEFOS_FS_PATH_LEN];
+    char new_backend_path[RELIEFOS_FS_PATH_LEN];
     struct storage_volume *old_volume;
     struct storage_volume *new_volume;
     int ret;
@@ -2025,8 +2025,8 @@ int storage_link(const char *old_path, const char *new_path)
 
 int storage_symlink(const char *target, const char *path)
 {
-    char resolved[LEONOS_FS_PATH_LEN];
-    char backend_path[LEONOS_FS_PATH_LEN];
+    char resolved[RELIEFOS_FS_PATH_LEN];
+    char backend_path[RELIEFOS_FS_PATH_LEN];
     struct storage_volume *volume;
     struct storage_volume *previous;
     uint64_t irq_flags;
@@ -2049,7 +2049,7 @@ int storage_symlink(const char *target, const char *path)
     storage_begin_mutation();
     ret = ext2_symlink(target, backend_path);
     if (!ret) {
-        struct leonos_time_info now;
+        struct reliefos_time_info now;
         struct storage_node node;
         if (time_wall_clock(&now) == 0 && ext2_lookup_path(backend_path, &node) == 0)
             ret = storage_inode_utimensat(&node, now.unix_seconds, now.unix_seconds, true, true);
@@ -2072,7 +2072,7 @@ int storage_readlink(const char *path, char *buffer, uint32_t capacity, uint32_t
     kernel_execution_lock_irqsave(&irq_flags);
     previous = g_active_volume;
     ret = storage_lookup_path_unlocked(path, &node);
-    if (!ret && node.type != LEONOS_FS_TYPE_SYMLINK) ret = -22;
+    if (!ret && node.type != RELIEFOS_FS_TYPE_SYMLINK) ret = -22;
     if (!ret && (node.flags & STORAGE_NODE_FLAG_DEV_LINK)) {
         char target[48];
         ret = storage_devlink_target(path, target);
@@ -2090,11 +2090,11 @@ int storage_readlink(const char *path, char *buffer, uint32_t capacity, uint32_t
     return ret;
 }
 
-int storage_list_dir(const char *path, struct leonos_dir_entry *entries,
+int storage_list_dir(const char *path, struct reliefos_dir_entry *entries,
                      uint32_t capacity, uint32_t *out_count)
 {
     struct storage_node node;
-    char resolved[LEONOS_FS_PATH_LEN];
+    char resolved[RELIEFOS_FS_PATH_LEN];
     uint64_t cursor = 0;
     uint32_t count = 0;
     if (!out_count) {
@@ -2105,11 +2105,11 @@ int storage_list_dir(const char *path, struct leonos_dir_entry *entries,
     if (ret < 0) {
         return ret;
     }
-    if (node.type != LEONOS_FS_TYPE_DIR) {
+    if (node.type != RELIEFOS_FS_TYPE_DIR) {
         return -20;
     }
     while (count < capacity) {
-        struct leonos_dir_entry tmp;
+        struct reliefos_dir_entry tmp;
         int step = storage_readdir_node(&node, &cursor, &tmp);
         if (step < 0) {
             return step;
@@ -2126,7 +2126,7 @@ int storage_list_dir(const char *path, struct leonos_dir_entry *entries,
                                                 sizeof(resolved)) == 0 &&
         storage_text_eq_ci(resolved, "/") && count < capacity) {
         if (entries) {
-            entries[count].type = LEONOS_FS_TYPE_DIR;
+            entries[count].type = RELIEFOS_FS_TYPE_DIR;
             storage_copy_text(entries[count].name, sizeof(entries[count].name), "dev");
         }
         ++count;
@@ -2135,7 +2135,7 @@ int storage_list_dir(const char *path, struct leonos_dir_entry *entries,
     return 0;
 }
 
-int storage_stat_path(const char *path, struct leonos_stat *st)
+int storage_stat_path(const char *path, struct reliefos_stat *st)
 {
     struct storage_node node;
     if (!st) {
@@ -2166,7 +2166,7 @@ int storage_create_special(const char *path, uint32_t mode, struct storage_node 
     if (!ret) return -17;
     if (ret != -2) return ret;
     struct storage_volume *volume;
-    char backend[LEONOS_FS_PATH_LEN];
+    char backend[RELIEFOS_FS_PATH_LEN];
     ret = storage_route_path(path, &volume, backend, sizeof(backend));
     if (ret < 0) return ret;
     if (volume->filesystem == STORAGE_FILESYSTEM_TMPFS) {
@@ -2180,7 +2180,7 @@ int storage_create_special(const char *path, uint32_t mode, struct storage_node 
     if (ret < 0) return ret;
     if (out->flags & STORAGE_NODE_FLAG_EXT2) {
         struct storage_volume *previous = NULL;
-        char backend[LEONOS_FS_PATH_LEN];
+        char backend[RELIEFOS_FS_PATH_LEN];
         ret = storage_select_node_volume(out, &previous);
         if (!ret) ret = storage_backend_path(path, backend, sizeof(backend));
         if (!ret) ret = ext2_mark_special(backend, out, mode);
@@ -2189,7 +2189,7 @@ int storage_create_special(const char *path, uint32_t mode, struct storage_node 
     if (ret < 0) { (void)storage_unlink(path); return ret; }
     /* FAT/exFAT retain the directory entry; its type and DAC metadata are
      * persisted in LEONACL.SYS by fs_permissions_create. */
-    out->type = mode == LINUX_S_IFSOCK ? LEONOS_FS_TYPE_SOCKET : LEONOS_FS_TYPE_FIFO;
+    out->type = mode == LINUX_S_IFSOCK ? RELIEFOS_FS_TYPE_SOCKET : RELIEFOS_FS_TYPE_FIFO;
     return 0;
 }
 

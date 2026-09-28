@@ -1,39 +1,25 @@
+/* Transitional compatibility forwarder (ReliefOS / ReliefNT rename).
+ * Canonical declarations: <reliefos/elf_abi.h>.
+ * No second layout definition exists behind these names. */
 #ifndef LEONOS_ELF_ABI_H
 #define LEONOS_ELF_ABI_H
+#include <reliefos/elf_abi.h>
 
-/* Historical private ABI identification used to diagnose old binaries.
- * Current musl executables use the Linux initial stack and do not require
- * this note. The old loader/runtime are no longer distributed. */
-#define LEONOS_ELF_NOTE_NAME "LeonOS"
-#define LEONOS_ELF_NOTE_TYPE 0x4c4f5341u /* "LOSA" */
-#define LEONOS_ELF_ABI_MAJOR 1u
-#define LEONOS_ELF_ABI_MINOR 0u
+/* Old names are macro aliases to the same declarations. */
+#define LEONOS_ELF_ABI_MAJOR RELIEFOS_ELF_ABI_MAJOR
+#define LEONOS_ELF_ABI_MINOR RELIEFOS_ELF_ABI_MINOR
+#define LEONOS_ELF_INTERP_PATH RELIEFOS_ELF_INTERP_PATH
+#define LEONOS_ELF_NOTE_NAME RELIEFOS_ELF_NOTE_NAME
+#define LEONOS_ELF_NOTE_TYPE RELIEFOS_ELF_NOTE_TYPE
+#define LEONOS_ELF_RUNTIME_PATH RELIEFOS_ELF_RUNTIME_PATH
+#define LEONOS_ELF_RUNTIME_SONAME RELIEFOS_ELF_RUNTIME_SONAME
+#define LEONOS_GLIBC_INTERP_PATH RELIEFOS_GLIBC_INTERP_PATH
+#define LEONOS_MUSL_INTERP_PATH RELIEFOS_MUSL_INTERP_PATH
+#define LEONOS_PATH_GLIBC_INTERP RELIEFOS_PATH_GLIBC_INTERP
+#define LEONOS_PATH_LIBLEONOS_COMPAT RELIEFOS_PATH_LIBRELIEFOS_COMPAT
+#define LEONOS_PATH_MUSL_INTERP RELIEFOS_PATH_MUSL_INTERP
+#define LEONOS_PATH_OLD_NATIVE_INTERP RELIEFOS_PATH_OLD_NATIVE_INTERP
+#define leonos_dynamic_launch reliefos_dynamic_launch
+#define leonos_elf_abi_note reliefos_elf_abi_note
 
-#include <leonos/layout.h>
-
-#define LEONOS_ELF_INTERP_PATH LEONOS_PATH_OLD_NATIVE_INTERP
-#define LEONOS_MUSL_INTERP_PATH LEONOS_PATH_MUSL_INTERP
-#define LEONOS_GLIBC_INTERP_PATH LEONOS_PATH_GLIBC_INTERP
-#define LEONOS_ELF_RUNTIME_SONAME "libleonos.so.1"
-#define LEONOS_ELF_RUNTIME_PATH LEONOS_PATH_LIBLEONOS_COMPAT
-
-struct leonos_elf_abi_note {
-    unsigned int major;
-    unsigned int minor;
-};
-
-/* Passed by the kernel to ld-leonos in r8.  The normal LeonOS argc/argv/envp
- * register ABI remains unchanged in rdi/rsi/rdx. */
-struct leonos_dynamic_launch {
-    unsigned long long main_base;
-    unsigned long long main_entry;
-    unsigned long long main_phdr;
-    unsigned long long interp_base;
-    unsigned long long interp_entry;
-    unsigned int abi_major;
-    unsigned int reserved;
-    unsigned char random[16];
-    char main_path[260];
-};
-
-#endif
+#endif /* LEONOS_ELF_ABI_H */

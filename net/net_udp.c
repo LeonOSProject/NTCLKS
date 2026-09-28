@@ -1,14 +1,14 @@
 /* IPv4 datagrams share the task_file open-description lifetime. All entry
  * points run under the kernel execution lock, including packet delivery. */
-#include <ntclks/net_udp.h>
-#include <ntclks/net.h>
-#include <ntclks/heap.h>
-#include <ntclks/sched.h>
-#include <ntclks/syscall.h>
-#include <ntclks/syscall_internal.h>
-#include <ntclks/usercopy.h>
-#include <ntclks/time.h>
-#include <ntclks/futex.h>
+#include <reliefnt/net_udp.h>
+#include <reliefnt/net.h>
+#include <reliefnt/heap.h>
+#include <reliefnt/sched.h>
+#include <reliefnt/syscall.h>
+#include <reliefnt/syscall_internal.h>
+#include <reliefnt/usercopy.h>
+#include <reliefnt/time.h>
+#include <reliefnt/futex.h>
 #include <linux/socket.h>
 #include <linux/errno.h>
 #include <linux/capability.h>
@@ -44,7 +44,7 @@ static struct udp_socket *udp_from_file(struct task_file *file)
 static int bind_port(struct udp_socket *s, uint32_t ip, uint16_t port)
 {
     if (s->bound) return -LINUX_EINVAL;
-    struct leonos_net_config config;
+    struct reliefos_net_config config;
     net_get_config(&config);
     if (ip && (ip >> 24) != 127 && ip != config.local_ip) return -LINUX_EADDRNOTAVAIL;
     struct task *task = sched_current_task();
@@ -128,7 +128,7 @@ int task_udp_send(struct task_file *file, const void *data, uint32_t length,
     if (!port) return -LINUX_EINVAL;
     if (ip == 0xffffffffu && !s->broadcast) return -LINUX_EACCES;
     if (!s->bound) { int ret = bind_port(s, 0, 0); if (ret < 0) return ret; }
-    struct leonos_net_config config;
+    struct reliefos_net_config config;
     net_get_config(&config);
     if ((ip >> 24) == 127 || (ip && ip == config.local_ip)) {
         if (s->ifindex && s->ifindex != 1) return -LINUX_ENETUNREACH;
@@ -148,7 +148,7 @@ int task_udp_recv(struct task_file *file, void *data, uint32_t length,
     if (flags & ~(MSG_DONTWAIT | MSG_PEEK | MSG_TRUNC | MSG_WAITALL)) return -LINUX_EOPNOTSUPP;
     net_poll_packets();
     if (!s->head) {
-        if ((file->flags & LEONOS_O_NONBLOCK) || (flags & MSG_DONTWAIT)) return -LINUX_EAGAIN;
+        if ((file->flags & RELIEFOS_O_NONBLOCK) || (flags & MSG_DONTWAIT)) return -LINUX_EAGAIN;
         struct task *task = sched_current_task();
         uint64_t now = time_ticks();
         if (!task->socket_io_deadline) {
@@ -224,12 +224,12 @@ int64_t syscall_udp(uint64_t number, uint64_t a0, uint64_t a1, uint64_t a2,
         if (fd < 0) { kernel_free(s); return fd; }
         *s = (struct udp_socket){0};
         sockets[index] = s;
-        file->flags = TASK_FILE_FLAG_SOCKET | TASK_FILE_FLAG_SOCKET_INET | LEONOS_O_RDWR |
-            (a1 & SOCK_NONBLOCK ? LEONOS_O_NONBLOCK : 0);
+        file->flags = TASK_FILE_FLAG_SOCKET | TASK_FILE_FLAG_SOCKET_INET | RELIEFOS_O_RDWR |
+            (a1 & SOCK_NONBLOCK ? RELIEFOS_O_NONBLOCK : 0);
         file->fd_flags = (a1 & SOCK_CLOEXEC) != 0;
         file->kind = TASK_FILE_KIND_UDP;
         file->aux = (uintptr_t)s;
-        file->node.type = LEONOS_FS_TYPE_DEVICE;
+        file->node.type = RELIEFOS_FS_TYPE_DEVICE;
         return fd;
     }
     struct task_file *file = task_file_for_fd(task, (int32_t)a0);
@@ -250,7 +250,7 @@ int64_t syscall_udp(uint64_t number, uint64_t a0, uint64_t a1, uint64_t a2,
     }
     if (number == __NR_getsockname || number == __NR_getpeername) {
         if (number == __NR_getpeername && !s->connected) return -LINUX_ENOTCONN;
-        struct leonos_net_config config;
+        struct reliefos_net_config config;
         net_get_config(&config);
         uint32_t local = s->local;
         if (!local && s->connected) local = s->remote >> 24 == 127 ? 0x7f000001 : config.local_ip;
@@ -298,13 +298,13 @@ int64_t syscall_udp(uint64_t number, uint64_t a0, uint64_t a1, uint64_t a2,
                 __builtin_memcpy(tv, (void *)(uintptr_t)a3, sizeof(tv));
                 if (tv[0] < 0 || tv[1] < 0 || tv[1] >= 1000000) return -LINUX_EDOM;
                 uint64_t seconds = (uint64_t)tv[0];
-                *timeout = seconds > (UINT64_MAX - NTCLKS_TICK_HZ) / NTCLKS_TICK_HZ
-                    ? UINT64_MAX : seconds * NTCLKS_TICK_HZ +
-                      ((uint64_t)tv[1] * NTCLKS_TICK_HZ + 999999) / 1000000;
+                *timeout = seconds > (UINT64_MAX - RELIEFNT_TICK_HZ) / RELIEFNT_TICK_HZ
+                    ? UINT64_MAX : seconds * RELIEFNT_TICK_HZ +
+                      ((uint64_t)tv[1] * RELIEFNT_TICK_HZ + 999999) / 1000000;
                 return 0;
             }
-            tv[0] = *timeout / NTCLKS_TICK_HZ;
-            tv[1] = (*timeout % NTCLKS_TICK_HZ) * 1000000 / NTCLKS_TICK_HZ;
+            tv[0] = *timeout / RELIEFNT_TICK_HZ;
+            tv[1] = (*timeout % RELIEFNT_TICK_HZ) * 1000000 / RELIEFNT_TICK_HZ;
             if (length > sizeof(tv)) length = sizeof(tv);
             if (length && !user_range_writable(a3, length)) return -LINUX_EFAULT;
             __builtin_memcpy((void *)(uintptr_t)a3, tv, length);

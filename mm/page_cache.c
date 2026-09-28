@@ -1,10 +1,10 @@
 /*
- * LeonOS read-only page cache implementation.
+ * ReliefOS read-only page cache implementation.
  * Entries retain physical pages until invalidated or replaced while idle.
  */
-#include <ntclks/lock.h>
-#include <ntclks/mm.h>
-#include <ntclks/page_cache.h>
+#include <reliefnt/lock.h>
+#include <reliefnt/mm.h>
+#include <reliefnt/page_cache.h>
 
 #define PAGE_CACHE_MAX 4096u
 #define PAGE_CACHE_PAGE_SIZE 4096ULL

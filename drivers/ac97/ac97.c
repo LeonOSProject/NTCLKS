@@ -1,4 +1,4 @@
-#include <leonos/driver.h>
+#include <reliefos/driver.h>
 
 #define AC97_VENDOR_INTEL 0x8086U
 #define AC97_DEVICE_ICH 0x2415U
@@ -53,7 +53,7 @@ struct ac97_buffer_desc {
 struct ac97_state {
     uint32_t present;
     uint32_t active;
-    struct leonos_driver_pci_device pci;
+    struct reliefos_driver_pci_device pci;
     uint16_t mixer_port;
     uint16_t bus_master_port;
     uint64_t bdl_phys;
@@ -85,7 +85,7 @@ struct ac97_state {
     uint8_t variable_rate;
 };
 
-static const struct leonos_driver_kernel_api *kernel_api;
+static const struct reliefos_driver_kernel_api *kernel_api;
 static struct ac97_state ac97;
 
 static void ac97_free_dma(void);
@@ -269,7 +269,7 @@ static int ac97_is_ready(void)
 }
 
 static __attribute__((noinline)) int ac97_apply_format(
-    const struct leonos_audio_format *format)
+    const struct reliefos_audio_format *format)
 {
     ac97.sample_rate = format->sample_rate;
     ac97.channels = format->channels;
@@ -337,7 +337,7 @@ static void ac97_codec_initialize(void)
     }
 }
 
-static int ac97_configure(const struct leonos_audio_format *format)
+static int ac97_configure(const struct reliefos_audio_format *format)
 {
     uint16_t ext_id;
     uint16_t ext_ctrl;
@@ -606,7 +606,7 @@ static long ac97_write(const void *data, uint32_t length, uint32_t *out_status)
     const uint8_t *bytes = (const uint8_t *)data;
     uint32_t written = 0;
     if (out_status) {
-        *out_status = LEONOS_AUDIO_STATUS_PLAYBACK_FAILED;
+        *out_status = RELIEFOS_AUDIO_STATUS_PLAYBACK_FAILED;
     }
     if (!ac97_is_ready() || (!data && length) || (length & 3U)) {
         return -22;
@@ -647,21 +647,21 @@ static long ac97_write(const void *data, uint32_t length, uint32_t *out_status)
         (void)ac97_start_locked();
     }
     if (out_status) {
-        *out_status = written < length ? LEONOS_AUDIO_STATUS_WOULD_BLOCK
-                                        : LEONOS_AUDIO_STATUS_OK;
+        *out_status = written < length ? RELIEFOS_AUDIO_STATUS_WOULD_BLOCK
+                                        : RELIEFOS_AUDIO_STATUS_OK;
     }
     ac97_unlock();
     return (long)written;
 }
 
-static void ac97_get_state(struct leonos_audio_state *out)
+static void ac97_get_state(struct reliefos_audio_state *out)
 {
     if (!out) {
         return;
     }
     ac97_lock();
     ac97_refresh_locked();
-    *out = (struct leonos_audio_state){
+    *out = (struct reliefos_audio_state){
         .present = ac97.present,
         .active = ac97.active,
         .sample_rate = ac97.sample_rate,
@@ -681,7 +681,7 @@ static void ac97_get_state(struct leonos_audio_state *out)
 static int ac97_hardware_init(void)
 {
     uint16_t command;
-    struct leonos_audio_format default_format = {
+    struct reliefos_audio_format default_format = {
         .sample_rate = 48000U,
         .channels = 2U,
         .bits_per_sample = 16U,
@@ -717,15 +717,15 @@ static int ac97_hardware_init(void)
     return 0;
 }
 
-static int ac97_driver_init(const struct leonos_driver_kernel_api *api)
+static int ac97_driver_init(const struct reliefos_driver_kernel_api *api)
 {
-    static const struct leonos_driver_audio_ops ops = {
+    static const struct reliefos_driver_audio_ops ops = {
         .is_ready = ac97_is_ready,
         .configure = ac97_configure,
         .write = ac97_write,
         .get_state = ac97_get_state,
     };
-    if (!api || api->abi_version != LEONOS_DRIVER_ABI_VERSION ||
+    if (!api || api->abi_version != RELIEFOS_DRIVER_ABI_VERSION ||
         api->struct_size < sizeof(*api)) {
         return -22;
     }
@@ -745,11 +745,11 @@ static void ac97_driver_fini(void)
     ac97_zero(&ac97, sizeof(ac97));
 }
 
-const struct leonos_driver_module leonos_driver_module = {
-    .magic = LEONOS_DRIVER_MODULE_MAGIC,
-    .abi_version = LEONOS_DRIVER_ABI_VERSION,
-    .struct_size = sizeof(struct leonos_driver_module),
-    .kind = LEONOS_DRIVER_KIND_AUDIO,
+const struct reliefos_driver_module reliefos_driver_module = {
+    .magic = RELIEFOS_DRIVER_MODULE_MAGIC,
+    .abi_version = RELIEFOS_DRIVER_ABI_VERSION,
+    .struct_size = sizeof(struct reliefos_driver_module),
+    .kind = RELIEFOS_DRIVER_KIND_AUDIO,
     .name = "ac97",
     .version = 1U,
     .reserved = 0,

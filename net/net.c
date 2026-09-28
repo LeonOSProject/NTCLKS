@@ -1,24 +1,24 @@
 /*
- * LeonOS kernel networking: provides the network and socket service layer.
+ * ReliefOS kernel networking: provides the network and socket service layer.
  * Handles interfaces, packet transport, TCP state, and user-facing requests.
  */
-#include <ntclks/console.h>
-#include <ntclks/e1000.h>
-#include <ntclks/heap.h>
-#include <ntclks/net.h>
-#include <ntclks/net_packet.h>
-#include <ntclks/net_udp.h>
+#include <reliefnt/console.h>
+#include <reliefnt/e1000.h>
+#include <reliefnt/heap.h>
+#include <reliefnt/net.h>
+#include <reliefnt/net_packet.h>
+#include <reliefnt/net_udp.h>
 #include <linux/errno.h>
 #include <linux/if.h>
 #include <linux/capability.h>
-#include <ntclks/usercopy.h>
-#include <ntclks/sched.h>
+#include <reliefnt/usercopy.h>
+#include <reliefnt/sched.h>
 #include <linux/poll.h>
-#include <ntclks/storage.h>
-#include <ntclks/time.h>
-#include <leonos/layout.h>
+#include <reliefnt/storage.h>
+#include <reliefnt/time.h>
+#include <reliefos/layout.h>
 
-#include <leonos/device_abi.h>
+#include <reliefos/device_abi.h>
 
 #define ETH_TYPE_IPV4 0x0800u
 #define ETH_TYPE_ARP 0x0806u
@@ -68,8 +68,8 @@
 #endif
 #define NET_SOCKET_CLOSE_HOLD_MS 10000u
 #define NET_SOCKET_DEFAULT_TIMEOUT_MS 5000u
-#define NET_NETWORK_CONFIG_PATH LEONOS_PATH_NETWORK_CONF
-#define NET_NETWORK_CONFIG_BACKUP_PATH LEONOS_PATH_NETWORK_BAK
+#define NET_NETWORK_CONFIG_PATH RELIEFOS_PATH_NETWORK_CONF
+#define NET_NETWORK_CONFIG_BACKUP_PATH RELIEFOS_PATH_NETWORK_BAK
 #define NET_NETWORK_CONFIG_MAX 256u
 #define NET_NTP_UNIX_EPOCH_OFFSET 2208988800ULL
 
@@ -164,17 +164,17 @@ struct net_socket {
 static const uint8_t net_broadcast_mac[6] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
 static uint32_t net_sequence = 1;
 static uint16_t net_ipv4_id = 1;
-static struct leonos_net_config net_config;
+static struct reliefos_net_config net_config;
 static bool net_interface_up = true;
 static uint32_t net_interface_broadcast;
 static uint16_t net_packet_ip_id;
-static uint32_t net_dns_mode = LEONOS_NET_DNS_MODE_DHCP;
+static uint32_t net_dns_mode = RELIEFOS_NET_DNS_MODE_DHCP;
 static uint32_t net_dns_custom_ip;
 static uint32_t net_dhcp_dns_ip;
 static uint64_t net_dhcp_acquired_ms;
 static struct net_arp_cache_entry net_arp_cache[NET_ARP_CACHE_SIZE];
 static uint32_t net_arp_cache_next;
-static struct net_socket net_sockets[LEONOS_NET_SOCKET_MAX];
+static struct net_socket net_sockets[RELIEFOS_NET_SOCKET_MAX];
 static int32_t net_next_socket_handle = 1;
 
 /**
@@ -383,7 +383,7 @@ static int net_load_dns_policy_file(const char *path)
 
     if (!path || !storage_ready() ||
         storage_lookup_path(path, &node) < 0 ||
-        node.type != LEONOS_FS_TYPE_FILE) {
+        node.type != RELIEFOS_FS_TYPE_FILE) {
         return -1;
     }
     if (storage_read_node(&node, 0, cfg, sizeof(cfg) - 1u, &got) < 0) {
@@ -404,11 +404,11 @@ static int net_load_dns_policy_file(const char *path)
         }
         if (net_line_value(cfg + start, line_len, "dns_mode", &value, &value_len)) {
             if (net_value_eq(value, value_len, "dhcp")) {
-                net_dns_mode = LEONOS_NET_DNS_MODE_DHCP;
+                net_dns_mode = RELIEFOS_NET_DNS_MODE_DHCP;
             } else if (net_value_eq(value, value_len, "custom")) {
-                net_dns_mode = LEONOS_NET_DNS_MODE_CUSTOM;
+                net_dns_mode = RELIEFOS_NET_DNS_MODE_CUSTOM;
             } else if (net_value_eq(value, value_len, "cloudflare")) {
-                net_dns_mode = LEONOS_NET_DNS_MODE_CLOUDFLARE;
+                net_dns_mode = RELIEFOS_NET_DNS_MODE_CLOUDFLARE;
             }
         } else if (net_line_value(cfg + start, line_len, "dns_custom", &value, &value_len)) {
             uint32_t parsed_ip;
@@ -425,13 +425,13 @@ static int net_load_dns_policy_file(const char *path)
  */
 static void net_load_dns_policy(void)
 {
-    net_dns_mode = LEONOS_NET_DNS_MODE_DHCP;
+    net_dns_mode = RELIEFOS_NET_DNS_MODE_DHCP;
     net_dns_custom_ip = 0;
     if (net_load_dns_policy_file(NET_NETWORK_CONFIG_PATH) < 0) {
         (void)net_load_dns_policy_file(NET_NETWORK_CONFIG_BACKUP_PATH);
     }
-    if (net_dns_mode == LEONOS_NET_DNS_MODE_CUSTOM && !net_dns_custom_ip) {
-        net_dns_mode = LEONOS_NET_DNS_MODE_CLOUDFLARE;
+    if (net_dns_mode == RELIEFOS_NET_DNS_MODE_CUSTOM && !net_dns_custom_ip) {
+        net_dns_mode = RELIEFOS_NET_DNS_MODE_CLOUDFLARE;
     }
 }
 
@@ -442,13 +442,13 @@ static void net_load_dns_policy(void)
  */
 static uint32_t net_effective_dns_ip(uint32_t dhcp_dns_ip)
 {
-    if (net_dns_mode == LEONOS_NET_DNS_MODE_CUSTOM && net_dns_custom_ip) {
+    if (net_dns_mode == RELIEFOS_NET_DNS_MODE_CUSTOM && net_dns_custom_ip) {
         return net_dns_custom_ip;
     }
-    if (net_dns_mode == LEONOS_NET_DNS_MODE_DHCP) {
+    if (net_dns_mode == RELIEFOS_NET_DNS_MODE_DHCP) {
         return dhcp_dns_ip;
     }
-    return LEONOS_NET_CLOUDFLARE_DNS_IP;
+    return RELIEFOS_NET_CLOUDFLARE_DNS_IP;
 }
 
 
@@ -726,10 +726,10 @@ static void net_update_config_flags(void)
     uint32_t flags = 0;
     struct e1000_info info;
     e1000_get_info(&info);
-    if (info.present) flags |= LEONOS_NET_CONFIG_FLAG_PRESENT;
-    if (info.active && net_interface_up) flags |= LEONOS_NET_CONFIG_FLAG_ACTIVE;
-    if (net_config.source == LEONOS_NET_CONFIG_SOURCE_DHCP) {
-        flags |= LEONOS_NET_CONFIG_FLAG_DHCP;
+    if (info.present) flags |= RELIEFOS_NET_CONFIG_FLAG_PRESENT;
+    if (info.active && net_interface_up) flags |= RELIEFOS_NET_CONFIG_FLAG_ACTIVE;
+    if (net_config.source == RELIEFOS_NET_CONFIG_SOURCE_DHCP) {
+        flags |= RELIEFOS_NET_CONFIG_FLAG_DHCP;
     }
     net_config.flags = flags;
     net_memzero(net_config.mac, sizeof(net_config.mac));
@@ -744,9 +744,9 @@ static void net_set_static_fallback(void)
     net_arp_cache_clear();
     net_dhcp_dns_ip = 0;
     net_dhcp_acquired_ms = 0;
-    net_config = (struct leonos_net_config){
+    net_config = (struct reliefos_net_config){
         .flags = 0,
-        .source = LEONOS_NET_CONFIG_SOURCE_NONE,
+        .source = RELIEFOS_NET_CONFIG_SOURCE_NONE,
         .local_ip = 0,
         .subnet_mask = 0,
         .gateway_ip = 0,
@@ -759,7 +759,7 @@ static void net_set_static_fallback(void)
 
 static void net_expire_lease(void)
 {
-    if (net_config.source == LEONOS_NET_CONFIG_SOURCE_DHCP && net_config.lease_seconds != UINT32_MAX &&
+    if (net_config.source == RELIEFOS_NET_CONFIG_SOURCE_DHCP && net_config.lease_seconds != UINT32_MAX &&
         time_uptime_ms() - net_dhcp_acquired_ms >= (uint64_t)net_config.lease_seconds * 1000)
         net_set_static_fallback();
 }
@@ -772,14 +772,14 @@ static void net_apply_dhcp_offer(const struct net_dhcp_offer *offer)
 {
     net_arp_cache_clear();
     net_config.local_ip = offer->yiaddr;
-    net_config.subnet_mask = offer->subnet_mask ? offer->subnet_mask : LEONOS_NET_DEFAULT_SUBNET_MASK;
+    net_config.subnet_mask = offer->subnet_mask ? offer->subnet_mask : RELIEFOS_NET_DEFAULT_SUBNET_MASK;
     net_config.gateway_ip = offer->router_ip;
     net_dhcp_dns_ip = offer->dns_ip;
     net_config.dns_ip = net_effective_dns_ip(net_dhcp_dns_ip);
     net_config.dhcp_server_ip = offer->server_ip;
     net_config.lease_seconds = offer->lease_seconds;
     net_dhcp_acquired_ms = time_uptime_ms();
-    net_config.source = LEONOS_NET_CONFIG_SOURCE_DHCP;
+    net_config.source = RELIEFOS_NET_CONFIG_SOURCE_DHCP;
     net_update_config_flags();
 }
 
@@ -994,7 +994,7 @@ static int net_send_tcp_to_mac(const uint8_t *dst_mac, uint32_t src_ip,
     tcp[13] = flags;
     uint32_t window = 8192u;
     struct net_socket *receiver = 0;
-    for (unsigned i = 0; i < LEONOS_NET_SOCKET_MAX; ++i) {
+    for (unsigned i = 0; i < RELIEFOS_NET_SOCKET_MAX; ++i) {
         struct net_socket *s = &net_sockets[i];
         if (s->used && s->local_port == src_port && s->remote_port == dst_port &&
             s->remote_ip == dst_ip) {
@@ -1436,13 +1436,13 @@ static void net_socket_touch(struct net_socket *socket)
 static void net_socket_gc(void)
 {
     uint32_t now = net_now32();
-    for (uint32_t i = 0; i < LEONOS_NET_SOCKET_MAX; ++i) {
+    for (uint32_t i = 0; i < RELIEFOS_NET_SOCKET_MAX; ++i) {
         struct net_socket *socket = &net_sockets[i];
         if (!socket->used || socket->fd_owned) {
             continue;
         }
-        if ((socket->state == LEONOS_NET_TCP_CLOSED ||
-             socket->state == LEONOS_NET_TCP_TIME_WAIT) &&
+        if ((socket->state == RELIEFOS_NET_TCP_CLOSED ||
+             socket->state == RELIEFOS_NET_TCP_TIME_WAIT) &&
             now - socket->changed_ms >= NET_SOCKET_CLOSE_HOLD_MS) {
             net_socket_clear(socket);
         }
@@ -1462,7 +1462,7 @@ static struct net_socket *net_socket_find(int32_t handle, uint32_t owner_pid,
     if (handle <= 0) {
         return 0;
     }
-    for (uint32_t i = 0; i < LEONOS_NET_SOCKET_MAX; ++i) {
+    for (uint32_t i = 0; i < RELIEFOS_NET_SOCKET_MAX; ++i) {
         struct net_socket *socket = &net_sockets[i];
         if (!socket->used || socket->handle != handle) {
             continue;
@@ -1470,7 +1470,7 @@ static struct net_socket *net_socket_find(int32_t handle, uint32_t owner_pid,
         if (owner_pid && socket->owner_pid != owner_pid) {
             continue;
         }
-        if (!allow_closed && socket->state == LEONOS_NET_TCP_CLOSED) {
+        if (!allow_closed && socket->state == RELIEFOS_NET_TCP_CLOSED) {
             return 0;
         }
         return socket;
@@ -1488,9 +1488,9 @@ static struct net_socket *net_socket_find(int32_t handle, uint32_t owner_pid,
 static struct net_socket *net_socket_match(uint32_t src_ip, uint16_t src_port,
                                            uint16_t dst_port)
 {
-    for (uint32_t i = 0; i < LEONOS_NET_SOCKET_MAX; ++i) {
+    for (uint32_t i = 0; i < RELIEFOS_NET_SOCKET_MAX; ++i) {
         struct net_socket *socket = &net_sockets[i];
-        if (!socket->used || socket->state == LEONOS_NET_TCP_CLOSED) {
+        if (!socket->used || socket->state == RELIEFOS_NET_TCP_CLOSED) {
             continue;
         }
         if (socket->remote_ip == src_ip &&
@@ -1512,7 +1512,7 @@ static void net_socket_mark_closed(struct net_socket *socket, uint32_t status)
     if (!socket) {
         return;
     }
-    socket->state = LEONOS_NET_TCP_CLOSED;
+    socket->state = RELIEFOS_NET_TCP_CLOSED;
     socket->status = status;
     net_socket_touch(socket);
 }
@@ -1560,17 +1560,17 @@ static void net_socket_handle_tcp(uint32_t src_ip, uint16_t src_port,
         }
     }
     if (flags & TCP_FLAG_RST) {
-        socket->error = socket->state == LEONOS_NET_TCP_SYN_SENT ? LINUX_ECONNREFUSED : LINUX_ECONNRESET;
-        net_socket_mark_closed(socket, LEONOS_NET_STATUS_TCP_RESET);
+        socket->error = socket->state == RELIEFOS_NET_TCP_SYN_SENT ? LINUX_ECONNREFUSED : LINUX_ECONNRESET;
+        net_socket_mark_closed(socket, RELIEFOS_NET_STATUS_TCP_RESET);
         return;
     }
-    if (socket->state == LEONOS_NET_TCP_SYN_SENT) {
+    if (socket->state == RELIEFOS_NET_TCP_SYN_SENT) {
         if ((flags & (TCP_FLAG_SYN | TCP_FLAG_ACK)) ==
                 (TCP_FLAG_SYN | TCP_FLAG_ACK) &&
             socket->acked_seq == socket->local_seq) {
             socket->remote_seq = seq + 1u;
-            socket->state = LEONOS_NET_TCP_ESTABLISHED;
-            socket->status = LEONOS_NET_STATUS_OK;
+            socket->state = RELIEFOS_NET_TCP_ESTABLISHED;
+            socket->status = RELIEFOS_NET_STATUS_OK;
             socket->syn_deadline = 0;
             net_socket_touch(socket);
             if (net_socket_trace_tls(socket)) {
@@ -1585,8 +1585,8 @@ static void net_socket_handle_tcp(uint32_t src_ip, uint16_t src_port,
         }
         return;
     }
-    if (socket->state != LEONOS_NET_TCP_ESTABLISHED &&
-        socket->state != LEONOS_NET_TCP_TIME_WAIT) {
+    if (socket->state != RELIEFOS_NET_TCP_ESTABLISHED &&
+        socket->state != RELIEFOS_NET_TCP_TIME_WAIT) {
         return;
     }
     if (payload_len) {
@@ -1617,7 +1617,7 @@ static void net_socket_handle_tcp(uint32_t src_ip, uint16_t src_port,
             /* Acknowledge only bytes retained. The sender retransmits the
              * suffix once the application opens the receive window again. */
             socket->remote_seq += copy_len;
-            socket->status = LEONOS_NET_STATUS_OK;
+            socket->status = RELIEFOS_NET_STATUS_OK;
             net_socket_touch(socket);
             if (net_socket_trace_tls(socket)) {
                 console_printf("[net] tls rx accepted socket=%d bytes=%u queued=%u next=%u overflow=%u\n",
@@ -1637,8 +1637,8 @@ static void net_socket_handle_tcp(uint32_t src_ip, uint16_t src_port,
         if (seq + payload_len == socket->remote_seq) {
             ++socket->remote_seq;
             socket->fin_received = 1;
-            socket->state = LEONOS_NET_TCP_TIME_WAIT;
-            socket->status = LEONOS_NET_STATUS_OK;
+            socket->state = RELIEFOS_NET_TCP_TIME_WAIT;
+            socket->status = RELIEFOS_NET_STATUS_OK;
             net_socket_touch(socket);
             /**
  * Net dhcp add option.
@@ -1885,7 +1885,7 @@ static int net_dhcp_wait(uint32_t xid, uint32_t timeout_ms,
  * @return The value or status produced by the operation.
  */
 static uint32_t net_dhcp_request(uint32_t timeout_ms,
-                                 struct leonos_net_config *out_config)
+                                 struct reliefos_net_config *out_config)
 {
     struct net_dhcp_offer offer;
     uint32_t xid;
@@ -1894,7 +1894,7 @@ static uint32_t net_dhcp_request(uint32_t timeout_ms,
         if (out_config) {
             *out_config = net_config;
         }
-        return LEONOS_NET_STATUS_NO_DEVICE;
+        return RELIEFOS_NET_STATUS_NO_DEVICE;
     }
     timeout_ms = timeout_ms ? timeout_ms : 3000u;
     if (timeout_ms > 10000u) {
@@ -1905,21 +1905,21 @@ static uint32_t net_dhcp_request(uint32_t timeout_ms,
         if (out_config) {
             *out_config = net_config;
         }
-        return LEONOS_NET_STATUS_TX_FAILED;
+        return RELIEFOS_NET_STATUS_TX_FAILED;
     }
     ret = net_dhcp_wait(xid, timeout_ms, NET_DHCP_OFFER, &offer);
     if (ret < 0 || !offer.yiaddr) {
         if (out_config) {
             *out_config = net_config;
         }
-        return ret == -2 ? LEONOS_NET_STATUS_DHCP_TIMEOUT
-                         : LEONOS_NET_STATUS_DHCP_FAILED;
+        return ret == -2 ? RELIEFOS_NET_STATUS_DHCP_TIMEOUT
+                         : RELIEFOS_NET_STATUS_DHCP_FAILED;
     }
     if (net_dhcp_send(xid, NET_DHCP_REQUEST, offer.yiaddr, offer.server_ip) < 0) {
         if (out_config) {
             *out_config = net_config;
         }
-        return LEONOS_NET_STATUS_TX_FAILED;
+        return RELIEFOS_NET_STATUS_TX_FAILED;
     }
     uint32_t offered_ip = offer.yiaddr, offered_server = offer.server_ip;
     ret = net_dhcp_wait(xid, timeout_ms, NET_DHCP_ACK, &offer);
@@ -1928,14 +1928,14 @@ static uint32_t net_dhcp_request(uint32_t timeout_ms,
         if (out_config) {
             *out_config = net_config;
         }
-        return ret == -2 ? LEONOS_NET_STATUS_DHCP_TIMEOUT
-                         : LEONOS_NET_STATUS_DHCP_FAILED;
+        return ret == -2 ? RELIEFOS_NET_STATUS_DHCP_TIMEOUT
+                         : RELIEFOS_NET_STATUS_DHCP_FAILED;
     }
     net_apply_dhcp_offer(&offer);
     if (out_config) {
         *out_config = net_config;
     }
-    return LEONOS_NET_STATUS_OK;
+    return RELIEFOS_NET_STATUS_OK;
 }
 
 /**
@@ -1948,14 +1948,14 @@ static uint32_t net_ensure_ipv4_config(uint32_t timeout_ms, int require_dns)
 {
     net_expire_lease();
     if (!e1000_is_ready() || !net_interface_up) {
-        return LEONOS_NET_STATUS_NO_DEVICE;
+        return RELIEFOS_NET_STATUS_NO_DEVICE;
     }
     if (net_config.local_ip &&
         (!require_dns || net_config.dns_ip)) {
-        return LEONOS_NET_STATUS_OK;
+        return RELIEFOS_NET_STATUS_OK;
     }
     (void)timeout_ms;
-    return LEONOS_NET_STATUS_NO_ADDRESS;
+    return RELIEFOS_NET_STATUS_NO_ADDRESS;
 }
 
 /**
@@ -1993,10 +1993,10 @@ void net_init(void)
     e1000_init();
     net_set_static_fallback();
     if (!e1000_is_ready()) {
-        console_printf("[ntclks] net unavailable: no active e1000\n");
+        console_printf("[reliefnt] net unavailable: no active e1000\n");
         return;
     }
-    net_log_config("[ntclks] interface ready; OpenRC DHCP client owns configuration");
+    net_log_config("[reliefnt] interface ready; OpenRC DHCP client owns configuration");
 }
 
 /**
@@ -2061,7 +2061,7 @@ int net_ipv4_send_udp(uint32_t source, uint32_t destination, uint16_t source_por
                        uint16_t destination_port, const void *data, uint32_t length)
 {
     if (!e1000_is_ready()) return -LINUX_ENETDOWN;
-    if (net_ensure_ipv4_config(3000, 0) != LEONOS_NET_STATUS_OK) return -LINUX_ENETUNREACH;
+    if (net_ensure_ipv4_config(3000, 0) != RELIEFOS_NET_STATUS_OK) return -LINUX_ENETUNREACH;
     uint8_t mac[6];
     if (destination == 0xffffffffu) net_memcpy(mac, net_broadcast_mac, 6);
     else if (net_resolve_mac(net_route_arp_ip(destination), 1000, mac) < 0) return -LINUX_EHOSTUNREACH;
@@ -2075,7 +2075,7 @@ int net_ipv4_send_udp(uint32_t source, uint32_t destination, uint16_t source_por
  * @param config Value supplied by the caller.
  * @return The value or status produced by the operation.
  */
-int net_get_config(struct leonos_net_config *config)
+int net_get_config(struct reliefos_net_config *config)
 {
     if (!config) {
         return -1;
@@ -2083,7 +2083,7 @@ int net_get_config(struct leonos_net_config *config)
     net_expire_lease();
     net_update_config_flags();
     *config = net_config;
-    if (config->source == LEONOS_NET_CONFIG_SOURCE_DHCP && config->lease_seconds != UINT32_MAX)
+    if (config->source == RELIEFOS_NET_CONFIG_SOURCE_DHCP && config->lease_seconds != UINT32_MAX)
         config->lease_seconds -= (uint32_t)((time_uptime_ms() - net_dhcp_acquired_ms) / 1000);
     return 0;
 }
@@ -2093,7 +2093,7 @@ int net_get_config(struct leonos_net_config *config)
  * @param request Value supplied by the caller.
  * @return The value or status produced by the operation.
  */
-int net_set_dns_policy(struct leonos_net_dns_policy *request)
+int net_set_dns_policy(struct reliefos_net_dns_policy *request)
 {
     uint32_t mode;
     uint32_t custom_dns_ip;
@@ -2102,30 +2102,30 @@ int net_set_dns_policy(struct leonos_net_dns_policy *request)
     }
     mode = request->mode;
     custom_dns_ip = request->custom_dns_ip;
-    request->status = LEONOS_NET_STATUS_BAD_ARGUMENT;
+    request->status = RELIEFOS_NET_STATUS_BAD_ARGUMENT;
     net_update_config_flags();
-    if (mode == LEONOS_NET_DNS_MODE_QUERY) {
+    if (mode == RELIEFOS_NET_DNS_MODE_QUERY) {
         request->mode = net_dns_mode;
         request->custom_dns_ip = net_dns_custom_ip;
-        request->status = LEONOS_NET_STATUS_OK;
+        request->status = RELIEFOS_NET_STATUS_OK;
         request->config = net_config;
         return 0;
     }
     request->config = net_config;
-    if (mode > LEONOS_NET_DNS_MODE_CUSTOM ||
-        (mode == LEONOS_NET_DNS_MODE_CUSTOM &&
+    if (mode > RELIEFOS_NET_DNS_MODE_CUSTOM ||
+        (mode == RELIEFOS_NET_DNS_MODE_CUSTOM &&
          (custom_dns_ip == 0 || custom_dns_ip == 0xffffffffu))) {
         return 0;
     }
     net_dns_mode = mode;
-    net_dns_custom_ip = mode == LEONOS_NET_DNS_MODE_CUSTOM
+    net_dns_custom_ip = mode == RELIEFOS_NET_DNS_MODE_CUSTOM
                             ? custom_dns_ip
                             : 0;
     net_config.dns_ip = net_effective_dns_ip(net_dhcp_dns_ip);
     net_update_config_flags();
     request->mode = net_dns_mode;
     request->custom_dns_ip = net_dns_custom_ip;
-    request->status = LEONOS_NET_STATUS_OK;
+    request->status = RELIEFOS_NET_STATUS_OK;
     request->config = net_config;
     return 0;
 }
@@ -2135,10 +2135,10 @@ int net_set_dns_policy(struct leonos_net_dns_policy *request)
  * @param request Value supplied by the caller.
  * @return The value or status produced by the operation.
  */
-int net_dhcp_renew(struct leonos_net_dhcp *request)
+int net_dhcp_renew(struct reliefos_net_dhcp *request)
 {
     if (!request) return -LINUX_EINVAL;
-    request->status = LEONOS_NET_STATUS_PROTOCOL_UNSUPPORTED;
+    request->status = RELIEFOS_NET_STATUS_PROTOCOL_UNSUPPORTED;
     request->config = net_config;
     return -LINUX_EOPNOTSUPP;
 }
@@ -2148,7 +2148,7 @@ int net_dhcp_renew(struct leonos_net_dhcp *request)
  * @param request Value supplied by the caller.
  * @return The value or status produced by the operation.
  */
-int net_ping(struct leonos_net_ping *request)
+int net_ping(struct reliefos_net_ping *request)
 {
     uint8_t next_hop_mac[6];
     struct net_ping_wait wait;
@@ -2161,7 +2161,7 @@ int net_ping(struct leonos_net_ping *request)
 
     if (!request || request->target_ip == 0 || request->target_ip == 0xffffffffu) {
         if (request) {
-            request->status = LEONOS_NET_STATUS_BAD_ARGUMENT;
+            request->status = RELIEFOS_NET_STATUS_BAD_ARGUMENT;
         }
         return 0;
     }
@@ -2169,17 +2169,17 @@ int net_ping(struct leonos_net_ping *request)
     request->received = 0;
     request->rtt_ms = 0;
     if (!e1000_is_ready()) {
-        request->status = LEONOS_NET_STATUS_NO_DEVICE;
+        request->status = RELIEFOS_NET_STATUS_NO_DEVICE;
         return 0;
     }
 
-    timeout_ms = request->timeout_ms ? request->timeout_ms : LEONOS_NET_DEFAULT_TIMEOUT_MS;
-    if (timeout_ms > LEONOS_NET_MAX_TIMEOUT_MS) {
-        timeout_ms = LEONOS_NET_MAX_TIMEOUT_MS;
+    timeout_ms = request->timeout_ms ? request->timeout_ms : RELIEFOS_NET_DEFAULT_TIMEOUT_MS;
+    if (timeout_ms > RELIEFOS_NET_MAX_TIMEOUT_MS) {
+        timeout_ms = RELIEFOS_NET_MAX_TIMEOUT_MS;
     }
     {
         uint32_t lease_status = net_ensure_ipv4_config(timeout_ms, 0);
-        if (lease_status != LEONOS_NET_STATUS_OK) {
+        if (lease_status != RELIEFOS_NET_STATUS_OK) {
             request->status = lease_status;
             return 0;
         }
@@ -2190,8 +2190,8 @@ int net_ping(struct leonos_net_ping *request)
         int arp_ret = net_resolve_mac(arp_ip, timeout_ms, next_hop_mac);
         if (arp_ret < 0) {
             request->status = arp_ret == -1
-                                  ? LEONOS_NET_STATUS_TX_FAILED
-                                  : LEONOS_NET_STATUS_ARP_TIMEOUT;
+                                  ? RELIEFOS_NET_STATUS_TX_FAILED
+                                  : RELIEFOS_NET_STATUS_ARP_TIMEOUT;
             return 0;
         }
     }
@@ -2205,7 +2205,7 @@ int net_ping(struct leonos_net_ping *request)
     };
     start = time_uptime_ms();
     if (net_send_icmp_echo_request(next_hop_mac, target_ip, wait.ident, wait.sequence) < 0) {
-        request->status = LEONOS_NET_STATUS_TX_FAILED;
+        request->status = RELIEFOS_NET_STATUS_TX_FAILED;
         return 0;
     }
     request->sent = 1;
@@ -2215,12 +2215,12 @@ int net_ping(struct leonos_net_ping *request)
             uint64_t now = time_uptime_ms();
             request->received = 1;
             request->rtt_ms = (uint32_t)(now >= start ? now - start : 0);
-            request->status = LEONOS_NET_STATUS_OK;
+            request->status = RELIEFOS_NET_STATUS_OK;
             return 0;
         }
         net_cpu_relax();
     }
-    request->status = LEONOS_NET_STATUS_ECHO_TIMEOUT;
+    request->status = RELIEFOS_NET_STATUS_ECHO_TIMEOUT;
     return 0;
 }
 
@@ -2236,9 +2236,9 @@ static int net_dns_encode_name(const char *name, uint8_t *out,
                                uint32_t cap, uint32_t *out_len)
 {
     uint32_t label_start = 0;
-    uint32_t len = net_strlen(name, LEONOS_NET_HOSTNAME_LEN);
+    uint32_t len = net_strlen(name, RELIEFOS_NET_HOSTNAME_LEN);
     uint32_t pos = 0;
-    if (!name || !out || !out_len || len == 0 || len >= LEONOS_NET_HOSTNAME_LEN) {
+    if (!name || !out || !out_len || len == 0 || len >= RELIEFOS_NET_HOSTNAME_LEN) {
         return -1;
     }
     for (uint32_t i = 0; i <= len; ++i) {
@@ -2334,7 +2334,7 @@ static uint32_t net_dns_build_query(uint8_t *packet, uint32_t cap,
  * @return The value or status produced by the operation.
  */
 static int net_dns_parse_response(const uint8_t *packet, uint32_t len,
-                                  uint16_t ident, struct leonos_net_dns *request)
+                                  uint16_t ident, struct reliefos_net_dns *request)
 {
     uint16_t flags;
     uint16_t qdcount;
@@ -2371,7 +2371,7 @@ static int net_dns_parse_response(const uint8_t *packet, uint32_t len,
             return -1;
         }
         if (type == 1 && cls == 1 && rdlen == 4 &&
-            request->address_count < LEONOS_NET_DNS_MAX_ADDRESSES) {
+            request->address_count < RELIEFOS_NET_DNS_MAX_ADDRESSES) {
             request->addresses[request->address_count++] = net_get_u32(packet + pos);
         }
         pos += rdlen;
@@ -2384,7 +2384,7 @@ static int net_dns_parse_response(const uint8_t *packet, uint32_t len,
  * @param request Value supplied by the caller.
  * @return The value or status produced by the operation.
  */
-int net_dns_resolve(struct leonos_net_dns *request)
+int net_dns_resolve(struct reliefos_net_dns *request)
 {
     uint8_t query[NET_DNS_PACKET_MAX];
     uint8_t response[NET_DNS_PACKET_MAX];
@@ -2401,17 +2401,17 @@ int net_dns_resolve(struct leonos_net_dns *request)
 
     if (!request || !request->name[0]) {
         if (request) {
-            request->status = LEONOS_NET_STATUS_BAD_ARGUMENT;
+            request->status = RELIEFOS_NET_STATUS_BAD_ARGUMENT;
         }
         return 0;
     }
-    request->status = LEONOS_NET_STATUS_DNS_FAILED;
+    request->status = RELIEFOS_NET_STATUS_DNS_FAILED;
     request->address_count = 0;
-    for (uint32_t i = 0; i < LEONOS_NET_DNS_MAX_ADDRESSES; ++i) {
+    for (uint32_t i = 0; i < RELIEFOS_NET_DNS_MAX_ADDRESSES; ++i) {
         request->addresses[i] = 0;
     }
     if (!e1000_is_ready()) {
-        request->status = LEONOS_NET_STATUS_NO_DEVICE;
+        request->status = RELIEFOS_NET_STATUS_NO_DEVICE;
         return 0;
     }
     timeout_ms = request->timeout_ms ? request->timeout_ms : 3000u;
@@ -2420,32 +2420,32 @@ int net_dns_resolve(struct leonos_net_dns *request)
     }
     {
         uint32_t lease_status = net_ensure_ipv4_config(timeout_ms, 1);
-        if (lease_status != LEONOS_NET_STATUS_OK) {
+        if (lease_status != RELIEFOS_NET_STATUS_OK) {
             request->status = lease_status;
             return 0;
         }
     }
     if (!net_config.dns_ip) {
-        request->status = LEONOS_NET_STATUS_DNS_FAILED;
+        request->status = RELIEFOS_NET_STATUS_DNS_FAILED;
         return 0;
     }
     ident = (uint16_t)(net_sequence++ & 0xffffu);
     local_port = (uint16_t)(49152u + (ident & 0x3fffu));
     query_len = net_dns_build_query(query, sizeof(query), request->name, ident);
     if (!query_len) {
-        request->status = LEONOS_NET_STATUS_BAD_ARGUMENT;
+        request->status = RELIEFOS_NET_STATUS_BAD_ARGUMENT;
         return 0;
     }
     arp_ip = net_route_arp_ip(net_config.dns_ip);
     ret = net_resolve_mac(arp_ip, timeout_ms, dst_mac);
     if (ret < 0) {
-        request->status = ret == -1 ? LEONOS_NET_STATUS_TX_FAILED
-                                    : LEONOS_NET_STATUS_ARP_TIMEOUT;
+        request->status = ret == -1 ? RELIEFOS_NET_STATUS_TX_FAILED
+                                    : RELIEFOS_NET_STATUS_ARP_TIMEOUT;
         return 0;
     }
     if (net_send_udp_to_mac(dst_mac, net_config.local_ip, net_config.dns_ip,
                             local_port, NET_DNS_PORT, query, query_len) < 0) {
-        request->status = LEONOS_NET_STATUS_TX_FAILED;
+        request->status = RELIEFOS_NET_STATUS_TX_FAILED;
         return 0;
     }
     start = time_uptime_ms();
@@ -2460,13 +2460,13 @@ int net_dns_resolve(struct leonos_net_dns *request)
         net_poll_once(0, 0, &udp_wait, 0);
         if (udp_wait.done) {
             ret = net_dns_parse_response(response, udp_wait.length, ident, request);
-            request->status = ret == 0 ? LEONOS_NET_STATUS_OK
-                                       : LEONOS_NET_STATUS_DNS_NO_ANSWER;
+            request->status = ret == 0 ? RELIEFOS_NET_STATUS_OK
+                                       : RELIEFOS_NET_STATUS_DNS_NO_ANSWER;
             return 0;
         }
         net_cpu_relax();
     }
-    request->status = LEONOS_NET_STATUS_DNS_TIMEOUT;
+    request->status = RELIEFOS_NET_STATUS_DNS_TIMEOUT;
     return 0;
 }
 
@@ -2475,9 +2475,9 @@ int net_dns_resolve(struct leonos_net_dns *request)
  * @param request Value supplied by the caller.
  * @return The value or status produced by the operation.
  */
-int net_ntp_sync(struct leonos_time_sync *request)
+int net_ntp_sync(struct reliefos_time_sync *request)
 {
-    struct leonos_net_dns dns;
+    struct reliefos_net_dns dns;
     struct net_udp_wait udp_wait;
     uint8_t packet[NET_NTP_PACKET_LEN];
     uint8_t response[NET_NTP_PACKET_LEN];
@@ -2491,7 +2491,7 @@ int net_ntp_sync(struct leonos_time_sync *request)
     if (!request) {
         return -1;
     }
-    request->status = LEONOS_NET_STATUS_DNS_FAILED;
+    request->status = RELIEFOS_NET_STATUS_DNS_FAILED;
     request->server_ip = 0;
     request->valid = 0;
     request->unix_seconds = 0;
@@ -2508,13 +2508,13 @@ int net_ntp_sync(struct leonos_time_sync *request)
     if (timeout_ms > 10000u) {
         timeout_ms = 10000u;
     }
-    dns = (struct leonos_net_dns){0};
+    dns = (struct reliefos_net_dns){0};
     for (uint32_t i = 0; request->server[i] && i + 1U < sizeof(dns.name); ++i) {
         dns.name[i] = request->server[i];
     }
     dns.timeout_ms = timeout_ms;
     (void)net_dns_resolve(&dns);
-    if (dns.status != LEONOS_NET_STATUS_OK || !dns.address_count ||
+    if (dns.status != RELIEFOS_NET_STATUS_OK || !dns.address_count ||
         !dns.addresses[0]) {
         request->status = dns.status;
         return 0;
@@ -2523,8 +2523,8 @@ int net_ntp_sync(struct leonos_time_sync *request)
     arp_ip = net_route_arp_ip(request->server_ip);
     ret = net_resolve_mac(arp_ip, timeout_ms, dst_mac);
     if (ret < 0) {
-        request->status = ret == -1 ? LEONOS_NET_STATUS_TX_FAILED
-                                    : LEONOS_NET_STATUS_ARP_TIMEOUT;
+        request->status = ret == -1 ? RELIEFOS_NET_STATUS_TX_FAILED
+                                    : RELIEFOS_NET_STATUS_ARP_TIMEOUT;
         return 0;
     }
     net_memzero(packet, sizeof(packet));
@@ -2533,7 +2533,7 @@ int net_ntp_sync(struct leonos_time_sync *request)
     if (net_send_udp_to_mac(dst_mac, net_config.local_ip, request->server_ip,
                             local_port, NET_NTP_PORT, packet,
                             sizeof(packet)) < 0) {
-        request->status = LEONOS_NET_STATUS_TX_FAILED;
+        request->status = RELIEFOS_NET_STATUS_TX_FAILED;
         return 0;
     }
     start = time_uptime_ms();
@@ -2551,23 +2551,23 @@ int net_ntp_sync(struct leonos_time_sync *request)
             if (udp_wait.length < NET_NTP_PACKET_LEN ||
                 ((response[0] & 7u) != 4u && (response[0] & 7u) != 5u) ||
                 response[1] == 0 || response[1] > 15u) {
-                request->status = LEONOS_NET_STATUS_HTTP_FAILED;
+                request->status = RELIEFOS_NET_STATUS_HTTP_FAILED;
                 return 0;
             }
             ntp_seconds = net_get_u32(response + 40);
             if (ntp_seconds < NET_NTP_UNIX_EPOCH_OFFSET ||
                 time_set_wall_clock(ntp_seconds - NET_NTP_UNIX_EPOCH_OFFSET) < 0) {
-                request->status = LEONOS_NET_STATUS_HTTP_FAILED;
+                request->status = RELIEFOS_NET_STATUS_HTTP_FAILED;
                 return 0;
             }
             request->unix_seconds = ntp_seconds - NET_NTP_UNIX_EPOCH_OFFSET;
             request->valid = 1;
-            request->status = LEONOS_NET_STATUS_OK;
+            request->status = RELIEFOS_NET_STATUS_OK;
             return 0;
         }
         net_cpu_relax();
     }
-    request->status = LEONOS_NET_STATUS_DNS_TIMEOUT;
+    request->status = RELIEFOS_NET_STATUS_DNS_TIMEOUT;
     return 0;
 }
 
@@ -2628,7 +2628,7 @@ static int net_http_resolve_hosts(const char *host, uint32_t host_len,
                                   uint32_t *out_count,
                                   uint32_t *out_status)
 {
-    struct leonos_net_dns dns;
+    struct reliefos_net_dns dns;
     uint32_t literal_ip;
     if (!out_ips || !out_count) {
         return -1;
@@ -2639,33 +2639,33 @@ static int net_http_resolve_hosts(const char *host, uint32_t host_len,
         *out_count = 1;
         return 0;
     }
-    dns = (struct leonos_net_dns){0};
+    dns = (struct reliefos_net_dns){0};
     dns.timeout_ms = timeout_ms;
-    dns.status = LEONOS_NET_STATUS_DNS_FAILED;
+    dns.status = RELIEFOS_NET_STATUS_DNS_FAILED;
     for (uint32_t i = 0; i < host_len && i + 1u < sizeof(dns.name); ++i) {
         dns.name[i] = host[i];
     }
     if (net_dns_resolve(&dns) < 0) {
         if (out_status) {
-            *out_status = LEONOS_NET_STATUS_DNS_FAILED;
+            *out_status = RELIEFOS_NET_STATUS_DNS_FAILED;
         }
         return -1;
     }
-    if (dns.status != LEONOS_NET_STATUS_OK || dns.address_count == 0) {
+    if (dns.status != RELIEFOS_NET_STATUS_OK || dns.address_count == 0) {
         if (out_status) {
             *out_status = dns.status;
         }
         return -1;
     }
     for (uint32_t i = 0; i < dns.address_count &&
-             *out_count < LEONOS_NET_DNS_MAX_ADDRESSES; ++i) {
+             *out_count < RELIEFOS_NET_DNS_MAX_ADDRESSES; ++i) {
         if (dns.addresses[i]) {
             out_ips[(*out_count)++] = dns.addresses[i];
         }
     }
     if (*out_count == 0) {
         if (out_status) {
-            *out_status = LEONOS_NET_STATUS_DNS_NO_ANSWER;
+            *out_status = RELIEFOS_NET_STATUS_DNS_NO_ANSWER;
         }
         return -1;
     }
@@ -2682,23 +2682,23 @@ static struct net_socket *net_socket_alloc(uint32_t owner_pid, uint32_t owner_ui
 {
     struct net_socket *slot = 0;
     net_socket_gc();
-    for (uint32_t i = 0; i < LEONOS_NET_SOCKET_MAX; ++i) {
+    for (uint32_t i = 0; i < RELIEFOS_NET_SOCKET_MAX; ++i) {
         if (!net_sockets[i].used) {
             slot = &net_sockets[i];
             break;
         }
     }
     if (!slot) {
-        for (uint32_t i = 0; i < LEONOS_NET_SOCKET_MAX; ++i) {
-            if (!net_sockets[i].fd_owned && net_sockets[i].state == LEONOS_NET_TCP_CLOSED) {
+        for (uint32_t i = 0; i < RELIEFOS_NET_SOCKET_MAX; ++i) {
+            if (!net_sockets[i].fd_owned && net_sockets[i].state == RELIEFOS_NET_TCP_CLOSED) {
                 slot = &net_sockets[i];
                 break;
             }
         }
     }
     if (!slot) {
-        for (uint32_t i = 0; i < LEONOS_NET_SOCKET_MAX; ++i) {
-            if (!net_sockets[i].fd_owned && net_sockets[i].state == LEONOS_NET_TCP_TIME_WAIT) {
+        for (uint32_t i = 0; i < RELIEFOS_NET_SOCKET_MAX; ++i) {
+            if (!net_sockets[i].fd_owned && net_sockets[i].state == RELIEFOS_NET_TCP_TIME_WAIT) {
                 slot = &net_sockets[i];
                 break;
             }
@@ -2717,8 +2717,8 @@ static struct net_socket *net_socket_alloc(uint32_t owner_pid, uint32_t owner_ui
     }
     slot->owner_pid = owner_pid;
     slot->owner_uid = owner_uid;
-    slot->state = LEONOS_NET_TCP_CLOSED;
-    slot->status = LEONOS_NET_STATUS_SOCKET_CLOSED;
+    slot->state = RELIEFOS_NET_TCP_CLOSED;
+    slot->status = RELIEFOS_NET_STATUS_SOCKET_CLOSED;
     slot->created_ms = net_now32();
     slot->changed_ms = slot->created_ms;
     return slot;
@@ -2734,8 +2734,8 @@ static uint32_t net_socket_clamp_timeout(uint32_t timeout_ms)
     if (!timeout_ms) {
         timeout_ms = NET_SOCKET_DEFAULT_TIMEOUT_MS;
     }
-    if (timeout_ms > LEONOS_NET_MAX_TIMEOUT_MS) {
-        timeout_ms = LEONOS_NET_MAX_TIMEOUT_MS;
+    if (timeout_ms > RELIEFOS_NET_MAX_TIMEOUT_MS) {
+        timeout_ms = RELIEFOS_NET_MAX_TIMEOUT_MS;
     }
     return timeout_ms;
 }
@@ -2747,7 +2747,7 @@ static uint32_t net_socket_clamp_timeout(uint32_t timeout_ms)
  * @param owner_uid Value supplied by the caller.
  * @return The value or status produced by the operation.
  */
-int net_socket_open(struct leonos_net_socket_open *request, uint32_t owner_pid,
+int net_socket_open(struct reliefos_net_socket_open *request, uint32_t owner_pid,
                     uint32_t owner_uid)
 {
     struct net_socket *socket;
@@ -2755,20 +2755,20 @@ int net_socket_open(struct leonos_net_socket_open *request, uint32_t owner_pid,
         return -1;
     }
     request->socket = -1;
-    request->status = LEONOS_NET_STATUS_PROTOCOL_UNSUPPORTED;
-    if (request->domain != LEONOS_NET_AF_INET ||
-        request->type != LEONOS_NET_SOCK_STREAM ||
+    request->status = RELIEFOS_NET_STATUS_PROTOCOL_UNSUPPORTED;
+    if (request->domain != RELIEFOS_NET_AF_INET ||
+        request->type != RELIEFOS_NET_SOCK_STREAM ||
         (request->protocol != 0 &&
-         request->protocol != LEONOS_NET_IPPROTO_TCP)) {
+         request->protocol != RELIEFOS_NET_IPPROTO_TCP)) {
         return 0;
     }
     socket = net_socket_alloc(owner_pid, owner_uid);
     if (!socket) {
-        request->status = LEONOS_NET_STATUS_SOCKET_LIMIT;
+        request->status = RELIEFOS_NET_STATUS_SOCKET_LIMIT;
         return 0;
     }
     request->socket = socket->handle;
-    request->status = LEONOS_NET_STATUS_OK;
+    request->status = RELIEFOS_NET_STATUS_OK;
     return 0;
 }
 
@@ -2793,19 +2793,19 @@ static uint32_t net_socket_connect_ip(struct net_socket *socket,
     int ret;
 
     if (!socket || !remote_ip || !remote_port) {
-        return LEONOS_NET_STATUS_BAD_ARGUMENT;
+        return RELIEFOS_NET_STATUS_BAD_ARGUMENT;
     }
     arp_ip = net_route_arp_ip(remote_ip);
     ret = net_resolve_mac(arp_ip, timeout_ms, dst_mac);
     if (ret < 0) {
-        return ret == -1 ? LEONOS_NET_STATUS_TX_FAILED
-                         : LEONOS_NET_STATUS_ARP_TIMEOUT;
+        return ret == -1 ? RELIEFOS_NET_STATUS_TX_FAILED
+                         : RELIEFOS_NET_STATUS_ARP_TIMEOUT;
     }
 
-    socket->state = LEONOS_NET_TCP_SYN_SENT;
+    socket->state = RELIEFOS_NET_TCP_SYN_SENT;
     socket->rx_head = 0;
     socket->rx_window_valid = false;
-    socket->status = LEONOS_NET_STATUS_TCP_TIMEOUT;
+    socket->status = RELIEFOS_NET_STATUS_TCP_TIMEOUT;
     socket->local_ip = net_config.local_ip;
     socket->remote_ip = remote_ip;
     socket->remote_port = remote_port;
@@ -2824,7 +2824,7 @@ static uint32_t net_socket_connect_ip(struct net_socket *socket,
                             socket->remote_ip, socket->local_port,
                             socket->remote_port, syn_seq, 0,
                             TCP_FLAG_SYN, 0, 0) < 0) {
-        net_socket_mark_closed(socket, LEONOS_NET_STATUS_TX_FAILED);
+        net_socket_mark_closed(socket, RELIEFOS_NET_STATUS_TX_FAILED);
         return socket->status;
     }
     ++socket->local_seq;
@@ -2833,15 +2833,15 @@ static uint32_t net_socket_connect_ip(struct net_socket *socket,
     if (asynchronous) {
         socket->syn_deadline = start + timeout_ms;
         socket->syn_retransmit = next_retransmit;
-        return LEONOS_NET_STATUS_TCP_TIMEOUT;
+        return RELIEFOS_NET_STATUS_TCP_TIMEOUT;
     }
     while (!net_timeout_expired(start, timeout_ms, spins++)) {
         uint64_t now;
         net_poll_once(0, 0, 0, 0);
-        if (socket->state == LEONOS_NET_TCP_ESTABLISHED) {
-            return LEONOS_NET_STATUS_OK;
+        if (socket->state == RELIEFOS_NET_TCP_ESTABLISHED) {
+            return RELIEFOS_NET_STATUS_OK;
         }
-        if (socket->state == LEONOS_NET_TCP_CLOSED) {
+        if (socket->state == RELIEFOS_NET_TCP_CLOSED) {
             return socket->status;
         }
         now = time_uptime_ms();
@@ -2850,14 +2850,14 @@ static uint32_t net_socket_connect_ip(struct net_socket *socket,
                                     socket->remote_ip, socket->local_port,
                                     socket->remote_port, syn_seq, 0,
                                     TCP_FLAG_SYN, 0, 0) < 0) {
-                net_socket_mark_closed(socket, LEONOS_NET_STATUS_TX_FAILED);
+                net_socket_mark_closed(socket, RELIEFOS_NET_STATUS_TX_FAILED);
                 return socket->status;
             }
             next_retransmit = now + NET_TCP_SYN_RETRANSMIT_MS;
         }
         net_cpu_relax();
     }
-    net_socket_mark_closed(socket, LEONOS_NET_STATUS_TCP_TIMEOUT);
+    net_socket_mark_closed(socket, RELIEFOS_NET_STATUS_TCP_TIMEOUT);
     return socket->status;
 }
 
@@ -2867,22 +2867,22 @@ static uint32_t net_socket_connect_ip(struct net_socket *socket,
  * @param owner_pid Value supplied by the caller.
  * @return The value or status produced by the operation.
  */
-int net_socket_connect(struct leonos_net_socket_connect *request,
+int net_socket_connect(struct reliefos_net_socket_connect *request,
                        uint32_t owner_pid)
 {
     struct net_socket *socket;
-    uint32_t remote_ips[LEONOS_NET_DNS_MAX_ADDRESSES];
+    uint32_t remote_ips[RELIEFOS_NET_DNS_MAX_ADDRESSES];
     uint32_t remote_count = 0;
     uint32_t timeout_ms;
     uint32_t host_len;
-    uint32_t status = LEONOS_NET_STATUS_TCP_FAILED;
+    uint32_t status = RELIEFOS_NET_STATUS_TCP_FAILED;
     uint32_t literal_ip = 0;
     int literal = 0;
 
     if (!request) {
         return -1;
     }
-    request->status = LEONOS_NET_STATUS_BAD_ARGUMENT;
+    request->status = RELIEFOS_NET_STATUS_BAD_ARGUMENT;
     request->remote_ip = 0;
     request->local_ip = 0;
     request->local_port = 0;
@@ -2891,27 +2891,27 @@ int net_socket_connect(struct leonos_net_socket_connect *request,
     }
     socket = net_socket_find(request->socket, owner_pid, 1);
     if (!socket) {
-        request->status = LEONOS_NET_STATUS_SOCKET_BAD_HANDLE;
+        request->status = RELIEFOS_NET_STATUS_SOCKET_BAD_HANDLE;
         return 0;
     }
-    if (socket->state != LEONOS_NET_TCP_CLOSED) {
-        request->status = LEONOS_NET_STATUS_BAD_ARGUMENT;
+    if (socket->state != RELIEFOS_NET_TCP_CLOSED) {
+        request->status = RELIEFOS_NET_STATUS_BAD_ARGUMENT;
         return 0;
     }
     if (!e1000_is_ready()) {
-        request->status = LEONOS_NET_STATUS_NO_DEVICE;
+        request->status = RELIEFOS_NET_STATUS_NO_DEVICE;
         return 0;
     }
     timeout_ms = net_socket_clamp_timeout(request->timeout_ms);
-    host_len = net_strlen(request->host, LEONOS_NET_HOSTNAME_LEN);
-    if (host_len == 0 || host_len >= LEONOS_NET_HOSTNAME_LEN) {
-        request->status = LEONOS_NET_STATUS_BAD_ARGUMENT;
+    host_len = net_strlen(request->host, RELIEFOS_NET_HOSTNAME_LEN);
+    if (host_len == 0 || host_len >= RELIEFOS_NET_HOSTNAME_LEN) {
+        request->status = RELIEFOS_NET_STATUS_BAD_ARGUMENT;
         return 0;
     }
     literal = net_parse_ipv4_literal(request->host, host_len, &literal_ip) == 0;
     {
         uint32_t config_status = net_ensure_ipv4_config(timeout_ms, literal ? 0 : 1);
-        if (config_status != LEONOS_NET_STATUS_OK) {
+        if (config_status != RELIEFOS_NET_STATUS_OK) {
             request->status = config_status;
             return 0;
         }
@@ -2928,7 +2928,7 @@ int net_socket_connect(struct leonos_net_socket_connect *request,
     for (uint32_t i = 0; i < remote_count; ++i) {
         status = net_socket_connect_ip(socket, remote_ips[i],
                                        (uint16_t)request->port, timeout_ms, false);
-        if (status == LEONOS_NET_STATUS_OK) {
+        if (status == RELIEFOS_NET_STATUS_OK) {
             request->status = status;
             request->remote_ip = socket->remote_ip;
             request->local_ip = socket->local_ip;
@@ -2946,7 +2946,7 @@ int net_socket_connect(struct leonos_net_socket_connect *request,
  * @param owner_pid Value supplied by the caller.
  * @return The value or status produced by the operation.
  */
-int net_socket_send(struct leonos_net_socket_io *request, uint32_t owner_pid)
+int net_socket_send(struct reliefos_net_socket_io *request, uint32_t owner_pid)
 {
     struct net_socket *socket;
     const uint8_t *data;
@@ -2956,23 +2956,23 @@ int net_socket_send(struct leonos_net_socket_io *request, uint32_t owner_pid)
         return -1;
     }
     request->transferred = 0;
-    request->status = LEONOS_NET_STATUS_BAD_ARGUMENT;
+    request->status = RELIEFOS_NET_STATUS_BAD_ARGUMENT;
     if (request->length && !request->buffer) {
         return 0;
     }
     socket = net_socket_find(request->socket, owner_pid, 1);
     if (!socket) {
-        request->status = LEONOS_NET_STATUS_SOCKET_BAD_HANDLE;
+        request->status = RELIEFOS_NET_STATUS_SOCKET_BAD_HANDLE;
         return 0;
     }
-    if (socket->shutdown_write) { request->status = LEONOS_NET_STATUS_SOCKET_CLOSED; return 0; }
-    if (socket->state == LEONOS_NET_TCP_TIME_WAIT ||
-        socket->state == LEONOS_NET_TCP_CLOSED) {
-        request->status = LEONOS_NET_STATUS_SOCKET_CLOSED;
+    if (socket->shutdown_write) { request->status = RELIEFOS_NET_STATUS_SOCKET_CLOSED; return 0; }
+    if (socket->state == RELIEFOS_NET_TCP_TIME_WAIT ||
+        socket->state == RELIEFOS_NET_TCP_CLOSED) {
+        request->status = RELIEFOS_NET_STATUS_SOCKET_CLOSED;
         return 0;
     }
-    if (socket->state != LEONOS_NET_TCP_ESTABLISHED) {
-        request->status = LEONOS_NET_STATUS_SOCKET_NOT_CONNECTED;
+    if (socket->state != RELIEFOS_NET_TCP_ESTABLISHED) {
+        request->status = RELIEFOS_NET_STATUS_SOCKET_NOT_CONNECTED;
         return 0;
     }
     timeout_ms = net_socket_clamp_timeout(request->timeout_ms);
@@ -2999,7 +2999,7 @@ int net_socket_send(struct leonos_net_socket_io *request, uint32_t owner_pid)
                                 socket->remote_seq,
                                 TCP_FLAG_PSH | TCP_FLAG_ACK,
                                 data + request->transferred, chunk) < 0) {
-            request->status = LEONOS_NET_STATUS_TX_FAILED;
+            request->status = RELIEFOS_NET_STATUS_TX_FAILED;
             return 0;
         }
         socket->local_seq = target_seq;
@@ -3010,7 +3010,7 @@ int net_socket_send(struct leonos_net_socket_io *request, uint32_t owner_pid)
         while (!net_timeout_expired(start, timeout_ms, spins++)) {
             uint64_t now;
             net_poll_once(0, 0, 0, 0);
-            if (socket->state == LEONOS_NET_TCP_CLOSED) {
+            if (socket->state == RELIEFOS_NET_TCP_CLOSED) {
                 request->status = socket->status;
                 return 0;
             }
@@ -3027,7 +3027,7 @@ int net_socket_send(struct leonos_net_socket_io *request, uint32_t owner_pid)
                                         TCP_FLAG_PSH | TCP_FLAG_ACK,
                                         data + request->transferred,
                                         chunk) < 0) {
-                    request->status = LEONOS_NET_STATUS_TX_FAILED;
+                    request->status = RELIEFOS_NET_STATUS_TX_FAILED;
                     return 0;
                 }
                 next_retransmit = now + NET_TCP_DATA_RETRANSMIT_MS;
@@ -3035,7 +3035,7 @@ int net_socket_send(struct leonos_net_socket_io *request, uint32_t owner_pid)
             net_cpu_relax();
         }
         if (!net_tcp_seq_after_or_equal(socket->acked_seq, target_seq)) {
-            request->status = LEONOS_NET_STATUS_TCP_TIMEOUT;
+            request->status = RELIEFOS_NET_STATUS_TCP_TIMEOUT;
             if (net_socket_trace_tls(socket)) {
                 console_printf("[net] tls tx timeout socket=%d target=%u acked=%u state=%u\n",
                                socket->handle, target_seq, socket->acked_seq,
@@ -3044,7 +3044,7 @@ int net_socket_send(struct leonos_net_socket_io *request, uint32_t owner_pid)
             return 0;
         }
     }
-    request->status = LEONOS_NET_STATUS_OK;
+    request->status = RELIEFOS_NET_STATUS_OK;
     return 0;
 }
 
@@ -3054,7 +3054,7 @@ int net_socket_send(struct leonos_net_socket_io *request, uint32_t owner_pid)
  * @param owner_pid Value supplied by the caller.
  * @return The value or status produced by the operation.
  */
-int net_socket_recv(struct leonos_net_socket_io *request, uint32_t owner_pid)
+int net_socket_recv(struct reliefos_net_socket_io *request, uint32_t owner_pid)
 {
     struct net_socket *socket;
     uint8_t *dst;
@@ -3066,28 +3066,28 @@ int net_socket_recv(struct leonos_net_socket_io *request, uint32_t owner_pid)
         return -1;
     }
     request->transferred = 0;
-    request->status = LEONOS_NET_STATUS_BAD_ARGUMENT;
+    request->status = RELIEFOS_NET_STATUS_BAD_ARGUMENT;
     if (request->length && !request->buffer) {
         return 0;
     }
     socket = net_socket_find(request->socket, owner_pid, 1);
     if (!socket) {
-        request->status = LEONOS_NET_STATUS_SOCKET_BAD_HANDLE;
+        request->status = RELIEFOS_NET_STATUS_SOCKET_BAD_HANDLE;
         return 0;
     }
-    if (!request->length || socket->shutdown_read) { request->status = LEONOS_NET_STATUS_OK; return 0; }
-    if (socket->state != LEONOS_NET_TCP_ESTABLISHED &&
-        socket->state != LEONOS_NET_TCP_TIME_WAIT) {
-        request->status = socket->state == LEONOS_NET_TCP_CLOSED
-                              ? LEONOS_NET_STATUS_SOCKET_CLOSED
-                              : LEONOS_NET_STATUS_SOCKET_NOT_CONNECTED;
+    if (!request->length || socket->shutdown_read) { request->status = RELIEFOS_NET_STATUS_OK; return 0; }
+    if (socket->state != RELIEFOS_NET_TCP_ESTABLISHED &&
+        socket->state != RELIEFOS_NET_TCP_TIME_WAIT) {
+        request->status = socket->state == RELIEFOS_NET_TCP_CLOSED
+                              ? RELIEFOS_NET_STATUS_SOCKET_CLOSED
+                              : RELIEFOS_NET_STATUS_SOCKET_NOT_CONNECTED;
         return 0;
     }
     dst = (uint8_t *)request->buffer;
     timeout_ms = net_socket_clamp_timeout(request->timeout_ms);
     start = time_uptime_ms();
     while (socket->rx_len == 0 && !socket->fin_received &&
-           socket->state != LEONOS_NET_TCP_CLOSED &&
+           socket->state != RELIEFOS_NET_TCP_CLOSED &&
            !net_timeout_expired(start, timeout_ms, spins++)) {
         net_poll_once(0, 0, 0, 0);
         net_cpu_relax();
@@ -3116,18 +3116,18 @@ int net_socket_recv(struct leonos_net_socket_io *request, uint32_t owner_pid)
             }
         }
         request->transferred = copy_len;
-        request->status = LEONOS_NET_STATUS_OK;
+        request->status = RELIEFOS_NET_STATUS_OK;
         return 0;
     }
-    if (socket->fin_received || socket->state == LEONOS_NET_TCP_TIME_WAIT) {
-        request->status = LEONOS_NET_STATUS_OK;
+    if (socket->fin_received || socket->state == RELIEFOS_NET_TCP_TIME_WAIT) {
+        request->status = RELIEFOS_NET_STATUS_OK;
         return 0;
     }
-    if (socket->state == LEONOS_NET_TCP_CLOSED) {
+    if (socket->state == RELIEFOS_NET_TCP_CLOSED) {
         request->status = socket->status;
         return 0;
     }
-    request->status = LEONOS_NET_STATUS_TCP_TIMEOUT;
+    request->status = RELIEFOS_NET_STATUS_TCP_TIMEOUT;
     if (net_socket_trace_tls(socket)) {
         console_printf("[net] tls rx timeout socket=%d state=%u expected=%u queued=%u fin=%u\n",
                        socket->handle, socket->state, socket->remote_seq,
@@ -3142,19 +3142,19 @@ int net_socket_recv(struct leonos_net_socket_io *request, uint32_t owner_pid)
  * @param owner_pid Value supplied by the caller.
  * @return The value or status produced by the operation.
  */
-int net_socket_close(struct leonos_net_socket_close *request,
+int net_socket_close(struct reliefos_net_socket_close *request,
                      uint32_t owner_pid)
 {
     struct net_socket *socket;
     if (!request) {
         return -1;
     }
-    request->status = LEONOS_NET_STATUS_SOCKET_BAD_HANDLE;
+    request->status = RELIEFOS_NET_STATUS_SOCKET_BAD_HANDLE;
     socket = net_socket_find(request->socket, owner_pid, 1);
     if (!socket) {
         return 0;
     }
-    if (socket->state == LEONOS_NET_TCP_ESTABLISHED) {
+    if (socket->state == RELIEFOS_NET_TCP_ESTABLISHED) {
         /**
  * Net socket touch.
  * @param dst_mac Value supplied by the caller.
@@ -3173,16 +3173,16 @@ int net_socket_close(struct leonos_net_socket_close *request,
                                   socket->remote_seq,
                                   TCP_FLAG_FIN | TCP_FLAG_ACK, 0, 0);
         ++socket->local_seq;
-        socket->state = LEONOS_NET_TCP_TIME_WAIT;
-        socket->status = LEONOS_NET_STATUS_OK;
+        socket->state = RELIEFOS_NET_TCP_TIME_WAIT;
+        socket->status = RELIEFOS_NET_STATUS_OK;
         net_socket_touch(socket);
-    } else if (socket->state == LEONOS_NET_TCP_SYN_SENT) {
-        net_socket_mark_closed(socket, LEONOS_NET_STATUS_SOCKET_CLOSED);
-    } else if (socket->state == LEONOS_NET_TCP_CLOSED) {
-        socket->status = LEONOS_NET_STATUS_SOCKET_CLOSED;
+    } else if (socket->state == RELIEFOS_NET_TCP_SYN_SENT) {
+        net_socket_mark_closed(socket, RELIEFOS_NET_STATUS_SOCKET_CLOSED);
+    } else if (socket->state == RELIEFOS_NET_TCP_CLOSED) {
+        socket->status = RELIEFOS_NET_STATUS_SOCKET_CLOSED;
         net_socket_touch(socket);
     }
-    request->status = LEONOS_NET_STATUS_OK;
+    request->status = RELIEFOS_NET_STATUS_OK;
     return 0;
 }
 
@@ -3198,7 +3198,7 @@ static int net_connection_visible(const struct net_socket *socket,
     if (!socket || !viewer) {
         return 0;
     }
-    if (viewer->role == LEONOS_AUTH_ROLE_ADMIN) {
+    if (viewer->role == RELIEFOS_AUTH_ROLE_ADMIN) {
         return 1;
     }
     if ((viewer->flags & TASK_FLAG_SERVICE) &&
@@ -3214,7 +3214,7 @@ static int net_connection_visible(const struct net_socket *socket,
  * @param viewer Value supplied by the caller.
  * @return The value or status produced by the operation.
  */
-int net_connections(struct leonos_net_connection_list *request,
+int net_connections(struct reliefos_net_connection_list *request,
                     const struct task *viewer)
 {
     uint32_t now = net_now32();
@@ -3223,13 +3223,13 @@ int net_connections(struct leonos_net_connection_list *request,
         return -1;
     }
     net_socket_gc();
-    for (uint32_t i = 0; i < LEONOS_NET_SOCKET_MAX; ++i) {
+    for (uint32_t i = 0; i < RELIEFOS_NET_SOCKET_MAX; ++i) {
         struct net_socket *socket = &net_sockets[i];
         if (!socket->used || !net_connection_visible(socket, viewer)) {
             continue;
         }
         if (request->entries && count < request->capacity) {
-            request->entries[count] = (struct leonos_net_connection_info){
+            request->entries[count] = (struct reliefos_net_connection_info){
                 .socket = socket->handle,
                 .owner_pid = socket->owner_pid,
                 .state = socket->state,
@@ -3259,23 +3259,23 @@ short net_socket_poll_fd(int32_t handle, uint32_t owner_pid, short events)
     struct net_socket *socket = net_socket_find(handle, owner_pid, 1);
     short result = 0;
     if (!socket) return POLLNVAL;
-    if (socket->state == LEONOS_NET_TCP_SYN_SENT && socket->syn_deadline) {
+    if (socket->state == RELIEFOS_NET_TCP_SYN_SENT && socket->syn_deadline) {
         uint64_t now = time_uptime_ms();
         if (now >= socket->syn_deadline) {
             socket->error = LINUX_ETIMEDOUT;
-            net_socket_mark_closed(socket, LEONOS_NET_STATUS_TCP_TIMEOUT);
+            net_socket_mark_closed(socket, RELIEFOS_NET_STATUS_TCP_TIMEOUT);
         } else if (now >= socket->syn_retransmit) {
             (void)net_send_tcp_to_mac(socket->dst_mac, socket->local_ip, socket->remote_ip,
                 socket->local_port, socket->remote_port, socket->local_seq - 1, 0, TCP_FLAG_SYN, 0, 0);
             socket->syn_retransmit = now + NET_TCP_SYN_RETRANSMIT_MS;
         }
     }
-    if (socket->state == LEONOS_NET_TCP_ESTABLISHED) {
+    if (socket->state == RELIEFOS_NET_TCP_ESTABLISHED) {
         if ((events & POLLIN) && (socket->rx_len || socket->fin_received || socket->shutdown_read)) result |= POLLIN;
         if (events & POLLOUT) result |= POLLOUT;
-    } else if (socket->state == LEONOS_NET_TCP_TIME_WAIT) {
+    } else if (socket->state == RELIEFOS_NET_TCP_TIME_WAIT) {
         result |= POLLIN | POLLHUP;
-    } else if (socket->state == LEONOS_NET_TCP_CLOSED) {
+    } else if (socket->state == RELIEFOS_NET_TCP_CLOSED) {
         result |= POLLHUP | (events & POLLOUT);
     }
     if (socket->error) result |= POLLERR;
@@ -3294,7 +3294,7 @@ void net_socket_release_fd(int32_t handle)
 {
     struct net_socket *s = net_socket_find(handle, 0, 1);
     if (!s) return;
-    struct leonos_net_socket_close request = {.socket = handle};
+    struct reliefos_net_socket_close request = {.socket = handle};
     (void)net_socket_close(&request, 0);
     s->fd_owned = false;
 }
@@ -3318,17 +3318,17 @@ int net_socket_connect_fd(int32_t handle, uint32_t ip, uint16_t port, bool nonbl
 {
     struct net_socket *s = net_socket_find(handle, 0, 1);
     if (!s) return -LINUX_EBADF;
-    if (s->state == LEONOS_NET_TCP_SYN_SENT) return -LINUX_EALREADY;
-    if (s->state != LEONOS_NET_TCP_CLOSED) return -LINUX_EISCONN;
+    if (s->state == RELIEFOS_NET_TCP_SYN_SENT) return -LINUX_EALREADY;
+    if (s->state != RELIEFOS_NET_TCP_CLOSED) return -LINUX_EISCONN;
     if (!e1000_is_ready()) return -LINUX_ENETDOWN;
     if (!ip || !port) return -LINUX_EINVAL;
-    if (net_ensure_ipv4_config(3000, 0) != LEONOS_NET_STATUS_OK) return -LINUX_ENETUNREACH;
+    if (net_ensure_ipv4_config(3000, 0) != RELIEFOS_NET_STATUS_OK) return -LINUX_ENETUNREACH;
     s->error = 0;
     uint32_t status = net_socket_connect_ip(s, ip, port, 10000, nonblock);
-    if (s->state == LEONOS_NET_TCP_SYN_SENT) return -LINUX_EINPROGRESS;
-    if (status == LEONOS_NET_STATUS_OK) return 0;
+    if (s->state == RELIEFOS_NET_TCP_SYN_SENT) return -LINUX_EINPROGRESS;
+    if (status == RELIEFOS_NET_STATUS_OK) return 0;
     if (s->error) return -s->error;
-    return status == LEONOS_NET_STATUS_ARP_TIMEOUT ? -LINUX_EHOSTUNREACH : -LINUX_ETIMEDOUT;
+    return status == RELIEFOS_NET_STATUS_ARP_TIMEOUT ? -LINUX_EHOSTUNREACH : -LINUX_ETIMEDOUT;
 }
 
 int net_socket_shutdown_fd(int32_t handle, int how)
@@ -3336,7 +3336,7 @@ int net_socket_shutdown_fd(int32_t handle, int how)
     struct net_socket *s = net_socket_find(handle, 0, 1);
     if (!s) return -LINUX_EBADF;
     if (how < 0 || how > 2) return -LINUX_EINVAL;
-    if (s->state != LEONOS_NET_TCP_ESTABLISHED && s->state != LEONOS_NET_TCP_TIME_WAIT)
+    if (s->state != RELIEFOS_NET_TCP_ESTABLISHED && s->state != RELIEFOS_NET_TCP_TIME_WAIT)
         return -LINUX_ENOTCONN;
     if (how != 1) { s->shutdown_read = true; s->rx_len = 0; }
     if (how != 0 && !s->shutdown_write) {
@@ -3367,11 +3367,11 @@ void net_close_owner_sockets(uint32_t owner_pid)
     if (!owner_pid) {
         return;
     }
-    for (uint32_t i = 0; i < LEONOS_NET_SOCKET_MAX; ++i) {
+    for (uint32_t i = 0; i < RELIEFOS_NET_SOCKET_MAX; ++i) {
         struct net_socket *socket = &net_sockets[i];
         if (socket->used && !socket->fd_owned && socket->owner_pid == owner_pid &&
-            socket->state != LEONOS_NET_TCP_CLOSED) {
-            net_socket_mark_closed(socket, LEONOS_NET_STATUS_SOCKET_CLOSED);
+            socket->state != RELIEFOS_NET_TCP_CLOSED) {
+            net_socket_mark_closed(socket, RELIEFOS_NET_STATUS_SOCKET_CLOSED);
         }
     }
 }
@@ -3381,9 +3381,9 @@ void net_close_owner_sockets(uint32_t owner_pid)
  */
 void net_driver_detached(void)
 {
-    for (unsigned i = 0; i < LEONOS_NET_SOCKET_MAX; ++i) {
+    for (unsigned i = 0; i < RELIEFOS_NET_SOCKET_MAX; ++i) {
         struct net_socket *s = &net_sockets[i];
-        if (s->used) { s->error = LINUX_ENETDOWN; net_socket_mark_closed(s, LEONOS_NET_STATUS_NO_DEVICE); }
+        if (s->used) { s->error = LINUX_ENETDOWN; net_socket_mark_closed(s, RELIEFOS_NET_STATUS_NO_DEVICE); }
     }
     net_arp_cache_clear();
     net_set_static_fallback();
@@ -3424,7 +3424,7 @@ static uint32_t net_http_build_request(char *dst, uint32_t cap,
         net_append_u32(dst, &pos, cap, port);
     }
     net_append_text(dst, &pos, cap,
-                    "\r\nConnection: close\r\nUser-Agent: LeonOS/4\r\n\r\n");
+                    "\r\nConnection: close\r\nUser-Agent: ReliefOS/4\r\n\r\n");
     if (pos + 1u >= cap) {
         return 0;
     }
@@ -3475,7 +3475,7 @@ static uint32_t net_http_parse_status(const char *response, uint32_t len)
  * @param timeout_ms Value supplied by the caller.
  * @return The value or status produced by the operation.
  */
-static uint32_t net_http_exchange_ip(struct leonos_net_http_get *request,
+static uint32_t net_http_exchange_ip(struct reliefos_net_http_get *request,
                                      const char *http_request,
                                      uint32_t http_len,
                                      uint32_t remote_ip,
@@ -3494,7 +3494,7 @@ static uint32_t net_http_exchange_ip(struct leonos_net_http_get *request,
     uint32_t spins;
     int ret;
 
-    request->status = LEONOS_NET_STATUS_TCP_FAILED;
+    request->status = RELIEFOS_NET_STATUS_TCP_FAILED;
     request->remote_ip = remote_ip;
     request->http_status = 0;
     request->response_len = 0;
@@ -3503,8 +3503,8 @@ static uint32_t net_http_exchange_ip(struct leonos_net_http_get *request,
     arp_ip = net_route_arp_ip(remote_ip);
     ret = net_resolve_mac(arp_ip, timeout_ms, dst_mac);
     if (ret < 0) {
-        request->status = ret == -1 ? LEONOS_NET_STATUS_TX_FAILED
-                                    : LEONOS_NET_STATUS_ARP_TIMEOUT;
+        request->status = ret == -1 ? RELIEFOS_NET_STATUS_TX_FAILED
+                                    : RELIEFOS_NET_STATUS_ARP_TIMEOUT;
         return request->status;
     }
 
@@ -3517,13 +3517,13 @@ static uint32_t net_http_exchange_ip(struct leonos_net_http_get *request,
         .src_port = (uint16_t)port,
         .dst_port = local_port,
         .payload = (uint8_t *)request->response,
-        .capacity = LEONOS_NET_HTTP_RESPONSE_MAX - 1u,
+        .capacity = RELIEFOS_NET_HTTP_RESPONSE_MAX - 1u,
     };
 
     if (net_send_tcp_to_mac(dst_mac, net_config.local_ip, remote_ip,
                             local_port, (uint16_t)port, local_seq, 0,
                             TCP_FLAG_SYN, 0, 0) < 0) {
-        request->status = LEONOS_NET_STATUS_TX_FAILED;
+        request->status = RELIEFOS_NET_STATUS_TX_FAILED;
         return request->status;
     }
     ++local_seq;
@@ -3534,7 +3534,7 @@ static uint32_t net_http_exchange_ip(struct leonos_net_http_get *request,
         uint64_t now;
         net_poll_once(0, 0, 0, &wait);
         if (wait.reset) {
-            request->status = LEONOS_NET_STATUS_TCP_RESET;
+            request->status = RELIEFOS_NET_STATUS_TCP_RESET;
             return request->status;
         }
         if ((wait.flags & (TCP_FLAG_SYN | TCP_FLAG_ACK)) ==
@@ -3547,7 +3547,7 @@ static uint32_t net_http_exchange_ip(struct leonos_net_http_get *request,
             if (net_send_tcp_to_mac(dst_mac, net_config.local_ip, remote_ip,
                                     local_port, (uint16_t)port, syn_seq, 0,
                                     TCP_FLAG_SYN, 0, 0) < 0) {
-                request->status = LEONOS_NET_STATUS_TX_FAILED;
+                request->status = RELIEFOS_NET_STATUS_TX_FAILED;
                 return request->status;
             }
             next_retransmit = now + NET_TCP_SYN_RETRANSMIT_MS;
@@ -3555,13 +3555,13 @@ static uint32_t net_http_exchange_ip(struct leonos_net_http_get *request,
         net_cpu_relax();
     }
     if (!wait.remote_seq || wait.acked_seq != local_seq) {
-        request->status = LEONOS_NET_STATUS_TCP_TIMEOUT;
+        request->status = RELIEFOS_NET_STATUS_TCP_TIMEOUT;
         return request->status;
     }
     if (net_send_tcp_to_mac(dst_mac, net_config.local_ip, remote_ip,
                             local_port, (uint16_t)port, local_seq,
                             wait.remote_seq, TCP_FLAG_ACK, 0, 0) < 0) {
-        request->status = LEONOS_NET_STATUS_TX_FAILED;
+        request->status = RELIEFOS_NET_STATUS_TX_FAILED;
         return request->status;
     }
 
@@ -3569,7 +3569,7 @@ static uint32_t net_http_exchange_ip(struct leonos_net_http_get *request,
                             local_port, (uint16_t)port, local_seq,
                             wait.remote_seq, TCP_FLAG_PSH | TCP_FLAG_ACK,
                             (const uint8_t *)http_request, http_len) < 0) {
-        request->status = LEONOS_NET_STATUS_TX_FAILED;
+        request->status = RELIEFOS_NET_STATUS_TX_FAILED;
         return request->status;
     }
     local_seq += http_len;
@@ -3582,7 +3582,7 @@ static uint32_t net_http_exchange_ip(struct leonos_net_http_get *request,
         uint64_t now;
         net_poll_once(0, 0, 0, &wait);
         if (wait.reset) {
-            request->status = LEONOS_NET_STATUS_TCP_RESET;
+            request->status = RELIEFOS_NET_STATUS_TCP_RESET;
             return request->status;
         }
         if (wait.changed != before && wait.remote_seq != acked_remote_seq) {
@@ -3592,11 +3592,11 @@ static uint32_t net_http_exchange_ip(struct leonos_net_http_get *request,
             acked_remote_seq = wait.remote_seq;
         }
         if (wait.overflow) {
-            request->status = LEONOS_NET_STATUS_HTTP_TOO_LARGE;
+            request->status = RELIEFOS_NET_STATUS_HTTP_TOO_LARGE;
             break;
         }
         if (wait.fin) {
-            request->status = LEONOS_NET_STATUS_OK;
+            request->status = RELIEFOS_NET_STATUS_OK;
             break;
         }
         now = time_uptime_ms();
@@ -3608,7 +3608,7 @@ static uint32_t net_http_exchange_ip(struct leonos_net_http_get *request,
                                     TCP_FLAG_PSH | TCP_FLAG_ACK,
                                     (const uint8_t *)http_request,
                                     http_len) < 0) {
-                request->status = LEONOS_NET_STATUS_TX_FAILED;
+                request->status = RELIEFOS_NET_STATUS_TX_FAILED;
                 break;
             }
             next_retransmit = now + NET_TCP_DATA_RETRANSMIT_MS;
@@ -3617,21 +3617,21 @@ static uint32_t net_http_exchange_ip(struct leonos_net_http_get *request,
     }
 
     request->response_len = wait.length;
-    if (request->response_len >= LEONOS_NET_HTTP_RESPONSE_MAX) {
-        request->response_len = LEONOS_NET_HTTP_RESPONSE_MAX - 1u;
+    if (request->response_len >= RELIEFOS_NET_HTTP_RESPONSE_MAX) {
+        request->response_len = RELIEFOS_NET_HTTP_RESPONSE_MAX - 1u;
     }
     request->response[request->response_len] = 0;
-    if (request->status != LEONOS_NET_STATUS_HTTP_TOO_LARGE &&
-        request->status != LEONOS_NET_STATUS_OK) {
-        request->status = wait.length ? LEONOS_NET_STATUS_OK
-                                      : LEONOS_NET_STATUS_TCP_TIMEOUT;
+    if (request->status != RELIEFOS_NET_STATUS_HTTP_TOO_LARGE &&
+        request->status != RELIEFOS_NET_STATUS_OK) {
+        request->status = wait.length ? RELIEFOS_NET_STATUS_OK
+                                      : RELIEFOS_NET_STATUS_TCP_TIMEOUT;
     }
-    if (request->status == LEONOS_NET_STATUS_OK ||
-        request->status == LEONOS_NET_STATUS_HTTP_TOO_LARGE) {
+    if (request->status == RELIEFOS_NET_STATUS_OK ||
+        request->status == RELIEFOS_NET_STATUS_HTTP_TOO_LARGE) {
         request->http_status =
             net_http_parse_status(request->response, request->response_len);
-        if (request->status == LEONOS_NET_STATUS_OK && !request->http_status) {
-            request->status = LEONOS_NET_STATUS_HTTP_FAILED;
+        if (request->status == RELIEFOS_NET_STATUS_OK && !request->http_status) {
+            request->status = RELIEFOS_NET_STATUS_HTTP_FAILED;
         }
     }
     /**
@@ -3658,36 +3658,36 @@ static uint32_t net_http_exchange_ip(struct leonos_net_http_get *request,
  * @param request Value supplied by the caller.
  * @return The value or status produced by the operation.
  */
-int net_http_get(struct leonos_net_http_get *request)
+int net_http_get(struct reliefos_net_http_get *request)
 {
     char http_request[NET_HTTP_REQUEST_MAX];
-    uint32_t remote_ips[LEONOS_NET_DNS_MAX_ADDRESSES];
+    uint32_t remote_ips[RELIEFOS_NET_DNS_MAX_ADDRESSES];
     uint32_t remote_count = 0;
     uint32_t timeout_ms;
     uint32_t host_len;
     uint32_t path_len;
     uint32_t port;
     uint32_t http_len;
-    uint32_t last_status = LEONOS_NET_STATUS_HTTP_FAILED;
+    uint32_t last_status = RELIEFOS_NET_STATUS_HTTP_FAILED;
 
     if (!request) {
         return -1;
     }
-    host_len = net_strlen(request->host, LEONOS_NET_HOSTNAME_LEN);
-    path_len = net_strlen(request->path, LEONOS_NET_HTTP_PATH_LEN);
-    request->status = LEONOS_NET_STATUS_HTTP_FAILED;
+    host_len = net_strlen(request->host, RELIEFOS_NET_HOSTNAME_LEN);
+    path_len = net_strlen(request->path, RELIEFOS_NET_HTTP_PATH_LEN);
+    request->status = RELIEFOS_NET_STATUS_HTTP_FAILED;
     request->remote_ip = 0;
     request->http_status = 0;
     request->response_len = 0;
     request->response[0] = 0;
-    if (host_len == 0 || host_len >= LEONOS_NET_HOSTNAME_LEN ||
-        path_len >= LEONOS_NET_HTTP_PATH_LEN ||
+    if (host_len == 0 || host_len >= RELIEFOS_NET_HOSTNAME_LEN ||
+        path_len >= RELIEFOS_NET_HTTP_PATH_LEN ||
         request->port > 65535u) {
-        request->status = LEONOS_NET_STATUS_BAD_ARGUMENT;
+        request->status = RELIEFOS_NET_STATUS_BAD_ARGUMENT;
         return 0;
     }
     if (!e1000_is_ready()) {
-        request->status = LEONOS_NET_STATUS_NO_DEVICE;
+        request->status = RELIEFOS_NET_STATUS_NO_DEVICE;
         return 0;
     }
     timeout_ms = request->timeout_ms ? request->timeout_ms
@@ -3697,7 +3697,7 @@ int net_http_get(struct leonos_net_http_get *request)
     }
     {
         uint32_t config_status = net_ensure_ipv4_config(timeout_ms, 1);
-        if (config_status != LEONOS_NET_STATUS_OK) {
+        if (config_status != RELIEFOS_NET_STATUS_OK) {
             request->status = config_status;
             return 0;
         }
@@ -3706,7 +3706,7 @@ int net_http_get(struct leonos_net_http_get *request)
     http_len = net_http_build_request(http_request, sizeof(http_request),
                                       request->host, request->path, port);
     if (!http_len) {
-        request->status = LEONOS_NET_STATUS_BAD_ARGUMENT;
+        request->status = RELIEFOS_NET_STATUS_BAD_ARGUMENT;
         return 0;
     }
     if (net_http_resolve_hosts(request->host, host_len, timeout_ms,
@@ -3717,12 +3717,12 @@ int net_http_get(struct leonos_net_http_get *request)
     for (uint32_t i = 0; i < remote_count; ++i) {
         last_status = net_http_exchange_ip(request, http_request, http_len,
                                           remote_ips[i], port, timeout_ms);
-        if (last_status == LEONOS_NET_STATUS_OK ||
-            last_status == LEONOS_NET_STATUS_HTTP_TOO_LARGE ||
-            last_status == LEONOS_NET_STATUS_HTTP_FAILED ||
-            last_status == LEONOS_NET_STATUS_BAD_ARGUMENT ||
-            last_status == LEONOS_NET_STATUS_TX_FAILED ||
-            last_status == LEONOS_NET_STATUS_ARP_TIMEOUT) {
+        if (last_status == RELIEFOS_NET_STATUS_OK ||
+            last_status == RELIEFOS_NET_STATUS_HTTP_TOO_LARGE ||
+            last_status == RELIEFOS_NET_STATUS_HTTP_FAILED ||
+            last_status == RELIEFOS_NET_STATUS_BAD_ARGUMENT ||
+            last_status == RELIEFOS_NET_STATUS_TX_FAILED ||
+            last_status == RELIEFOS_NET_STATUS_ARP_TIMEOUT) {
             return 0;
         }
     }
@@ -3745,9 +3745,9 @@ void net_device_info(uint32_t *flags, uint64_t *mac_value, uint32_t *local_ip)
         mac |= (uint64_t)info.mac[i] << (i * 8u);
     }
     if (flags) {
-        *flags = info.present ? LEONOS_DEVICE_FLAG_PRESENT : 0;
+        *flags = info.present ? RELIEFOS_DEVICE_FLAG_PRESENT : 0;
         if (info.active) {
-            *flags |= LEONOS_DEVICE_FLAG_ACTIVE;
+            *flags |= RELIEFOS_DEVICE_FLAG_ACTIVE;
         }
     }
     if (mac_value) {
@@ -3878,7 +3878,7 @@ int net_interface_ioctl(uint32_t request, uint64_t address)
                 if (request == SIOCSIFADDR || request == SIOCSIFNETMASK)
                     net_interface_broadcast = net_config.local_ip | ~net_config.subnet_mask;
                 if (!net_config.local_ip) net_config.gateway_ip = 0;
-                net_config.source = net_config.local_ip ? LEONOS_NET_CONFIG_SOURCE_STATIC : LEONOS_NET_CONFIG_SOURCE_NONE;
+                net_config.source = net_config.local_ip ? RELIEFOS_NET_CONFIG_SOURCE_STATIC : RELIEFOS_NET_CONFIG_SOURCE_NONE;
                 net_config.lease_seconds = net_config.dhcp_server_ip = 0;
                 net_arp_cache_clear();
             } else {

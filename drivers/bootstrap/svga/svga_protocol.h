@@ -1,5 +1,5 @@
-#ifndef LEONOS_SVGA_PROTOCOL_H
-#define LEONOS_SVGA_PROTOCOL_H
+#ifndef RELIEFOS_SVGA_PROTOCOL_H
+#define RELIEFOS_SVGA_PROTOCOL_H
 
 #include <stdint.h>
 #include <stdbool.h>

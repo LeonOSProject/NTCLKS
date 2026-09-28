@@ -1,5 +1,5 @@
-#ifndef LEONOS_UAPI_LINUX_TIMEX_H
-#define LEONOS_UAPI_LINUX_TIMEX_H
+#ifndef RELIEFOS_UAPI_LINUX_TIMEX_H
+#define RELIEFOS_UAPI_LINUX_TIMEX_H
 #include <linux/types.h>
 /* Linux v6.12 native x86-64 timex; not the i386/x32 ABI. */
 struct linux_timex {

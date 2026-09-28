@@ -154,7 +154,7 @@ static int iso9660_find_in_dir(uint32_t extent, uint32_t size, const char *name,
             }
             if (record[32] > 1u && iso_name_match(record + 33, record[32], name)) {
                 if (out) {
-                    out->type = (record[25] & 0x02u) ? LEONOS_FS_TYPE_DIR : LEONOS_FS_TYPE_FILE;
+                    out->type = (record[25] & 0x02u) ? RELIEFOS_FS_TYPE_DIR : RELIEFOS_FS_TYPE_FILE;
                     out->flags = 0;
                     out->first_cluster = iso_u32_le(record + 2);
                     out->volume_id = g_storage.volume_id;
@@ -170,7 +170,7 @@ static int iso9660_find_in_dir(uint32_t extent, uint32_t size, const char *name,
 }
 
 static int iso9660_iter_dir_entry(uint32_t extent, uint32_t size, uint64_t index,
-                                  struct leonos_dir_entry *entry)
+                                  struct reliefos_dir_entry *entry)
 {
     uint32_t offset = 0;
     uint64_t ordinal = 0;
@@ -196,7 +196,7 @@ static int iso9660_iter_dir_entry(uint32_t extent, uint32_t size, uint64_t index
             }
             if (record[32] > 1u) {
                 if (ordinal == index) {
-                    entry->type = (record[25] & 0x02u) ? LEONOS_FS_TYPE_DIR : LEONOS_FS_TYPE_FILE;
+                    entry->type = (record[25] & 0x02u) ? RELIEFOS_FS_TYPE_DIR : RELIEFOS_FS_TYPE_FILE;
                     iso_copy_name(entry->name, sizeof(entry->name), record + 33, record[32]);
                     return 0;
                 }

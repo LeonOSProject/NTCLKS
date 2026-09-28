@@ -5,12 +5,12 @@
 # help, clean and distclean may not probe a compiler, regenerate configuration
 # or start production work (plan section 4). Deciding it once here stops the
 # other fragments from attaching that work implicitly.
-LEONOS_PASSIVE_GOALS := help doctor clean distclean test-legacy
-LEONOS_INSPECT := $(or $(findstring n,$(firstword -$(MAKEFLAGS))),$(findstring q,$(firstword -$(MAKEFLAGS))))
+RELIEFOS_PASSIVE_GOALS := help doctor clean distclean test-legacy
+RELIEFOS_INSPECT := $(or $(findstring n,$(firstword -$(MAKEFLAGS))),$(findstring q,$(firstword -$(MAKEFLAGS))))
 ifeq ($(MAKECMDGOALS),)
-	LEONOS_PASSIVE := 1
-else ifeq ($(words $(filter $(LEONOS_PASSIVE_GOALS),$(MAKECMDGOALS))),$(words $(MAKECMDGOALS)))
-	LEONOS_PASSIVE := 1
+	RELIEFOS_PASSIVE := 1
+else ifeq ($(words $(filter $(RELIEFOS_PASSIVE_GOALS),$(MAKECMDGOALS))),$(words $(MAKECMDGOALS)))
+	RELIEFOS_PASSIVE := 1
 endif
 
 # --- verbosity --------------------------------------------------------------
@@ -33,42 +33,42 @@ HOST_CFLAGS ?= -O2 -g
 HOST_LDFLAGS ?=
 
 # The warning set the plan requires for all new C code (section 8).
-LEONOS_STRICT_WARNINGS := -std=c11 -Wall -Wextra -Wpedantic -Werror -Wformat=2 \
+RELIEFOS_STRICT_WARNINGS := -std=c11 -Wall -Wextra -Wpedantic -Werror -Wformat=2 \
 	-Wshadow -Wstrict-prototypes -Wmissing-prototypes
 
 # Generated headers are searched before the source tree so a stale committed
 # header cannot shadow what this build just produced.
-LEONOS_HOST_INCLUDES := -I$(LEONOS_SRC) -I$(O_INCLUDE)
+RELIEFOS_HOST_INCLUDES := -I$(RELIEFOS_SRC) -I$(O_INCLUDE)
 
 # Sanitiser build used by `make test-tools`.
-LEONOS_SANITISE := -fsanitize=address,undefined -fno-omit-frame-pointer
+RELIEFOS_SANITISE := -fsanitize=address,undefined -fno-omit-frame-pointer
 
 # --- source inventory -------------------------------------------------------
-LEONOS_HOST_COMMON_SRCS := \
+RELIEFOS_HOST_COMMON_SRCS := \
 	tools/host/common/buffer.c \
 	tools/host/common/io.c \
 	tools/host/common/process.c
 
 # Upstream reference code gets its own diagnostic scope instead of the whole
 # project losing warnings: it is not ours to reformat (plan section 8).
-LEONOS_HOST_PUFF_SRC := third_party/zlib/contrib/puff/puff.c
-LEONOS_HOST_PUFF_WARNINGS := -std=c11 -O2 -w -I$(LEONOS_SRC)/third_party/zlib/contrib/puff
+RELIEFOS_HOST_PUFF_SRC := third_party/zlib/contrib/puff/puff.c
+RELIEFOS_HOST_PUFF_WARNINGS := -std=c11 -O2 -w -I$(RELIEFOS_SRC)/third_party/zlib/contrib/puff
 
 # The kernel checkout owns exactly the host tools its own build graph needs:
 # the content-change publisher, the .config translator, the version renderer and
 # the lock-file reader (plus its JSON module); mk/resources.mk links the CJK
 # font generator. The userland-side tools (gbk, musl-cc, apk-own, nls-extract)
 # stay with the parent repository and are not part of this tree.
-LEONOS_HOST_BIN := $(O_HOST)/bin
-LEONOS_EMIT := $(LEONOS_HOST_BIN)/leonos-emit
-LEONOS_CONFIG_TOOL := $(LEONOS_HOST_BIN)/leonos-config
-LEONOS_VERSION_TOOL := $(LEONOS_HOST_BIN)/leonos-version
-LEONOS_DEPS_TOOL := $(LEONOS_HOST_BIN)/leonos-deps
+RELIEFOS_HOST_BIN := $(O_HOST)/bin
+RELIEFOS_EMIT := $(RELIEFOS_HOST_BIN)/reliefos-emit
+RELIEFOS_CONFIG_TOOL := $(RELIEFOS_HOST_BIN)/reliefos-config
+RELIEFOS_VERSION_TOOL := $(RELIEFOS_HOST_BIN)/reliefos-version
+RELIEFOS_DEPS_TOOL := $(RELIEFOS_HOST_BIN)/reliefos-deps
 
-LEONOS_HOST_TOOLS := $(LEONOS_EMIT) $(LEONOS_CONFIG_TOOL) \
-	$(LEONOS_VERSION_TOOL) $(LEONOS_DEPS_TOOL)
+RELIEFOS_HOST_TOOLS := $(RELIEFOS_EMIT) $(RELIEFOS_CONFIG_TOOL) \
+	$(RELIEFOS_VERSION_TOOL) $(RELIEFOS_DEPS_TOOL)
 
-LEONOS_HOST_COMMON_OBJS := $(patsubst %.c,$(O_HOST)/obj/%.c.o,$(LEONOS_HOST_COMMON_SRCS))
+RELIEFOS_HOST_COMMON_OBJS := $(patsubst %.c,$(O_HOST)/obj/%.c.o,$(RELIEFOS_HOST_COMMON_SRCS))
 
 # --- command signatures -----------------------------------------------------
 # One signature per action class records the real argv, the absolute tool path
@@ -81,10 +81,10 @@ LEONOS_HOST_COMMON_OBJS := $(patsubst %.c,$(O_HOST)/obj/%.c.o,$(LEONOS_HOST_COMM
 # differs, so an unchanged signature never moves its mtime and nothing
 # downstream rebuilds.
 #
-# $(call LEONOS_SIGNATURE_RULE,class)
+# $(call RELIEFOS_SIGNATURE_RULE,class)
 #
-# cmp-then-move keeps this self-hosting: promoting a signature with leonos-emit
-# would need leonos-emit built first, and that build depends on a signature.
+# cmp-then-move keeps this self-hosting: promoting a signature with reliefos-emit
+# would need reliefos-emit built first, and that build depends on a signature.
 # rename() preserves the candidate's fresh mtime, so the signature moves only
 # when its content actually differed.
 # The candidate carries an id unique to this make process: two makes that share
@@ -95,17 +95,17 @@ LEONOS_HOST_COMMON_OBJS := $(patsubst %.c,$(O_HOST)/obj/%.c.o,$(LEONOS_HOST_COMM
 # POSIX -- so the fallback is the pid of one subshell, expanded exactly once by
 # the := below. Promoting is still compare-then-move, so the published .sig only
 # ever moves when its content really changed.
-LEONOS_PARSE_ID := $(or $(MAKEPID),$(shell echo $$$$))
-LEONOS_CANDIDATE = $(O_META)/$(1).$(LEONOS_PARSE_ID).candidate
+RELIEFOS_PARSE_ID := $(or $(MAKEPID),$(shell echo $$$$))
+RELIEFOS_CANDIDATE = $(O_META)/$(1).$(RELIEFOS_PARSE_ID).candidate
 
-define LEONOS_SIGNATURE_RULE
-$(file >$(call LEONOS_CANDIDATE,$(1)),$(strip $(LEONOS_SIG_$(1))))
+define RELIEFOS_SIGNATURE_RULE
+$(file >$(call RELIEFOS_CANDIDATE,$(1)),$(strip $(RELIEFOS_SIG_$(1))))
 
 $(O_META)/$(1).sig: FORCE | $(O_META)
-	$(Q)if cmp -s $(call LEONOS_CANDIDATE,$(1)) $$@ 2>/dev/null; then \
-	    rm -f $(call LEONOS_CANDIDATE,$(1)); \
+	$(Q)if cmp -s $(call RELIEFOS_CANDIDATE,$(1)) $$@ 2>/dev/null; then \
+	    rm -f $(call RELIEFOS_CANDIDATE,$(1)); \
 	else \
-	    mv $(call LEONOS_CANDIDATE,$(1)) $$@; \
+	    mv $(call RELIEFOS_CANDIDATE,$(1)) $$@; \
 	fi
 endef
 
@@ -117,55 +117,55 @@ endef
 # The ownership marker is written in the same breath as its own rule below,
 # because a tree produced only by `make kernel` still has to be recognisable to
 # `make clean`; a clean that refuses to touch its own output is a bug in clean.
-$(if $(LEONOS_PASSIVE),,$(shell mkdir -p $(O_META) $(O_HOST)/obj $(LEONOS_HOST_BIN); \
-	if [ ! -e $(LEONOS_O_MARKER) ]; then \
-	    printf 'leonos4-build-out version=1 root=%s\n' '$(LEONOS_SRC)' \
-	        > $(LEONOS_O_MARKER); \
+$(if $(RELIEFOS_PASSIVE),,$(shell mkdir -p $(O_META) $(O_HOST)/obj $(RELIEFOS_HOST_BIN); \
+	if [ ! -e $(RELIEFOS_O_MARKER) ]; then \
+	    printf 'reliefos-build-out version=1 root=%s\n' '$(RELIEFOS_SRC)' \
+	        > $(RELIEFOS_O_MARKER); \
 	fi))
 
-leonos_host_tool_path := $(if $(LEONOS_PASSIVE),deferred,$(shell command -v $(HOSTCC) 2>/dev/null || echo unavailable))
-leonos_host_tool_identity := $(if $(LEONOS_PASSIVE),deferred,$(shell $(HOSTCC) --version 2>&1 | head -n1))
+reliefos_host_tool_path := $(if $(RELIEFOS_PASSIVE),deferred,$(shell command -v $(HOSTCC) 2>/dev/null || echo unavailable))
+reliefos_host_tool_identity := $(if $(RELIEFOS_PASSIVE),deferred,$(shell $(HOSTCC) --version 2>&1 | head -n1))
 
-LEONOS_SIG_host-cc := argv=$(HOSTCC) $(LEONOS_STRICT_WARNINGS) $(LEONOS_HOST_INCLUDES) $(HOST_CFLAGS)|path=$(leonos_host_tool_path)|identity=$(leonos_host_tool_identity)
+RELIEFOS_SIG_host-cc := argv=$(HOSTCC) $(RELIEFOS_STRICT_WARNINGS) $(RELIEFOS_HOST_INCLUDES) $(HOST_CFLAGS)|path=$(reliefos_host_tool_path)|identity=$(reliefos_host_tool_identity)
 
-$(if $(LEONOS_PASSIVE),,$(eval $(call LEONOS_SIGNATURE_RULE,host-cc)))
+$(if $(RELIEFOS_PASSIVE),,$(eval $(call RELIEFOS_SIGNATURE_RULE,host-cc)))
 
 # --- directories ------------------------------------------------------------
-$(O_HOST) $(O_HOST)/obj $(LEONOS_HOST_BIN) $(O_META) $(O_INCLUDE) $(O_GENERATED) \
+$(O_HOST) $(O_HOST)/obj $(RELIEFOS_HOST_BIN) $(O_META) $(O_INCLUDE) $(O_GENERATED) \
 $(O_CONFIG) $(O_OBJ) $(O_LOGS) \
 $(O_INCLUDE)/generated $(O_GENERATED)/system $(O_CONFIG)/generated $(O_OBJ)/kernel:
 	$(Q)mkdir -p $@
 
 # Ownership marker for `clean`: it names the source root the tree belongs to.
-$(LEONOS_O_MARKER): | $(O_META)
-	$(Q)printf 'leonos4-build-out version=1 root=%s\n' '$(LEONOS_SRC)' > $@.tmp
+$(RELIEFOS_O_MARKER): | $(O_META)
+	$(Q)printf 'reliefos-build-out version=1 root=%s\n' '$(RELIEFOS_SRC)' > $@.tmp
 	$(Q)mv $@.tmp $@
 
 # --- host objects and programs ---------------------------------------------
-$(O_HOST)/obj/tools/host/%.c.o: $(LEONOS_SRC)/tools/host/%.c $(O_META)/host-cc.sig
+$(O_HOST)/obj/tools/host/%.c.o: $(RELIEFOS_SRC)/tools/host/%.c $(O_META)/host-cc.sig
 	$(Q)mkdir -p $(dir $@)
-	$(call LEONOS_LOG,HOSTCC,$<)
-	$(Q)$(HOSTCC) $(LEONOS_STRICT_WARNINGS) $(LEONOS_HOST_INCLUDES) $(HOST_CFLAGS) \
+	$(call RELIEFOS_LOG,HOSTCC,$<)
+	$(Q)$(HOSTCC) $(RELIEFOS_STRICT_WARNINGS) $(RELIEFOS_HOST_INCLUDES) $(HOST_CFLAGS) \
 		-MMD -MF $@.d -c $< -o $@
 
-$(LEONOS_EMIT): $(O_HOST)/obj/tools/host/gen/leonos-emit.c.o $(LEONOS_HOST_COMMON_OBJS) | $(LEONOS_HOST_BIN)
-	$(call LEONOS_LOG,HOSTLD,$@)
+$(RELIEFOS_EMIT): $(O_HOST)/obj/tools/host/gen/reliefos-emit.c.o $(RELIEFOS_HOST_COMMON_OBJS) | $(RELIEFOS_HOST_BIN)
+	$(call RELIEFOS_LOG,HOSTLD,$@)
 	$(Q)$(HOSTCC) $(HOST_CFLAGS) $(HOST_LDFLAGS) $^ -o $@
 
-$(LEONOS_CONFIG_TOOL): $(O_HOST)/obj/tools/host/config/leonos-config.c.o $(LEONOS_HOST_COMMON_OBJS) | $(LEONOS_HOST_BIN)
-	$(call LEONOS_LOG,HOSTLD,$@)
+$(RELIEFOS_CONFIG_TOOL): $(O_HOST)/obj/tools/host/config/reliefos-config.c.o $(RELIEFOS_HOST_COMMON_OBJS) | $(RELIEFOS_HOST_BIN)
+	$(call RELIEFOS_LOG,HOSTLD,$@)
 	$(Q)$(HOSTCC) $(HOST_CFLAGS) $(HOST_LDFLAGS) $^ -o $@
 
-$(LEONOS_VERSION_TOOL): $(O_HOST)/obj/tools/host/version/leonos-version.c.o $(LEONOS_HOST_COMMON_OBJS) | $(LEONOS_HOST_BIN)
-	$(call LEONOS_LOG,HOSTLD,$@)
+$(RELIEFOS_VERSION_TOOL): $(O_HOST)/obj/tools/host/version/reliefos-version.c.o $(RELIEFOS_HOST_COMMON_OBJS) | $(RELIEFOS_HOST_BIN)
+	$(call RELIEFOS_LOG,HOSTLD,$@)
 	$(Q)$(HOSTCC) $(HOST_CFLAGS) $(HOST_LDFLAGS) $^ -o $@
 
 # The lock-file reader links the JSON module as well as the shared primitives.
-LEONOS_JSON_OBJ := $(O_HOST)/obj/tools/host/manifest/json.c.o
+RELIEFOS_JSON_OBJ := $(O_HOST)/obj/tools/host/manifest/json.c.o
 
-$(LEONOS_DEPS_TOOL): $(O_HOST)/obj/tools/host/manifest/leonos-deps.c.o $(LEONOS_JSON_OBJ) \
-	$(LEONOS_HOST_COMMON_OBJS) | $(LEONOS_HOST_BIN)
-	$(call LEONOS_LOG,HOSTLD,$@)
+$(RELIEFOS_DEPS_TOOL): $(O_HOST)/obj/tools/host/manifest/reliefos-deps.c.o $(RELIEFOS_JSON_OBJ) \
+	$(RELIEFOS_HOST_COMMON_OBJS) | $(RELIEFOS_HOST_BIN)
+	$(call RELIEFOS_LOG,HOSTLD,$@)
 	$(Q)$(HOSTCC) $(HOST_CFLAGS) $(HOST_LDFLAGS) $^ -o $@
 
 -include $(shell find $(O_HOST)/obj -name '*.o.d' 2>/dev/null)

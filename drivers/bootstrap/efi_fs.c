@@ -1,6 +1,6 @@
-#include <ntclks/efi_fs.h>
-#include <ntclks/console.h>
-#include <ntclks/mm.h>
+#include <reliefnt/efi_fs.h>
+#include <reliefnt/console.h>
+#include <reliefnt/mm.h>
 
 #define EFI_BY_PROTOCOL 2ULL
 #define EFI_FILE_MODE_READ 0x0000000000000001ULL
@@ -236,7 +236,7 @@ static void close_file(struct efi_file_protocol *file)
 
 static int open_path(const char *path, struct efi_file_protocol **out_file)
 {
-    uint16_t efi_path[LEONOS_FS_PATH_LEN];
+    uint16_t efi_path[RELIEFOS_FS_PATH_LEN];
     efi_status_t status;
     int ret;
 
@@ -247,14 +247,14 @@ static int open_path(const char *path, struct efi_file_protocol **out_file)
         *out_file = root_dir;
         return 0;
     }
-    ret = build_efi_path(path, efi_path, LEONOS_FS_PATH_LEN);
+    ret = build_efi_path(path, efi_path, RELIEFOS_FS_PATH_LEN);
     if (ret < 0) {
         return ret;
     }
 
     status = root_dir->open(root_dir, out_file, efi_path, EFI_FILE_MODE_READ, 0);
     if (status != EFI_SUCCESS || !*out_file) {
-        console_printf("[ntclks] efi fs open failed path=%s status=0x%llx\n",
+        console_printf("[reliefnt] efi fs open failed path=%s status=0x%llx\n",
                        path,
                        (unsigned long long)status);
         return status_to_errno(status);
@@ -273,14 +273,14 @@ void efi_fs_init(uint64_t system_table_addr)
         return;
     }
     if (!system_table_addr) {
-        console_printf("[ntclks] efi fs init skipped: no EFI system table\n");
+        console_printf("[reliefnt] efi fs init skipped: no EFI system table\n");
         return;
     }
 
     st = (struct efi_system_table *)(uintptr_t)system_table_addr;
     if (!st || !st->boot_services || !st->boot_services->locate_handle_buffer ||
         !st->boot_services->handle_protocol) {
-        console_printf("[ntclks] efi fs init failed: boot services unavailable\n");
+        console_printf("[reliefnt] efi fs init failed: boot services unavailable\n");
         return;
     }
 
@@ -288,7 +288,7 @@ void efi_fs_init(uint64_t system_table_addr)
     status = boot_services->locate_handle_buffer(EFI_BY_PROTOCOL, &sfs_guid, 0,
                                                  &handle_count, &handles);
     if (status != EFI_SUCCESS || handle_count == 0 || !handles) {
-        console_printf("[ntclks] efi fs locate failed status=0x%llx handles=%llu\n",
+        console_printf("[reliefnt] efi fs locate failed status=0x%llx handles=%llu\n",
                        (unsigned long long)status,
                        (unsigned long long)handle_count);
         return;
@@ -306,13 +306,13 @@ void efi_fs_init(uint64_t system_table_addr)
         if (status == EFI_SUCCESS && volume) {
             root_dir = volume;
             ready = true;
-            console_printf("[ntclks] efi fs root volume ready handles=%llu\n",
+            console_printf("[reliefnt] efi fs root volume ready handles=%llu\n",
                            (unsigned long long)handle_count);
             return;
         }
     }
 
-    console_printf("[ntclks] efi fs init failed: no readable FAT32 volume\n");
+    console_printf("[reliefnt] efi fs init failed: no readable FAT32 volume\n");
 }
 
 bool efi_fs_ready(void)
@@ -351,7 +351,7 @@ int efi_fs_read_file(const char *path, const void **out_data, size_t *out_len)
 
     status = file->get_info(file, &file_info_guid, &info_size, info_buf);
     if (status != EFI_SUCCESS || info_size < sizeof(struct efi_file_info)) {
-        console_printf("[ntclks] efi fs get_info failed path=%s status=0x%llx size=%llu\n",
+        console_printf("[reliefnt] efi fs get_info failed path=%s status=0x%llx size=%llu\n",
                        path,
                        (unsigned long long)status,
                        (unsigned long long)info_size);
@@ -377,7 +377,7 @@ int efi_fs_read_file(const char *path, const void **out_data, size_t *out_len)
     status = file->read(file, &read_size, (void *)(uintptr_t)phys);
     close_file(file);
     if (status != EFI_SUCCESS || read_size != file_size) {
-        console_printf("[ntclks] efi fs read failed path=%s status=0x%llx read=%llu size=%llu\n",
+        console_printf("[reliefnt] efi fs read failed path=%s status=0x%llx read=%llu size=%llu\n",
                        path,
                        (unsigned long long)status,
                        (unsigned long long)read_size,
@@ -391,7 +391,7 @@ int efi_fs_read_file(const char *path, const void **out_data, size_t *out_len)
     return 0;
 }
 
-int efi_fs_list_dir(const char *path, struct leonos_dir_entry *entries,
+int efi_fs_list_dir(const char *path, struct reliefos_dir_entry *entries,
                     uint32_t capacity, uint32_t *out_count)
 {
     struct efi_file_protocol *dir = 0;
@@ -439,7 +439,7 @@ int efi_fs_list_dir(const char *path, struct leonos_dir_entry *entries,
 
         if (count < capacity && entries) {
             entries[count].type = (info->attribute & EFI_FILE_DIRECTORY) ?
-                LEONOS_FS_TYPE_DIR : LEONOS_FS_TYPE_FILE;
+                RELIEFOS_FS_TYPE_DIR : RELIEFOS_FS_TYPE_FILE;
             copy_ascii(entries[count].name, sizeof(entries[count].name), info->file_name);
         }
         ++count;

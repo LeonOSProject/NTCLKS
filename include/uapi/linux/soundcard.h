@@ -1,8 +1,8 @@
-#ifndef LEONOS_UAPI_LINUX_SOUNDCARD_H
-#define LEONOS_UAPI_LINUX_SOUNDCARD_H
+#ifndef RELIEFOS_UAPI_LINUX_SOUNDCARD_H
+#define RELIEFOS_UAPI_LINUX_SOUNDCARD_H
 
 /*
- * Deliberately small OSS soundcard UAPI.  LeonOS exposes playback through
+ * Deliberately small OSS soundcard UAPI.  ReliefOS exposes playback through
  * /dev/dsp rather than the historical application-specific audio ioctls.
  * Keep these values/layouts compatible with Linux's legacy OSS ABI so ports
  * can use their normal PCM setup path.

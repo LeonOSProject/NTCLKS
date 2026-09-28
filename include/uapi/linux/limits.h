@@ -1,5 +1,5 @@
-#ifndef LEONOS_UAPI_LINUX_LIMITS_H
-#define LEONOS_UAPI_LINUX_LIMITS_H
+#ifndef RELIEFOS_UAPI_LINUX_LIMITS_H
+#define RELIEFOS_UAPI_LINUX_LIMITS_H
 
 /* Linux v6.12 include/uapi/linux/limits.h, native pathname bounds. */
 #define LINUX_NAME_MAX 255U

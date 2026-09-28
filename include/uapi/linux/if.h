@@ -1,5 +1,5 @@
-#ifndef LEONOS_UAPI_LINUX_IF_H
-#define LEONOS_UAPI_LINUX_IF_H
+#ifndef RELIEFOS_UAPI_LINUX_IF_H
+#define RELIEFOS_UAPI_LINUX_IF_H
 #include <linux/socket.h>
 #define IFNAMSIZ 16
 #define IFF_UP 0x1

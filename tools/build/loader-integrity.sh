@@ -8,8 +8,8 @@ k=$(sha256sum "$kernel"); k=${k%% *}
 tmp=$(mktemp "$output.XXXXXX")
 trap 'rm -f "$tmp"' EXIT HUP INT TERM
 {
-    printf '#ifndef LEONOS_LOADER_INTEGRITY_H\n#define LEONOS_LOADER_INTEGRITY_H\n\n#define LEONOS_LOADER_INTEGRITY_SHA256_LEN 32u\n'
-    printf 'static const unsigned char LEONOS_LOADER_KERNEL_SHA256[32] = { '
+    printf '#ifndef RELIEFOS_LOADER_INTEGRITY_H\n#define RELIEFOS_LOADER_INTEGRITY_H\n\n#define RELIEFOS_LOADER_INTEGRITY_SHA256_LEN 32u\n'
+    printf 'static const unsigned char RELIEFOS_LOADER_KERNEL_SHA256[32] = { '
     printf '%s\n' "$k" | sed 's/../0x&, /g;s/, $//'
     printf ' };\n'
     printf '\n#endif\n'

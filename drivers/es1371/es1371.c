@@ -1,4 +1,4 @@
-#include <leonos/driver.h>
+#include <reliefos/driver.h>
 
 #define ES1371_VENDOR_ENSONIQ 0x1274U
 #define ES1371_DEVICE_AUDIOPCI 0x1371U
@@ -78,7 +78,7 @@
 struct es1371_state {
     uint32_t present;
     uint32_t active;
-    struct leonos_driver_pci_device pci;
+    struct reliefos_driver_pci_device pci;
     uint16_t io_port;
     uint64_t dma_phys;
     uint8_t *dma_buffer;
@@ -112,7 +112,7 @@ struct es1371_state {
     volatile uint32_t io_lock;
 };
 
-static const struct leonos_driver_kernel_api *kernel_api;
+static const struct reliefos_driver_kernel_api *kernel_api;
 static struct es1371_state es1371;
 
 static uint32_t es1371_read(uint16_t offset);
@@ -478,7 +478,7 @@ static void es1371_stop(void)
 /*
  * DAC1 period status is level-triggered.  An ES1371 acknowledges it by
  * briefly clearing P1_INT_EN then restoring the active serial format.  This
- * is the same sequence used by the Linux driver.  LeonOS currently polls
+ * is the same sequence used by the Linux driver.  ReliefOS currently polls
  * audio progress rather than registering the PCI audio IRQ, so perform the
  * acknowledgement at each serialized hardware access.
  */
@@ -557,7 +557,7 @@ static int es1371_start_dma(void)
                   (ES1371_DMA_BYTES / ES1371_DMA_FRAME_BYTES) - 1U);
     /* ES1371's sample counter is a period counter.  P1_INT_EN is required by
      * both real AudioPCI hardware and VMware's model to advance the DMA
-     * engine; the interrupt is harmless because LeonOS polls the cursor. */
+     * engine; the interrupt is harmless because ReliefOS polls the cursor. */
     es1371.serial = ES_SERIAL_DAC1_16BIT_STEREO;
     es1371_write(ES_REG_SERIAL, es1371.serial);
     es1371_write(ES_REG_DAC1_COUNT,
@@ -738,7 +738,7 @@ static int es1371_is_ready(void)
     return es1371.active != 0;
 }
 
-static int es1371_configure(const struct leonos_audio_format *format)
+static int es1371_configure(const struct reliefos_audio_format *format)
 {
     int ret;
     if (!es1371_is_ready() || !format || format->channels != 2U ||
@@ -765,7 +765,7 @@ static long es1371_audio_write(const void *data, uint32_t length, uint32_t *out_
     const uint8_t *bytes = (const uint8_t *)data;
     uint32_t written = 0;
     if (out_status) {
-        *out_status = LEONOS_AUDIO_STATUS_PLAYBACK_FAILED;
+        *out_status = RELIEFOS_AUDIO_STATUS_PLAYBACK_FAILED;
     }
     if (!es1371_is_ready() || (!data && length) || (length & 3U)) {
         return -22;
@@ -793,7 +793,7 @@ static long es1371_audio_write(const void *data, uint32_t length, uint32_t *out_
         }
         if (es1371_queue_block(bytes + written, chunk) < 0) {
             if (out_status) {
-                *out_status = LEONOS_AUDIO_STATUS_WOULD_BLOCK;
+                *out_status = RELIEFOS_AUDIO_STATUS_WOULD_BLOCK;
             }
             es1371_unlock();
             return written ? (long)written : 0;
@@ -814,13 +814,13 @@ static long es1371_audio_write(const void *data, uint32_t length, uint32_t *out_
         es1371.cursor_probe_pending = 1U;
     }
     if (out_status) {
-        *out_status = LEONOS_AUDIO_STATUS_OK;
+        *out_status = RELIEFOS_AUDIO_STATUS_OK;
     }
     es1371_unlock();
     return (long)written;
 }
 
-static void es1371_get_state(struct leonos_audio_state *out)
+static void es1371_get_state(struct reliefos_audio_state *out)
 {
     if (!out) {
         return;
@@ -830,7 +830,7 @@ static void es1371_get_state(struct leonos_audio_state *out)
     if (es1371.dma_running) {
         es1371_update_consumption(es1371_dma_cursor());
     }
-    *out = (struct leonos_audio_state){
+    *out = (struct reliefos_audio_state){
         .present = es1371.present,
         .active = es1371.active,
         .sample_rate = es1371.sample_rate,
@@ -849,7 +849,7 @@ static void es1371_get_state(struct leonos_audio_state *out)
 
 static int es1371_hardware_init(void)
 {
-    struct leonos_audio_format default_format = {
+    struct reliefos_audio_format default_format = {
         .sample_rate = 48000U,
         .channels = 2U,
         .bits_per_sample = 16U,
@@ -937,15 +937,15 @@ static int es1371_hardware_init(void)
     return 0;
 }
 
-static int es1371_driver_init(const struct leonos_driver_kernel_api *api)
+static int es1371_driver_init(const struct reliefos_driver_kernel_api *api)
 {
-    static const struct leonos_driver_audio_ops ops = {
+    static const struct reliefos_driver_audio_ops ops = {
         .is_ready = es1371_is_ready,
         .configure = es1371_configure,
         .write = es1371_audio_write,
         .get_state = es1371_get_state,
     };
-    if (!api || api->abi_version != LEONOS_DRIVER_ABI_VERSION ||
+    if (!api || api->abi_version != RELIEFOS_DRIVER_ABI_VERSION ||
         api->struct_size < sizeof(*api)) {
         return -22;
     }
@@ -967,11 +967,11 @@ static void es1371_driver_fini(void)
     es1371_zero(&es1371, sizeof(es1371));
 }
 
-const struct leonos_driver_module leonos_driver_module = {
-    .magic = LEONOS_DRIVER_MODULE_MAGIC,
-    .abi_version = LEONOS_DRIVER_ABI_VERSION,
-    .struct_size = sizeof(struct leonos_driver_module),
-    .kind = LEONOS_DRIVER_KIND_AUDIO,
+const struct reliefos_driver_module reliefos_driver_module = {
+    .magic = RELIEFOS_DRIVER_MODULE_MAGIC,
+    .abi_version = RELIEFOS_DRIVER_ABI_VERSION,
+    .struct_size = sizeof(struct reliefos_driver_module),
+    .kind = RELIEFOS_DRIVER_KIND_AUDIO,
     .name = "es1371",
     .version = 1U,
     .reserved = 0,

@@ -16,7 +16,7 @@ int storage_statfs(const struct storage_node *node, struct linux_statfs_abi *val
     uint64_t flags;
     if (!node || !value) return -22;
     *value = (struct linux_statfs_abi){0};
-    value->f_namelen = LEONOS_FS_NAME_LEN - 1;
+    value->f_namelen = RELIEFOS_FS_NAME_LEN - 1;
     value->f_flags = LINUX_ST_VALID;
     if (node->flags & (STORAGE_NODE_FLAG_DEV_NODE | STORAGE_NODE_FLAG_DEV_DIR | STORAGE_NODE_FLAG_DEV_FB0)) {
         value->f_type = 0x858458f6; /* Linux ramfs/simple_statfs for synthetic devfs. */

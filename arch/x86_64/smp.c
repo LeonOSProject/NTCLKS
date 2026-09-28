@@ -1,20 +1,20 @@
 /*
- * LeonOS x86_64 symmetric multiprocessing.
+ * ReliefOS x86_64 symmetric multiprocessing.
  *
  * APs are started only after paging, the BSP GDT, and the IDT are ready. The
  * low-memory trampoline is copied from the kernel image and patched for one AP
  * at a time, which keeps the SIPI entry position-independent and avoids
  * reserving a permanent low-memory allocator range.
  */
-#include <ntclks/apic.h>
-#include <ntclks/arch.h>
-#include <ntclks/console.h>
-#include <ntclks/mm.h>
-#include <ntclks/paging.h>
-#include <ntclks/sched.h>
-#include <ntclks/smp.h>
-#include <ntclks/inventory.h>
-#include <ntclks/userland.h>
+#include <reliefnt/apic.h>
+#include <reliefnt/arch.h>
+#include <reliefnt/console.h>
+#include <reliefnt/mm.h>
+#include <reliefnt/paging.h>
+#include <reliefnt/sched.h>
+#include <reliefnt/smp.h>
+#include <reliefnt/inventory.h>
+#include <reliefnt/userland.h>
 
 #include "idt.h"
 
@@ -152,7 +152,7 @@ void smp_init(void)
     smp_ready = cpu_count <= 1;
     smp_scheduler_started = cpu_count <= 1;
     smp_bsp_user_entry_pending = cpu_count <= 1;
-    console_printf("[ntclks] SMP topology CPUs=%u BSP APIC=%u discovered=%u\n",
+    console_printf("[reliefnt] SMP topology CPUs=%u BSP APIC=%u discovered=%u\n",
                    (unsigned)cpu_count, (unsigned)apic_bsp_id(),
                    (unsigned)discovered);
 }
@@ -229,13 +229,13 @@ void smp_start_aps(void)
         if (id == apic_id()) {
             cpus[i].online = 1;
             cpus[i].started = 1;
-            console_printf("[ntclks] SMP CPU%u is current BSP APIC=%u\n",
+            console_printf("[reliefnt] SMP CPU%u is current BSP APIC=%u\n",
                            (unsigned)i, (unsigned)id);
             continue;
         }
         stack = mm_alloc_pages(AP_STACK_PAGES);
         if (!stack) {
-            console_printf("[ntclks] SMP AP%u stack allocation failed\n", (unsigned)i);
+            console_printf("[reliefnt] SMP AP%u stack allocation failed\n", (unsigned)i);
             continue;
         }
         cpus[i].stack = stack + (uint64_t)AP_STACK_PAGES * 4096ULL;
@@ -254,15 +254,15 @@ void smp_start_aps(void)
             cpus[i].started = 0;
             /* Do not release a timed-out AP stack: a delayed SIPI may still
              * enter the trampoline and use it after this barrier expires. */
-            console_printf("[ntclks] SMP APIC %u failed to come online\n", (unsigned)id);
+            console_printf("[reliefnt] SMP APIC %u failed to come online\n", (unsigned)id);
         } else {
-            console_printf("[ntclks] SMP CPU%u APIC=%u online\n", (unsigned)i, (unsigned)id);
+            console_printf("[reliefnt] SMP CPU%u APIC=%u online\n", (unsigned)i, (unsigned)id);
         }
     }
     smp_ready = 1;
     uint32_t online = 0;
     for (uint32_t i = 0; i < cpu_count; ++i) online += cpus[i].online != 0;
-    console_printf("[ntclks] SMP ready online=%u/%u\n", (unsigned)online, (unsigned)cpu_count);
+    console_printf("[reliefnt] SMP ready online=%u/%u\n", (unsigned)online, (unsigned)cpu_count);
 }
 
 void smp_ap_entry(uint32_t cpu_index)
