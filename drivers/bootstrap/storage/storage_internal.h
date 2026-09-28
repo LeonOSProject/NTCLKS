@@ -445,6 +445,16 @@ struct __attribute__((packed)) ext2_dirent {
  * checksums are only meaningful for Linux-created filesystems, so the mount
  * path reads this word before calling storage_ext4_verify_inode_checksum. */
 #define SB_CREATOR_OS 0x48
+/* On-disk offsets of s_reserved_gdt_blocks / s_log_groups_per_flex /
+ * s_backup_bgs (ext4.h:1369).  storage_ext4_mount() reads these raw words
+ * into the allocator context because storage_ext4_parse_super() does not
+ * expose them (same shared-spelling convention as SB_CHECKSUM_SEED).
+ * SB_BACKUP_BGS is s_backup_bgs[2] at 0x24C (after s_mount_opts at 0x200
+ * and the quota/overhead words); verified against a real sparse_super2
+ * mke2fs image ("Backup block groups: 1 7" == the le32 pair at 0x24C). */
+#define SB_RESERVED_GDT 0xCE
+#define SB_LOG_GROUPS_PER_FLEX 0x174
+#define SB_BACKUP_BGS 0x24C
 #define EXT4_SUPER_MAGIC 0xef53u
 #define EXT4_EXT_MAGIC 0xf30au
 #define EXT4_MIN_BLOCK_SIZE 1024u
@@ -530,7 +540,15 @@ struct storage_ext4_super_view {
 };
 
 /* Parsed group descriptor.  The 64-bit bitmap/table and count fields are
- * combined from the _lo/_hi words only when desc_size >= 64. */
+ * combined from the _lo/_hi words only when desc_size >= 64.  The two
+ * bitmap checksum words (bg_block_bitmap_csum / bg_inode_bitmap_csum) are
+ * NOT parsed by storage_ext4_parse_group_desc: storage_ext4_read_group
+ * fills them from the raw descriptor and storage_ext4_write_group stores
+ * them back (lo+hi when desc_size covers the hi slot, else lo only and the
+ * hi half reads back as zero).  They hold the checksums that
+ * linux/fs/ext4/bitmap.c stores in the descriptor for the two bitmap
+ * blocks; callers that modify a bitmap must recompute the matching word
+ * before storage_ext4_write_group. */
 struct storage_ext4_group_view {
     uint64_t block_bitmap;
     uint64_t inode_bitmap;
@@ -541,6 +559,8 @@ struct storage_ext4_group_view {
     uint32_t itable_unused;
     uint16_t flags;
     uint16_t checksum;
+    uint32_t block_bitmap_csum;
+    uint32_t inode_bitmap_csum;
 };
 
 /* Parsed extent tree node header (ext4_extents.h:78-84). */
@@ -553,7 +573,26 @@ struct storage_ext4_extent_header_view {
 };
 
 /* Per-volume ext4 geometry.  Cache, journal and statistics fields are
- * added by later tasks. */
+ * added by later tasks.  The super_view / backup_bgs / reserved_gdt_blocks /
+ * flex_log_groups / fs_error fields are published by storage_ext4_mount()
+ * from the raw superblock (task 5 allocator context):
+ *  - super_view is the parsed superblock kept for the metadata checksum
+ *    entry points (feature words, uuid and s_checksum_seed all feed the
+ *    group/inode/bitmap checksums) and for free-count bookkeeping;
+ *  - backup_bgs are s_backup_bgs[0..1] (only meaningful with
+ *    COMPAT_SPARSE_SUPER2, which decides where superblock backups live);
+ *  - reserved_gdt_blocks is s_reserved_gdt_blocks (counts as base metadata
+ *    of every group that carries a superblock backup);
+ *  - flex_log_groups is s_log_groups_per_flex clamped to
+ *    EXT4_MAX_FLEX_LOG (mount logs the clamp; flex sizes above 2^7 would
+ *    make the per-flex free-count sums explode);
+ *  - fs_error is a sticky flag set when metadata checksum verification
+ *    fails on an allocation path ("mark the volume errored"); later write
+ *    paths must refuse to mutate a volume once it is set;
+ *  - next_goal_block / reserved_window_end hold the allocator's per-volume
+ *    goal hint and its reservation window (updated by every successful
+ *    storage_ext4_alloc_blocks(), released when freed blocks fall inside
+ *    the window). */
 struct storage_ext4_state {
     uint64_t partition_start_lba;
     uint64_t partition_sector_count;
@@ -568,6 +607,13 @@ struct storage_ext4_state {
     uint32_t inode_size;
     uint32_t first_data_block;
     uint32_t desc_size;
+    struct storage_ext4_super_view super_view;
+    uint32_t reserved_gdt_blocks;
+    uint32_t backup_bgs[2];
+    uint8_t flex_log_groups;
+    uint8_t fs_error;
+    uint64_t next_goal_block;
+    uint64_t reserved_window_end;
 };
 
 /* ---- ext4 mount and feature policy (task 4) --------------------------
@@ -711,6 +757,93 @@ int storage_ext4_update_inode_checksum(uint8_t *ino_raw, uint32_t inode_size,
                                        uint32_t ino, uint32_t generation,
                                        const struct storage_ext4_super_view *view);
 
+/* ---- ext4 group descriptors, bitmaps and the flex-group allocator
+ * (storage_ext4_alloc.c, task 5) ------------------------------------------
+ * All six entry points return 0 on success or a negative RELIEFOS_* errno:
+ * -RELIEFOS_EINVAL for NULL pointers, zero counts, out-of-range groups /
+ * blocks / inodes and double frees (freeing a block or inode whose bitmap
+ * bit is clear), -RELIEFOS_EIO for I/O or checksum failures (the volume's
+ * ext4.fs_error is set and logged when a bitmap checksum mismatches), and
+ * -RELIEFOS_ENOSPC when no block/inode at all is available.  All block
+ * numbers are uint64_t throughout.
+ *
+ * storage_ext4_read_group() serves a group descriptor from the bounded
+ * group-summary cache (EXT4_GROUP_CACHE_ENTRIES entries, LRU, stamped with
+ * the volume's mount_generation); on a miss it reads the descriptor
+ * through the block cache (s_first_data_block+1 up, desc_size wide,
+ * straddling block boundaries when needed) and verifies its checksum.
+ * storage_ext4_write_group() writes the whole view back (bitmap/table
+ * addresses, free counts, used_dirs, itable_unused, flags and the two
+ * bitmap checksum words; bytes the view does not carry are preserved),
+ * recomputes bg_checksum and refreshes the summary cache.  Bitmap,
+ * descriptor and superblock free-count updates are published through
+ * storage_ext4_cache_mark_dirty(); journal handles wrap these updates in a
+ * later task.
+ *
+ * storage_ext4_alloc_blocks() searches near goal inside goal's group first
+ * (forward and backward), then the rest of goal's flex group, then the
+ * other flex groups ordered by their accumulated free-block counts
+ * (flex groups whose free count can not satisfy count are tried last).
+ * Each group's bitmap is searched at most once; a run may cross a group
+ * boundary when scanning near goal (contiguous block numbers).  When no
+ * full run of count blocks exists the best (longest) shorter run is
+ * allocated and *allocated reports its length; with no free block at all
+ * the call returns -RELIEFOS_ENOSPC.  Success moves the per-volume
+ * next-goal hint and its reservation window of
+ * EXT4_RESERVATION_WINDOW_BLOCKS blocks: blocks inside the window are not
+ * handed to requests whose goal lies outside it (the window moves with
+ * every successful allocation and is released by any successful
+ * storage_ext4_free_blocks(), so recycling never hides blocks).  goal must
+ * be < blocks_count (else -EINVAL); goals below s_first_data_block are
+ * clamped up to it.
+ *
+ * BLOCK_UNINIT (uninit_bg) groups are treated as all-free but uninitialized
+ * and are initialized on first touch: in-group metadata (superblock
+ * backup, group descriptor table, the bitmap blocks themselves and the
+ * inode table) and blocks past the end of the filesystem get their bits
+ * set, the free-block count is recomputed from the bitmap, the flag is
+ * cleared and the bitmap plus descriptor are written back (with fresh
+ * checksums).  INODE_UNINIT works the same way for the inode bitmap (tail
+ * bits past s_inodes_count and the bitmap padding are set, bg_itable_unused
+ * is set to s_inodes_per_group); INODE_UNINIT on group 0 is corruption
+ * (-RELIEFOS_EIO, matching Linux).
+ *
+ * storage_ext4_alloc_inode() reserves inodes 1..10 (EXT4_GOOD_OLD_FIRST_INO
+ * and below are never returned).  Regular inodes take the first group with
+ * free inodes; directories prefer the group with the most free inodes.
+ * storage_ext4_free_inode() validates the range, that the bitmap bit is
+ * set and that the on-disk inode's i_links_count is 0, zeroes the inode
+ * table slot through the cache and decrements bg_used_dirs_count for
+ * directories. */
+#define EXT4_GOOD_OLD_FIRST_INO 11u
+/* Bounded group-summary cache size; overridable with -D like the block
+ * cache capacities (host tests shrink it to exercise eviction). */
+#ifndef EXT4_GROUP_CACHE_ENTRIES
+#define EXT4_GROUP_CACHE_ENTRIES 64u
+#endif
+/* Blocks reserved after a successful allocation for the same writer. */
+#ifndef EXT4_RESERVATION_WINDOW_BLOCKS
+#define EXT4_RESERVATION_WINDOW_BLOCKS 8u
+#endif
+/* s_log_groups_per_flex clamp: flex groups above 2^7 members make the
+ * on-demand free-count sums expensive for no benefit (mount logs when it
+ * applies the clamp). */
+#define EXT4_MAX_FLEX_LOG 7u
+
+int storage_ext4_read_group(struct storage_volume *volume, uint64_t group,
+                            struct storage_ext4_group_view *out);
+int storage_ext4_write_group(struct storage_volume *volume, uint64_t group,
+                             const struct storage_ext4_group_view *view);
+int storage_ext4_alloc_blocks(struct storage_volume *volume, uint64_t goal,
+                              uint32_t count, uint64_t *first,
+                              uint32_t *allocated);
+int storage_ext4_free_blocks(struct storage_volume *volume, uint64_t first,
+                             uint32_t count);
+int storage_ext4_alloc_inode(struct storage_volume *volume, bool directory,
+                             uint64_t *ino);
+int storage_ext4_free_inode(struct storage_volume *volume, uint64_t ino,
+                            bool directory);
+
 struct nvme_controller;
 
 static const uint8_t esp_guid[16] = {
@@ -829,6 +962,23 @@ struct storage_volume {
  * callers and host-test fixtures compile unchanged. */
 #define ext2_start_lba ext_start_lba
 #define ext2_sector_count ext_sector_count
+
+/* Host tests compile the ext4 storage fragments as standalone translation
+ * units (task 5 links storage_ext4_{format,checksum,cache,alloc}.c without
+ * the storage.c facade) and provide their own storage_read_device /
+ * storage_write_device / storage_memzero / storage_memcpy.  The facade
+ * defines these four helpers as static in earlier fragments, so plain
+ * prototypes here would break that TU ("static declaration follows
+ * non-static declaration"); standalone builds opt in with
+ * -DRELIEFOS_STORAGE_STANDALONE_TU to get the prototypes. */
+#ifdef RELIEFOS_STORAGE_STANDALONE_TU
+void storage_memzero(void *dst, size_t len);
+void storage_memcpy(void *dst, const void *src, size_t len);
+int storage_read_device(const struct storage_volume *volume, uint64_t lba,
+                        uint32_t sector_count, void *buffer);
+int storage_write_device(const struct storage_volume *volume, uint64_t lba,
+                         uint32_t sector_count, const void *buffer);
+#endif
 
 struct install_disk_state {
     bool present;

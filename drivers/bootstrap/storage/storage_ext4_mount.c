@@ -156,6 +156,7 @@ int storage_ext4_mount(struct storage_volume *volume)
     uint32_t ino_in_block;
     uint32_t creator_os;
     uint32_t filesystem;
+    uint8_t flex_log;
     const uint8_t *ino_raw;
     const char *reason;
     int ret;
@@ -214,6 +215,26 @@ int storage_ext4_mount(struct storage_volume *volume)
     volume->ext4.inode_size = view.inode_size;
     volume->ext4.first_data_block = view.first_data_block;
     volume->ext4.desc_size = view.desc_size;
+
+    /* Allocator context (task 5): the parsed superblock feeds the metadata
+     * checksums and the free-count bookkeeping; the raw words
+     * storage_ext4_parse_super() does not carry are read here (shared
+     * SB_* spellings).  s_log_groups_per_flex is clamped to
+     * EXT4_MAX_FLEX_LOG so the per-flex free-count sums stay bounded. */
+    volume->ext4.super_view = view;
+    volume->ext4.reserved_gdt_blocks =
+        ext4_get_le16(storage_scratch + SB_RESERVED_GDT);
+    volume->ext4.backup_bgs[0] = ext4_get_le32(storage_scratch + SB_BACKUP_BGS);
+    volume->ext4.backup_bgs[1] =
+        ext4_get_le32(storage_scratch + SB_BACKUP_BGS + 4);
+    flex_log = storage_scratch[SB_LOG_GROUPS_PER_FLEX];
+    if (flex_log > EXT4_MAX_FLEX_LOG) {
+        console_printf("[reliefnt] ext4 mount clamped s_log_groups_per_flex "
+                       "%u -> %u\n",
+                       (unsigned)flex_log, (unsigned)EXT4_MAX_FLEX_LOG);
+        flex_log = (uint8_t)EXT4_MAX_FLEX_LOG;
+    }
+    volume->ext4.flex_log_groups = flex_log;
 
     /* Group descriptors start at block s_first_data_block + 1 and are
      * verified group by group. */
