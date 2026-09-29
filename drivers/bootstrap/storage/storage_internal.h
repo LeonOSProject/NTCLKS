@@ -628,6 +628,14 @@ int storage_ext4_device_flush(const struct storage_volume *);
 int storage_ext4_parse_inode(const uint8_t *, uint32_t,
                              const struct storage_ext4_super_view *, struct ext4_inode_view *);
 int storage_ext4_read_inode(struct storage_volume *, uint64_t, struct ext4_inode_view *);
+int storage_ext4_write_inode(struct storage_volume *, uint64_t, const struct ext4_inode_view *);
+int storage_ext4_write_file_range(struct storage_volume *, uint64_t, uint64_t,
+                                  const void *, uint32_t, uint32_t *);
+int storage_ext4_truncate(struct storage_volume *, uint64_t, uint64_t);
+int storage_ext4_recover_orphans(struct storage_volume *);
+int storage_ext4_fallocate(struct storage_volume *, uint64_t, uint32_t, uint64_t, uint64_t);
+int storage_ext4_change_mapping(struct storage_volume *, uint64_t, struct ext4_inode_view *,
+                                uint64_t, uint64_t, uint32_t, bool, bool);
 int storage_ext4_map_block(struct storage_volume *, uint64_t, const struct ext4_inode_view *,
                            uint64_t, bool, struct storage_ext4_map_result *);
 int storage_ext4_insert_extent(struct storage_volume *, uint64_t, uint64_t, uint64_t,

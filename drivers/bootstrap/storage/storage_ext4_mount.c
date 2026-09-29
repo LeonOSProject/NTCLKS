@@ -155,6 +155,7 @@ int storage_ext4_mount(struct storage_volume *volume)
     uint64_t ino_block;
     uint32_t ino_in_block;
     uint32_t creator_os;
+    uint32_t orphan_head;
     uint32_t filesystem;
     uint8_t flex_log;
     const uint8_t *ino_raw;
@@ -192,6 +193,7 @@ int storage_ext4_mount(struct storage_volume *volume)
         goto fail;
     }
     creator_os = ext4_get_le32(storage_scratch + SB_CREATOR_OS);
+    orphan_head = ext4_get_le32(storage_scratch + 0xe8);
     if ((view.feature_ro_compat & EXT4_FEATURE_RO_COMPAT_METADATA_CSUM) != 0) {
         ret = storage_ext4_verify_super_checksum(storage_scratch, EXT4_SUPERBLOCK_SIZE);
         if (ret < 0) {
@@ -271,6 +273,7 @@ int storage_ext4_mount(struct storage_volume *volume)
                     ret = -RELIEFOS_EIO; goto fail;
                 }
                 volume->ext4.super_view = view;
+                orphan_head = ext4_get_le32(storage_scratch + 0xe8);
                 ret = storage_ext4_feature_policy(&view, &decision);
                 if (ret < 0) goto fail;
             }
@@ -364,6 +367,10 @@ int storage_ext4_mount(struct storage_volume *volume)
 
     volume->filesystem = (uint8_t)filesystem;
     volume->read_only_reason = decision.read_only_reason;
+    if (!volume->read_only_reason && orphan_head) {
+        ret = storage_ext4_recover_orphans(volume);
+        if (ret < 0) goto fail;
+    }
     reason = decision.read_only_reason == STORAGE_EXT4_READ_ONLY_READONLY_FEATURE
                  ? " readonly-feature"
                  : decision.read_only_reason == STORAGE_EXT4_READ_ONLY_UNKNOWN_RO_COMPAT

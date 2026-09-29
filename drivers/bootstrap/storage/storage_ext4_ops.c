@@ -2,6 +2,56 @@
  * added after journaled mutations (tasks 8-11). */
 #include "storage_internal.h"
 
+/* Preserve inode extension fields, inline xattrs and OS-dependent bytes. The
+ * caller owns a transaction; newly allocated inodes are zeroed by ialloc. */
+int storage_ext4_write_inode(struct storage_volume *v, uint64_t ino,
+                             const struct ext4_inode_view *in)
+{
+    if (!v || !in || !ino || ino > v->ext4.inodes_count) return -RELIEFOS_EINVAL;
+    struct storage_ext4_group_view g;
+    int ret = storage_ext4_read_group(v, (ino-1)/v->ext4.inodes_per_group, &g);
+    if (ret < 0) return ret;
+    uint32_t bs=v->ext4.block_size, size=v->ext4.inode_size;
+    uint64_t at=((ino-1)%v->ext4.inodes_per_group)*size;
+    uint64_t block=g.inode_table+at/bs;
+    uint32_t off=at%bs, first=size < bs-off ? size : bs-off;
+    uint8_t *raw=kernel_malloc(size), *data;
+    if (!raw) return -RELIEFOS_ENOMEM;
+    ret=storage_ext4_cache_get(v,block,&data,false);
+    if (ret<0) goto out;
+    storage_memcpy(raw,data+off,first);
+    if (first<size) {
+        ret=storage_ext4_cache_get(v,block+1,&data,false); if (ret<0) goto out;
+        storage_memcpy(raw+first,data,size-first);
+    }
+    uint64_t blocks=in->blocks;
+    if (in->flags & EXT4_HUGE_FILE_FL) blocks/=bs/512;
+    if (blocks>>48 || in->file_acl>>48) { ret=-RELIEFOS_EFBIG; goto out; }
+    ext4_put_le16(raw,in->mode); ext4_put_le16(raw+2,in->uid);
+    ext4_put_le32(raw+4,in->size); ext4_put_le32(raw+108,in->size>>32);
+    ext4_put_le32(raw+8,in->atime); ext4_put_le32(raw+12,in->ctime);
+    ext4_put_le32(raw+16,in->mtime); ext4_put_le32(raw+20,in->dtime);
+    ext4_put_le16(raw+24,in->gid); ext4_put_le16(raw+26,in->links_count);
+    ext4_put_le32(raw+28,blocks); ext4_put_le32(raw+32,in->flags);
+    storage_memcpy(raw+40,in->i_block_raw,60);
+    ext4_put_le32(raw+100,in->generation); ext4_put_le32(raw+104,in->file_acl);
+    ext4_put_le16(raw+116,blocks>>32); ext4_put_le16(raw+118,in->file_acl>>32);
+    ext4_put_le16(raw+120,in->uid>>16); ext4_put_le16(raw+122,in->gid>>16);
+    if (size>128) ext4_put_le16(raw+128,in->extra_isize);
+    ret=storage_ext4_update_inode_checksum(raw,size,ino,in->generation,&v->ext4.super_view);
+    if (ret<0) goto out;
+    ret=storage_ext4_cache_get(v,block,&data,true); if (ret<0) goto out;
+    storage_memcpy(data+off,raw,first);
+    ret=storage_ext4_cache_mark_dirty(v,block); if (ret<0) goto out;
+    if (first<size) {
+        ret=storage_ext4_cache_get(v,block+1,&data,true); if (ret<0) goto out;
+        storage_memcpy(data,raw+first,size-first);
+        ret=storage_ext4_cache_mark_dirty(v,block+1);
+    }
+out:
+    kernel_free(raw); return ret;
+}
+
 int storage_ext4_read_inode(struct storage_volume *v, uint64_t ino, struct ext4_inode_view *out)
 {
     struct storage_ext4_group_view group;
@@ -83,4 +133,209 @@ int storage_ext4_read_file_range(struct storage_volume *v, uint64_t ino,
     v->ext4.read_bytes += done;
     if (out_read) *out_read = done;
     return ret;
+}
+
+static int ext4_ops_stop(struct storage_ext4_handle *h,int ret)
+{
+    if (ret<0) storage_ext4_journal_abort(h,ret);
+    int stop=storage_ext4_journal_stop(h); return ret<0?ret:stop;
+}
+static void ext4_ops_touch(struct ext4_inode_view *in)
+{
+    struct reliefos_time_info now;
+    if (!time_wall_clock(&now)) in->mtime=in->ctime=(uint32_t)now.unix_seconds;
+}
+static int ext4_ops_data_write(struct storage_volume *v,uint64_t physical,uint32_t n,const uint8_t *data)
+{
+    uint32_t bs=v->ext4.block_size;
+    int ret=storage_write_device(v,v->ext_start_lba+physical*(bs/512),n*(bs/512),data);
+    if (!ret) for (uint32_t i=0;i<n;i++) storage_ext4_cache_finish(v,physical+i,data+i*bs);
+    return ret;
+}
+int storage_ext4_write_file_range(struct storage_volume *v,uint64_t ino,uint64_t offset,
+                                  const void *buffer,uint32_t len,uint32_t *out_written)
+{
+    if (out_written) *out_written=0;
+    if (!v || (!buffer && len)) return -RELIEFOS_EINVAL;
+    uint32_t bs=v->ext4.block_size,done=0; int ret=0;
+    if (!bs || offset>(uint64_t)(EXT4_MAX_LOGICAL_BLOCK+1ULL)*bs ||
+        len>(uint64_t)(EXT4_MAX_LOGICAL_BLOCK+1ULL)*bs-offset) return -RELIEFOS_EFBIG;
+    uint8_t *scratch=kernel_malloc(bs); if (!scratch) return -RELIEFOS_ENOMEM;
+    while (done<len) {
+        struct storage_ext4_handle h; struct ext4_inode_view in; struct storage_ext4_map_result map;
+        ret=storage_ext4_journal_start(v,EXT4_JOURNAL_CREDITS,&h); if (ret<0) break;
+        uint64_t pos=offset+done,logical=pos/bs,physical=0;
+        uint32_t inside=pos%bs,take=0,blocks=0; bool allocated=false;
+        ret=storage_ext4_read_inode(v,ino,&in); if (ret<0) goto step;
+        ret=storage_ext4_map_block(v,ino,&in,logical,false,&map); if (ret<0) goto step;
+        blocks=(len-done)/bs;
+        if (inside || !blocks) blocks=1;
+        if (blocks>EXT4_READAHEAD_BLOCKS) blocks=EXT4_READAHEAD_BLOCKS;
+        if (blocks>map.length) blocks=map.length;
+        physical=map.physical;
+        if (map.hole) {
+            ret=storage_ext4_alloc_blocks(v,v->ext4.next_goal_block,blocks,&physical,&blocks);
+            if (ret<0) goto step;
+            allocated=true;
+        }
+        take=blocks*bs-inside; if (take>len-done) take=len-done;
+        if (inside || take<bs) {
+            if (map.hole || map.unwritten) storage_memzero(scratch,bs);
+            else { ret=storage_ext4_cache_read_blocks(v,physical,1,scratch); if (ret<0) goto step; }
+            /* A previous EOF's tail must never reappear across a sparse gap. */
+            if (in.size/bs==logical && in.size<pos && in.size%bs)
+                storage_memzero(scratch+in.size%bs,inside-in.size%bs);
+            storage_memcpy(scratch+inside,(const uint8_t *)buffer+done,take);
+            ret=ext4_ops_data_write(v,physical,1,scratch);
+        } else ret=ext4_ops_data_write(v,physical,blocks,(const uint8_t *)buffer+done);
+        if (ret<0) goto step;
+        if (map.hole || map.unwritten) {
+            ret=storage_ext4_change_mapping(v,ino,&in,logical,physical,blocks,false,false);
+            if (ret<0) goto step;
+        }
+        if (pos+take>in.size) in.size=pos+take;
+        ext4_ops_touch(&in);
+        ret=storage_ext4_write_inode(v,ino,&in);
+step:
+        /* Without a journal, a failed tree insertion must at least return the
+         * unattached data reservation. Journaled operations roll back as one. */
+        if (ret<0 && allocated && !v->ext4.journal)
+            storage_ext4_free_blocks(v,physical,blocks);
+        ret=ext4_ops_stop(&h,ret); if (ret<0) break;
+        done+=take;
+    }
+    kernel_free(scratch); if (out_written) *out_written=done; return ret;
+}
+
+/* Zero initialized partial blocks without allocating holes or converting
+ * unwritten extents. Used by truncate and hole punch. */
+static int ext4_ops_zero_edge(struct storage_volume *v,uint64_t ino,uint64_t start,uint64_t end)
+{
+    if (start>=end) return 0;
+    struct ext4_inode_view in; struct storage_ext4_map_result map;
+    int ret=storage_ext4_read_inode(v,ino,&in); if (ret<0) return ret;
+    uint32_t bs=v->ext4.block_size;
+    ret=storage_ext4_map_block(v,ino,&in,start/bs,false,&map); if (ret<0) return ret;
+    if (map.hole || map.unwritten) return 0;
+    uint8_t *data=kernel_malloc(bs); if (!data) return -RELIEFOS_ENOMEM;
+    ret=storage_ext4_cache_read_blocks(v,map.physical,1,data);
+    if (!ret) { storage_memzero(data+start%bs,end-start); ret=ext4_ops_data_write(v,map.physical,1,data); }
+    kernel_free(data); return ret;
+}
+
+/* Legacy s_last_orphan/i_dtime chain, also understood by Linux. A persisted
+ * new size and orphan insertion precede bounded truncate transactions. */
+static int ext4_ops_orphan_head(struct storage_volume *v,uint64_t *head,bool set)
+{
+    uint32_t bs=v->ext4.block_size; uint8_t *data;
+    int ret=storage_ext4_cache_get(v,1024/bs,&data,set); if (ret<0) return ret;
+    uint8_t *sb=data+1024%bs;
+    if (!set) { *head=ext4_get_le32(sb+0xe8); return 0; }
+    ext4_put_le32(sb+0xe8,*head);
+    ret=storage_ext4_update_super_checksum(sb,1024); if (ret<0) return ret;
+    return storage_ext4_cache_mark_dirty(v,1024/bs);
+}
+static int ext4_ops_orphan_add(struct storage_volume *v,uint64_t ino,struct ext4_inode_view *in)
+{
+    uint64_t head; int ret=ext4_ops_orphan_head(v,&head,false); if (ret<0) return ret;
+    if (head==ino) return storage_ext4_write_inode(v,ino,in);
+    if (head>v->ext4.inodes_count) return -RELIEFOS_EIO;
+    in->dtime=head; head=ino;
+    ret=storage_ext4_write_inode(v,ino,in); if (ret<0) return ret;
+    return ext4_ops_orphan_head(v,&head,true);
+}
+static int ext4_ops_orphan_del(struct storage_volume *v,uint64_t ino,struct ext4_inode_view *in)
+{
+    uint64_t head; int ret=ext4_ops_orphan_head(v,&head,false); if (ret<0) return ret;
+    if (head!=ino) return -RELIEFOS_EIO; /* All operations are volume-serialized. */
+    head=in->dtime; ret=ext4_ops_orphan_head(v,&head,true); if (ret<0) return ret;
+    in->dtime=0; return storage_ext4_write_inode(v,ino,in);
+}
+int storage_ext4_truncate(struct storage_volume *v,uint64_t ino,uint64_t size)
+{
+    if (!v || !v->ext4.block_size || size>(EXT4_MAX_LOGICAL_BLOCK+1ULL)*v->ext4.block_size)
+        return -RELIEFOS_EFBIG;
+    struct ext4_inode_view in; struct storage_ext4_handle h;
+    int ret=storage_ext4_journal_start(v,EXT4_JOURNAL_CREDITS,&h); if (ret<0) return ret;
+    ret=storage_ext4_read_inode(v,ino,&in); if (ret<0) return ext4_ops_stop(&h,ret);
+    uint32_t bs=v->ext4.block_size;
+    if (size>in.size) {
+        if (in.size%bs) ret=ext4_ops_zero_edge(v,ino,in.size,(in.size/bs+1)*bs);
+        if (!ret) { in.size=size; ext4_ops_touch(&in); ret=storage_ext4_write_inode(v,ino,&in); }
+        return ext4_ops_stop(&h,ret);
+    }
+    if (size%bs) ret=ext4_ops_zero_edge(v,ino,size,(size/bs+1)*bs);
+    if (!ret) { in.size=size; ext4_ops_touch(&in); ret=ext4_ops_orphan_add(v,ino,&in); }
+    ret=ext4_ops_stop(&h,ret); if (ret<0) return ret;
+    uint64_t end=EXT4_MAX_LOGICAL_BLOCK+1ULL;
+    if (!(in.flags&EXT4_EXTENTS_FL)) {
+        uint64_t n=bs/4,limit=12+n+n*n+n*n*n; if (end>limit) end=limit;
+    }
+    ret=storage_ext4_remove_range(v,ino,(size+bs-1)/bs,end); if (ret<0) return ret;
+    ret=storage_ext4_journal_start(v,EXT4_JOURNAL_CREDITS,&h); if (ret<0) return ret;
+    ret=storage_ext4_read_inode(v,ino,&in);
+    if (!ret) ret=ext4_ops_orphan_del(v,ino,&in);
+    return ext4_ops_stop(&h,ret);
+}
+int storage_ext4_recover_orphans(struct storage_volume *v)
+{
+    for (uint64_t i=0;i<v->ext4.inodes_count;i++) {
+        uint64_t head; int ret=ext4_ops_orphan_head(v,&head,false); if (ret<0 || !head) return ret;
+        if (head>v->ext4.inodes_count) return -RELIEFOS_EIO;
+        struct ext4_inode_view in; ret=storage_ext4_read_inode(v,head,&in); if (ret<0) return ret;
+        if (in.dtime==head) return -RELIEFOS_EIO;
+        ret=storage_ext4_truncate(v,head,in.links_count?in.size:0); if (ret<0) return ret;
+        if (!in.links_count) {
+            ret=storage_ext4_free_inode(v,head,(in.mode&EXT2_S_IFMT)==EXT2_S_IFDIR); if (ret<0) return ret;
+        }
+    }
+    return -RELIEFOS_EIO;
+}
+int storage_ext4_fallocate(struct storage_volume *v,uint64_t ino,uint32_t mode,uint64_t offset,uint64_t len)
+{
+    if (mode&~(1u|2u|16u)) return -RELIEFOS_EOPNOTSUPP;
+    if ((mode&2) && (!(mode&1) || (mode&16))) return -RELIEFOS_EOPNOTSUPP;
+    if (!v || !len || offset>UINT64_MAX-len) return -RELIEFOS_EINVAL;
+    uint32_t bs=v->ext4.block_size;
+    if (!bs || offset+len>(EXT4_MAX_LOGICAL_BLOCK+1ULL)*bs) return -RELIEFOS_EFBIG;
+    if (v->read_only_reason || v->ext4.fs_error) return -RELIEFOS_EROFS;
+    uint64_t end=offset+len;
+    if (mode&2) {
+        uint64_t first=(offset+bs-1)/bs,last=end/bs;
+        int ret=ext4_ops_zero_edge(v,ino,offset,end<(offset/bs+1)*bs?end:(offset/bs+1)*bs);
+        if (ret<0) return ret;
+        if (end%bs && end/bs!=offset/bs) { ret=ext4_ops_zero_edge(v,ino,end/bs*bs,end); if (ret<0) return ret; }
+        return first<last ? storage_ext4_remove_range(v,ino,first,last) : 0;
+    }
+    uint8_t *zeros=kernel_malloc(bs*EXT4_READAHEAD_BLOCKS); if (!zeros) return -RELIEFOS_ENOMEM;
+    storage_memzero(zeros,bs*EXT4_READAHEAD_BLOCKS); int ret=0;
+    for (uint64_t at=offset/bs;at<(end+bs-1)/bs;) {
+        struct storage_ext4_handle h; struct ext4_inode_view in; struct storage_ext4_map_result map;
+        ret=storage_ext4_journal_start(v,EXT4_JOURNAL_CREDITS,&h); if (ret<0) break;
+        ret=storage_ext4_read_inode(v,ino,&in); if (ret<0) { ext4_ops_stop(&h,ret); break; }
+        ret=storage_ext4_map_block(v,ino,&in,at,false,&map); uint32_t n=0;
+        if (!ret) {
+            n=(end+bs-1)/bs-at; if (n>EXT4_READAHEAD_BLOCKS) n=EXT4_READAHEAD_BLOCKS;
+            if (n>map.length) n=map.length;
+            bool extents=(in.flags&EXT4_EXTENTS_FL)!=0;
+            if (map.hole) {
+                uint64_t b; ret=storage_ext4_alloc_blocks(v,v->ext4.next_goal_block,n,&b,&n);
+                if (!ret && !extents) ret=ext4_ops_data_write(v,b,n,zeros);
+                if (!ret) ret=storage_ext4_change_mapping(v,ino,&in,at,b,n,extents,false);
+            }
+            if (!ret && (mode&16)) {
+                /* Zero full initialized ranges; edges preserve outside bytes. */
+                if (!map.hole && !map.unwritten) {
+                    for (uint32_t j=0;j<n && !ret;j++) {
+                        uint64_t a=(at+j)*bs,z=a+bs;
+                        if (a<offset) a=offset; if (z>end) z=end;
+                        ret=ext4_ops_zero_edge(v,ino,a,z);
+                    }
+                }
+            }
+            if (!ret && !(mode&1) && in.size<end) { in.size=end; ret=storage_ext4_write_inode(v,ino,&in); }
+        }
+        ret=ext4_ops_stop(&h,ret); if (ret<0) break; at+=n;
+    }
+    kernel_free(zeros); return ret;
 }

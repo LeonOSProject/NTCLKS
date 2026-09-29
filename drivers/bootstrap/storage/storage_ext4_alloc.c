@@ -1123,8 +1123,12 @@ commit:
     *first = best.first;
     *allocated = best.len;
     volume->ext4.next_goal_block = best.first + best.len;
+    if (volume->ext4.next_goal_block >= volume->ext4.blocks_count)
+        volume->ext4.next_goal_block = volume->ext4.first_data_block;
     volume->ext4.reserved_window_end =
         volume->ext4.next_goal_block + EXT4_RESERVATION_WINDOW_BLOCKS;
+    if (volume->ext4.reserved_window_end > volume->ext4.blocks_count)
+        volume->ext4.reserved_window_end = volume->ext4.blocks_count;
     return 0;
 }
 
