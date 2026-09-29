@@ -632,6 +632,7 @@ int storage_ext4_write_inode(struct storage_volume *, uint64_t, const struct ext
 int storage_ext4_write_file_range(struct storage_volume *, uint64_t, uint64_t,
                                   const void *, uint32_t, uint32_t *);
 int storage_ext4_truncate(struct storage_volume *, uint64_t, uint64_t);
+int storage_ext4_destroy_inode(struct storage_volume *, uint64_t);
 int storage_ext4_recover_orphans(struct storage_volume *);
 int storage_ext4_fallocate(struct storage_volume *, uint64_t, uint32_t, uint64_t, uint64_t);
 int storage_ext4_change_mapping(struct storage_volume *, uint64_t, struct ext4_inode_view *,
@@ -650,6 +651,18 @@ int storage_ext4_read_file_range(struct storage_volume *, uint64_t,
                                 const struct ext4_inode_view *, uint64_t,
                                 void *, uint32_t, uint32_t *);
 int storage_ext4_cache_read_blocks(struct storage_volume *, uint64_t, uint32_t, void *);
+#define EXT4_INDEX_FL 0x1000u
+int storage_ext4_dir_hash(struct storage_volume *,const char *,unsigned,uint32_t *);
+struct storage_ext4_dirent { uint64_t ino; uint8_t type, name_len; char name[256]; };
+int storage_ext4_dir_iterate(struct storage_volume *,uint64_t,uint64_t *,struct storage_ext4_dirent *);
+int storage_ext4_dir_lookup(struct storage_volume *,uint64_t,const char *,uint64_t *,uint8_t *);
+int storage_ext4_dir_insert(struct storage_volume *,uint64_t,const char *,uint64_t,uint8_t);
+int storage_ext4_dir_remove(struct storage_volume *,uint64_t,const char *,uint64_t *);
+int storage_ext4_create(struct storage_volume *,uint64_t,const char *,uint16_t,uint32_t,uint32_t,const char *,uint64_t *);
+int storage_ext4_link(struct storage_volume *,uint64_t,const char *,uint64_t);
+int storage_ext4_unlink(struct storage_volume *,uint64_t,const char *,bool);
+int storage_ext4_rename(struct storage_volume *,uint64_t,const char *,uint64_t,const char *);
+int storage_ext4_orphan_add(struct storage_volume *,uint64_t,struct ext4_inode_view *);
 
 /* Per-volume ext4 geometry.  Cache, journal and statistics fields are
  * added by later tasks.  The super_view / backup_bgs / reserved_gdt_blocks /

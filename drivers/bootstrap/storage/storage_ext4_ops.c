@@ -235,7 +235,7 @@ static int ext4_ops_orphan_head(struct storage_volume *v,uint64_t *head,bool set
     ret=storage_ext4_update_super_checksum(sb,1024); if (ret<0) return ret;
     return storage_ext4_cache_mark_dirty(v,1024/bs);
 }
-static int ext4_ops_orphan_add(struct storage_volume *v,uint64_t ino,struct ext4_inode_view *in)
+int storage_ext4_orphan_add(struct storage_volume *v,uint64_t ino,struct ext4_inode_view *in)
 {
     uint64_t head; int ret=ext4_ops_orphan_head(v,&head,false); if (ret<0) return ret;
     if (head==ino) return storage_ext4_write_inode(v,ino,in);
@@ -251,7 +251,7 @@ static int ext4_ops_orphan_del(struct storage_volume *v,uint64_t ino,struct ext4
     head=in->dtime; ret=ext4_ops_orphan_head(v,&head,true); if (ret<0) return ret;
     in->dtime=0; return storage_ext4_write_inode(v,ino,in);
 }
-int storage_ext4_truncate(struct storage_volume *v,uint64_t ino,uint64_t size)
+static int ext4_ops_truncate(struct storage_volume *v,uint64_t ino,uint64_t size,bool destroy)
 {
     if (!v || !v->ext4.block_size || size>(EXT4_MAX_LOGICAL_BLOCK+1ULL)*v->ext4.block_size)
         return -RELIEFOS_EFBIG;
@@ -259,24 +259,36 @@ int storage_ext4_truncate(struct storage_volume *v,uint64_t ino,uint64_t size)
     int ret=storage_ext4_journal_start(v,EXT4_JOURNAL_CREDITS,&h); if (ret<0) return ret;
     ret=storage_ext4_read_inode(v,ino,&in); if (ret<0) return ext4_ops_stop(&h,ret);
     uint32_t bs=v->ext4.block_size;
+    bool no_data=((in.mode&EXT2_S_IFMT)==EXT2_S_IFLNK && !(in.flags&EXT4_EXTENTS_FL) && in.size<60) ||
+                 ((in.mode&EXT2_S_IFMT)!=EXT2_S_IFLNK && (in.mode&EXT2_S_IFMT)!=EXT2_S_IFREG &&
+                  (in.mode&EXT2_S_IFMT)!=EXT2_S_IFDIR);
+    if (destroy && in.links_count) return ext4_ops_stop(&h,-RELIEFOS_EINVAL);
     if (size>in.size) {
         if (in.size%bs) ret=ext4_ops_zero_edge(v,ino,in.size,(in.size/bs+1)*bs);
         if (!ret) { in.size=size; ext4_ops_touch(&in); ret=storage_ext4_write_inode(v,ino,&in); }
         return ext4_ops_stop(&h,ret);
     }
-    if (size%bs) ret=ext4_ops_zero_edge(v,ino,size,(size/bs+1)*bs);
-    if (!ret) { in.size=size; ext4_ops_touch(&in); ret=ext4_ops_orphan_add(v,ino,&in); }
+    if (!no_data && size%bs) ret=ext4_ops_zero_edge(v,ino,size,(size/bs+1)*bs);
+    if (no_data && !size) storage_memzero(in.i_block_raw,60);
+    if (!ret) { in.size=size; ext4_ops_touch(&in); ret=storage_ext4_orphan_add(v,ino,&in); }
     ret=ext4_ops_stop(&h,ret); if (ret<0) return ret;
     uint64_t end=EXT4_MAX_LOGICAL_BLOCK+1ULL;
     if (!(in.flags&EXT4_EXTENTS_FL)) {
         uint64_t n=bs/4,limit=12+n+n*n+n*n*n; if (end>limit) end=limit;
     }
-    ret=storage_ext4_remove_range(v,ino,(size+bs-1)/bs,end); if (ret<0) return ret;
+    if (!no_data) { ret=storage_ext4_remove_range(v,ino,(size+bs-1)/bs,end); if (ret<0) return ret; }
     ret=storage_ext4_journal_start(v,EXT4_JOURNAL_CREDITS,&h); if (ret<0) return ret;
     ret=storage_ext4_read_inode(v,ino,&in);
     if (!ret) ret=ext4_ops_orphan_del(v,ino,&in);
+    /* The orphan removal and inode-bitmap release must share a transaction:
+     * a crash between them must not strand an unreachable allocated inode. */
+    if (!ret && destroy) ret=storage_ext4_free_inode(v,ino,(in.mode&EXT2_S_IFMT)==EXT2_S_IFDIR);
     return ext4_ops_stop(&h,ret);
 }
+int storage_ext4_truncate(struct storage_volume *v,uint64_t ino,uint64_t size)
+{ return ext4_ops_truncate(v,ino,size,false); }
+int storage_ext4_destroy_inode(struct storage_volume *v,uint64_t ino)
+{ return ext4_ops_truncate(v,ino,0,true); }
 int storage_ext4_recover_orphans(struct storage_volume *v)
 {
     for (uint64_t i=0;i<v->ext4.inodes_count;i++) {
@@ -284,10 +296,7 @@ int storage_ext4_recover_orphans(struct storage_volume *v)
         if (head>v->ext4.inodes_count) return -RELIEFOS_EIO;
         struct ext4_inode_view in; ret=storage_ext4_read_inode(v,head,&in); if (ret<0) return ret;
         if (in.dtime==head) return -RELIEFOS_EIO;
-        ret=storage_ext4_truncate(v,head,in.links_count?in.size:0); if (ret<0) return ret;
-        if (!in.links_count) {
-            ret=storage_ext4_free_inode(v,head,(in.mode&EXT2_S_IFMT)==EXT2_S_IFDIR); if (ret<0) return ret;
-        }
+        ret=ext4_ops_truncate(v,head,in.links_count?in.size:0,!in.links_count); if (ret<0) return ret;
     }
     return -RELIEFOS_EIO;
 }
