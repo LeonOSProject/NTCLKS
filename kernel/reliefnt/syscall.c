@@ -213,7 +213,8 @@ static void linux_statx_from_legacy(struct linux_statx *out,
 {
     const uint32_t available = LINUX_STATX_TYPE | LINUX_STATX_MODE |
         LINUX_STATX_NLINK | LINUX_STATX_UID | LINUX_STATX_GID |
-        LINUX_STATX_INO | LINUX_STATX_SIZE | LINUX_STATX_BLOCKS;
+        LINUX_STATX_INO | LINUX_STATX_SIZE | LINUX_STATX_BLOCKS |
+        LINUX_STATX_ATIME | LINUX_STATX_MTIME | LINUX_STATX_CTIME;
     uint32_t returned = mask & available;
     *out = (struct linux_statx){0};
     out->stx_mask = returned;
@@ -229,6 +230,9 @@ static void linux_statx_from_legacy(struct linux_statx *out,
     if (returned & LINUX_STATX_INO) out->stx_ino = st->st_ino;
     if (returned & LINUX_STATX_SIZE) out->stx_size = st->st_size < 0 ? 0 : (uint64_t)st->st_size;
     if (returned & LINUX_STATX_BLOCKS) out->stx_blocks = st->st_blocks < 0 ? 0 : (uint64_t)st->st_blocks;
+    if (returned & LINUX_STATX_ATIME) out->stx_atime=(struct linux_statx_timestamp){.tv_sec=st->atime_sec,.tv_nsec=st->atime_nsec};
+    if (returned & LINUX_STATX_MTIME) out->stx_mtime=(struct linux_statx_timestamp){.tv_sec=st->mtime_sec,.tv_nsec=st->mtime_nsec};
+    if (returned & LINUX_STATX_CTIME) out->stx_ctime=(struct linux_statx_timestamp){.tv_sec=st->ctime_sec,.tv_nsec=st->ctime_nsec};
 }
 
 
@@ -4596,7 +4600,6 @@ int64_t syscall_dispatch_regs_legacy(uint64_t number, uint64_t a0, uint64_t a1, 
         struct task_file *file = task_file_for_fd(task, (int)a0);
         uint64_t end;
         if (!file) return -RELIEFOS_EBADF;
-        if (a1 != 0) return -RELIEFOS_EOPNOTSUPP;
         if ((int64_t)a2 < 0 || (int64_t)a3 < 0 || !a3 || a2 > UINT64_MAX - a3) {
             return -RELIEFOS_EINVAL;
         }
@@ -4604,6 +4607,13 @@ int64_t syscall_dispatch_regs_legacy(uint64_t number, uint64_t a0, uint64_t a1, 
             return -RELIEFOS_EBADF;
         }
         end = a2 + a3;
+        if (file->node.flags & STORAGE_NODE_FLAG_EXT_FAMILY) {
+            if (a1>UINT32_MAX) return -RELIEFOS_EOPNOTSUPP;
+            int ret=storage_fallocate_node(&file->node,(uint32_t)a1,a2,a3);
+            if (!ret) file->read_cursor.valid=0;
+            return ret;
+        }
+        if (a1 != 0) return -RELIEFOS_EOPNOTSUPP;
         if (end <= file->node.size) return 0;
         /* Storage backends have no sparse/preallocation primitive. Extending
          * with mode zero uses the existing truncate zero-fill contract. */

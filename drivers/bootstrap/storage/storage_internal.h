@@ -594,13 +594,6 @@ struct storage_ext4_map_result {
     uint32_t length; /* nonzero contiguous run, measured in filesystem blocks */
     bool hole, unwritten;
 };
-#define EXT4_FIEMAP_UNWRITTEN 1u
-#define EXT4_FIEMAP_HOLE 2u
-#define EXT4_FIEMAP_LAST 4u
-struct storage_ext4_fiemap_extent {
-    uint64_t logical, physical, length; /* byte units, holes are omitted */
-    uint32_t flags;
-};
 struct storage_volume;
 struct storage_ext4_journal;
 struct storage_ext4_handle {
@@ -634,6 +627,10 @@ int storage_ext4_write_file_range(struct storage_volume *, uint64_t, uint64_t,
                                   const void *, uint32_t, uint32_t *);
 int storage_ext4_truncate(struct storage_volume *, uint64_t, uint64_t);
 int storage_ext4_destroy_inode(struct storage_volume *, uint64_t);
+int storage_ext4_getxattr(struct storage_volume *,uint64_t,const char *,void *,uint32_t,uint32_t *);
+int storage_ext4_setxattr(struct storage_volume *,uint64_t,const char *,const void *,uint32_t,uint32_t);
+int storage_ext4_removexattr(struct storage_volume *,uint64_t,const char *);
+int storage_ext4_drop_xattrs(struct storage_volume *,uint64_t,struct ext4_inode_view *);
 int storage_ext4_recover_orphans(struct storage_volume *);
 int storage_ext4_fallocate(struct storage_volume *, uint64_t, uint32_t, uint64_t, uint64_t);
 int storage_ext4_change_mapping(struct storage_volume *, uint64_t, struct ext4_inode_view *,

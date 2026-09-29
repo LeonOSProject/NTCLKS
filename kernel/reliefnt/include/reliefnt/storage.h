@@ -87,6 +87,13 @@ int storage_inode_get(const struct storage_node *node, struct storage_inode_ref 
 void storage_inode_retain(struct storage_inode_ref *reference);
 int storage_inode_put(struct storage_inode_ref *reference);
 int storage_inode_refresh(struct storage_node *node);
+struct storage_ext4_fiemap_extent { uint64_t logical,physical,length; uint32_t flags; };
+#define EXT4_FIEMAP_UNWRITTEN 1u
+#define EXT4_FIEMAP_HOLE 2u
+#define EXT4_FIEMAP_LAST 4u
+int storage_fallocate_node(struct storage_node *,uint32_t,uint64_t,uint64_t);
+int storage_fiemap_node(const struct storage_node *,uint64_t,uint64_t,
+                       struct storage_ext4_fiemap_extent *,uint32_t,uint32_t *);
 int storage_node_mount_flags(const struct storage_node *node, uint64_t *flags);
 int storage_tmpfs_get_page(const struct storage_node *node, uint64_t offset, uint64_t *phys);
 int storage_remount_path(const char *path, uint64_t flags);

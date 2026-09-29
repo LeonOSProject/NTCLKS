@@ -297,6 +297,7 @@ static int ext4_ops_truncate(struct storage_volume *v,uint64_t ino,uint64_t size
     if (!no_data) { ret=storage_ext4_remove_range(v,ino,(size+bs-1)/bs,end); if (ret<0) return ret; }
     ret=storage_ext4_journal_start(v,EXT4_JOURNAL_CREDITS,&h); if (ret<0) return ret;
     ret=storage_ext4_read_inode(v,ino,&in);
+    if (!ret && destroy) ret=storage_ext4_drop_xattrs(v,ino,&in);
     if (!ret && (in.links_count || destroy)) ret=ext4_ops_orphan_del(v,ino,&in);
     /* The orphan removal and inode-bitmap release must share a transaction:
      * a crash between them must not strand an unreachable allocated inode. */

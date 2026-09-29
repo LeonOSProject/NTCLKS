@@ -20,6 +20,7 @@
 #include "storage/storage_ext4_alloc.c"
 #include "storage/storage_ext4_extent.c"
 #include "storage/storage_ext4_ops.c"
+#include "storage/storage_ext4_xattr.c"
 #include "storage/storage_ext4_journal.c"
 #include "storage/storage_ext4_dir.c"
 #include "storage/storage_sync.c"

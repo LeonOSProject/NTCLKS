@@ -433,8 +433,14 @@ int storage_ext4_fiemap(struct storage_volume *v, uint64_t ino, uint64_t start, 
     *count = 0;
     int ret = storage_ext4_read_inode(v, ino, &in);
     if (ret < 0) return ret;
-    if (!len || start >= in.size) return 0;
-    uint64_t end = len > in.size - start ? in.size : start + len;
+    uint64_t limit=EXT4_MAX_LOGICAL_BLOCK+1ULL;
+    if (!(in.flags&EXT4_EXTENTS_FL)) {
+        uint64_t n=v->ext4.block_size/4,indirect=12+n+n*n+n*n*n;
+        if (limit>indirect) limit=indirect;
+    }
+    limit*=v->ext4.block_size;
+    if (!len || start >= limit) return 0;
+    uint64_t end = len > limit - start ? limit : start + len;
     uint64_t pos = start, bs = v->ext4.block_size;
     while (pos < end) {
         struct storage_ext4_map_result map;
@@ -452,6 +458,14 @@ int storage_ext4_fiemap(struct storage_volume *v, uint64_t ino, uint64_t start, 
         }
         pos += bytes;
     }
-    if (out && capacity && *count && end == in.size) out[*count - 1].flags |= EXT4_FIEMAP_LAST;
+    if (out && capacity && *count && end>=in.size) {
+        bool last=true;
+        for (uint64_t l=(end+bs-1)/bs;l<limit/bs;) {
+            struct storage_ext4_map_result m;
+            ret=storage_ext4_map_block(v,ino,&in,l,false,&m); if (ret<0) return ret;
+            if (!m.hole) { last=false; break; } l+=m.length;
+        }
+        if (last) out[*count-1].flags|=EXT4_FIEMAP_LAST;
+    }
     return 0;
 }

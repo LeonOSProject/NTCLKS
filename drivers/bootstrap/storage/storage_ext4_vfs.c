@@ -141,10 +141,6 @@ static int ev_fsync(struct storage_volume *v)
     if (!ret) ret=storage_ext4_cache_flush(v);
     if (!ret) ret=storage_ext4_device_flush(v); return ret;
 }
-static int ev_getxattr(struct storage_volume *v,uint64_t ino,const char *name,void *value,uint32_t size,uint32_t *len)
-{ (void)v;(void)ino;(void)name;(void)value;(void)size;(void)len; return -RELIEFOS_EOPNOTSUPP; }
-static int ev_setxattr(struct storage_volume *v,uint64_t ino,const char *name,const void *value,uint32_t size,uint32_t flags)
-{ (void)v;(void)ino;(void)name;(void)value;(void)size;(void)flags; return -RELIEFOS_EOPNOTSUPP; }
 static int ev_statfs(struct storage_volume *v,struct linux_statfs_abi *out)
 {
     const struct storage_ext4_super_view *s=&v->ext4.super_view;
@@ -154,6 +150,17 @@ static int ev_statfs(struct storage_volume *v,struct linux_statfs_abi *out)
         .f_files=s->inodes_count,.f_ffree=s->free_inodes_count,.f_namelen=255,.f_flags=LINUX_ST_VALID};
     out->f_fsid[0]=ext4_get_le32(s->uuid)^ext4_get_le32(s->uuid+8);
     out->f_fsid[1]=ext4_get_le32(s->uuid+4)^ext4_get_le32(s->uuid+12);
+    uint8_t *raw; int ret=storage_ext4_cache_get(v,1024/s->block_size,&raw,false); if (ret<0) return ret;
+    uint64_t overhead=ext4_get_le32(raw+1024%s->block_size+0x248);
+    if (!overhead) {
+        overhead=s->first_data_block;
+        for (uint64_t group=0;group<s->group_count;group++)
+            overhead+=ext4_base_meta_blocks(v,group)+2+((uint64_t)s->inodes_per_group*s->inode_size+s->block_size-1)/s->block_size;
+        if (s->journal_inum) { struct ext4_inode_view in; ret=storage_ext4_read_inode(v,s->journal_inum,&in);
+            if (ret<0) return ret; overhead+=in.blocks/(s->block_size/512); }
+    }
+    if (overhead>s->blocks_count) return -RELIEFOS_EIO;
+    out->f_blocks-=overhead;
     if (v->read_only_reason || v->ext4.fs_error) out->f_flags|=LINUX_ST_RDONLY;
     return 0;
 }
@@ -181,6 +188,33 @@ const struct storage_ext4_operations storage_ext4_ops={
     .lookup=ev_lookup,.read=ev_read,.write=ev_write,.readdir=ev_readdir,.create=ev_create,
     .mkdir=ev_mkdir,.link=ev_link,.unlink=ev_unlink,.rmdir=ev_rmdir,.rename=ev_rename,
     .truncate=ev_truncate,.symlink=ev_symlink,.readlink=ev_readlink,.fsync=ev_fsync,
-    .fallocate=storage_ext4_fallocate,.fiemap=storage_ext4_fiemap,.getxattr=ev_getxattr,
-    .setxattr=ev_setxattr,.statfs=ev_statfs
+    .fallocate=storage_ext4_fallocate,.fiemap=storage_ext4_fiemap,.getxattr=storage_ext4_getxattr,
+    .setxattr=storage_ext4_setxattr,.statfs=ev_statfs
 };
+
+int storage_fallocate_node(struct storage_node *node,uint32_t mode,uint64_t offset,uint64_t len)
+{
+    if (!node || !(node->flags&STORAGE_NODE_FLAG_EXT_FAMILY)) return -RELIEFOS_EOPNOTSUPP;
+    uint64_t flags; struct storage_volume *previous=NULL; struct ext4_inode_view in;
+    kernel_execution_lock_irqsave(&flags); int ret=storage_select_node_volume(node,&previous);
+    if (!ret) ret=storage_ext4_check_node(&g_volumes[node->volume_id],node,&in);
+    if (!ret && (in.mode&0170000)!=0100000) ret=-RELIEFOS_EINVAL;
+    if (!ret) ret=storage_ext4_fallocate(&g_volumes[node->volume_id],node->first_cluster,mode,offset,len);
+    if (!ret) {
+        page_cache_invalidate_node(node); storage_cache_invalidate();
+        ret=storage_ext4_read_inode(&g_volumes[node->volume_id],node->first_cluster,&in);
+        if (!ret) node->size=in.size;
+    }
+    storage_restore_volume(previous); kernel_execution_unlock_irqrestore(flags); return ret;
+}
+int storage_fiemap_node(const struct storage_node *node,uint64_t start,uint64_t len,
+                        struct storage_ext4_fiemap_extent *out,uint32_t cap,uint32_t *count)
+{
+    if (!node || !(node->flags&STORAGE_NODE_FLAG_EXT_FAMILY)) return -RELIEFOS_EOPNOTSUPP;
+    uint64_t flags; struct storage_volume *previous=NULL; struct ext4_inode_view in;
+    kernel_execution_lock_irqsave(&flags); int ret=storage_select_node_volume(node,&previous);
+    if (!ret) ret=storage_ext4_check_node(&g_volumes[node->volume_id],node,&in);
+    if (!ret && (in.mode&0170000)!=0100000) ret=-RELIEFOS_EINVAL;
+    if (!ret) ret=storage_ext4_fiemap(&g_volumes[node->volume_id],node->first_cluster,start,len,out,cap,count);
+    storage_restore_volume(previous); kernel_execution_unlock_irqrestore(flags); return ret;
+}
