@@ -434,6 +434,15 @@ struct __attribute__((packed)) ext2_dirent {
 
 /* Linux asm-generic value; reliefnt/syscall.h has no alias yet. */
 #define RELIEFOS_EOVERFLOW 75
+#ifndef RELIEFOS_EFBIG
+#define RELIEFOS_EFBIG 27
+#endif
+#define EXT4_EXTENTS_FL 0x00080000u
+#define EXT4_HUGE_FILE_FL 0x00040000u
+#define EXT4_MAX_LOGICAL_BLOCK 0xfffffffeu
+#ifndef EXT4_READAHEAD_BLOCKS
+#define EXT4_READAHEAD_BLOCKS 32u
+#endif
 
 #define EXT4_SUPERBLOCK_OFFSET 1024u
 #define EXT4_SUPERBLOCK_SIZE 1024u
@@ -572,6 +581,45 @@ struct storage_ext4_extent_header_view {
     uint32_t generation;
 };
 
+/* In-memory inode, never cast over disk bytes. blocks is in 512-byte sectors. */
+struct ext4_inode_view {
+    uint64_t size, blocks, file_acl;
+    uint32_t uid, gid, flags, generation;
+    uint32_t atime, ctime, mtime, dtime;
+    uint16_t mode, links_count, extra_isize;
+    uint8_t i_block_raw[60];
+};
+struct storage_ext4_map_result {
+    uint64_t physical;
+    uint32_t length; /* nonzero contiguous run, measured in filesystem blocks */
+    bool hole, unwritten;
+};
+#define EXT4_FIEMAP_UNWRITTEN 1u
+#define EXT4_FIEMAP_HOLE 2u
+#define EXT4_FIEMAP_LAST 4u
+struct storage_ext4_fiemap_extent {
+    uint64_t logical, physical, length; /* byte units, holes are omitted */
+    uint32_t flags;
+};
+struct storage_volume;
+int storage_ext4_parse_inode(const uint8_t *, uint32_t,
+                             const struct storage_ext4_super_view *, struct ext4_inode_view *);
+int storage_ext4_read_inode(struct storage_volume *, uint64_t, struct ext4_inode_view *);
+int storage_ext4_map_block(struct storage_volume *, uint64_t, const struct ext4_inode_view *,
+                           uint64_t, bool, struct storage_ext4_map_result *);
+int storage_ext4_insert_extent(struct storage_volume *, uint64_t, uint64_t, uint64_t,
+                               uint32_t, bool);
+int storage_ext4_remove_range(struct storage_volume *, uint64_t, uint64_t, uint64_t);
+/* FIEMAP start/len are bytes. capacity=0 counts mappings without storing them.
+ * A full output array reports the stored count; LAST is set only if iteration
+ * reached EOF, not merely because the output capacity was exhausted. */
+int storage_ext4_fiemap(struct storage_volume *, uint64_t, uint64_t, uint64_t,
+                        struct storage_ext4_fiemap_extent *, uint32_t, uint32_t *);
+int storage_ext4_read_file_range(struct storage_volume *, uint64_t,
+                                const struct ext4_inode_view *, uint64_t,
+                                void *, uint32_t, uint32_t *);
+int storage_ext4_cache_read_blocks(struct storage_volume *, uint64_t, uint32_t, void *);
+
 /* Per-volume ext4 geometry.  Cache, journal and statistics fields are
  * added by later tasks.  The super_view / backup_bgs / reserved_gdt_blocks /
  * flex_log_groups / fs_error fields are published by storage_ext4_mount()
@@ -614,6 +662,7 @@ struct storage_ext4_state {
     uint8_t fs_error;
     uint64_t next_goal_block;
     uint64_t reserved_window_end;
+    uint64_t read_bytes, read_commands, read_blocks, read_cache_hits;
 };
 
 /* ---- ext4 mount and feature policy (task 4) --------------------------

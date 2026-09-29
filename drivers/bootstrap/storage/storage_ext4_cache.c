@@ -229,6 +229,56 @@ int storage_ext4_cache_read(struct storage_volume *volume, uint64_t block, void 
     return 0;
 }
 
+/* Batch adjacent cache misses, splitting at every cached block so dirty data
+ * is never replaced by stale device bytes. Read fill never evicts dirty or
+ * pinned entries: pressure only disables read caching for that block. */
+int storage_ext4_cache_read_blocks(struct storage_volume *v, uint64_t first,
+                                   uint32_t count, void *out)
+{
+    struct ext4_cache_table *table = &ext4_cache_tables[EXT4_CACHE_TABLE_BLOCK];
+    uint64_t lba;
+    uint32_t sectors;
+    if (!out || !count || !v || first >= v->ext4.blocks_count ||
+        count > v->ext4.blocks_count - first) return -RELIEFOS_EINVAL;
+    int ret = ext4_cache_block_range(v, first + count - 1, &lba, &sectors);
+    if (ret < 0) return ret;
+    bool caching = ext4_cache_ensure(table);
+    uint32_t bs = v->ext4.block_size;
+    for (uint32_t done = 0; done < count;) {
+        struct storage_ext4_cache_entry *entry = ext4_cache_lookup(table, v, first + done);
+        if (entry) {
+            storage_memcpy((uint8_t *)out + (size_t)done * bs, entry->data, bs);
+            entry->age = ++table->age_clock; ++v->ext4.read_cache_hits; ++done;
+            continue;
+        }
+        uint32_t run = 1;
+        while (run < count - done && run < EXT4_READAHEAD_BLOCKS &&
+               !ext4_cache_lookup(table, v, first + done + run)) ++run;
+        ret = ext4_cache_block_range(v, first + done, &lba, &sectors);
+        if (ret < 0) return ret;
+        ret = storage_read_device(v, lba, run * sectors, (uint8_t *)out + (size_t)done * bs);
+        if (ret < 0) return ret;
+        ++v->ext4.read_commands; v->ext4.read_blocks += run;
+        for (uint32_t j = 0; caching && j < run; ++j) {
+            struct storage_ext4_cache_entry *victim = NULL;
+            for (uint32_t i = 0; i < table->capacity; ++i) {
+                struct storage_ext4_cache_entry *candidate = &table->entries[i];
+                if (!candidate->valid) { victim = candidate; break; }
+                if (!candidate->pinned && !candidate->dirty &&
+                    (!victim || candidate->age < victim->age)) victim = candidate;
+            }
+            if (!victim) continue;
+            victim->volume = v; victim->block = first + done + j;
+            victim->volume_generation = v->mount_generation;
+            victim->valid = 1; victim->dirty = 0; victim->pinned = 0; victim->checksum_ok = 0;
+            victim->age = ++table->age_clock;
+            storage_memcpy(victim->data, (uint8_t *)out + (size_t)(done + j) * bs, bs);
+        }
+        done += run;
+    }
+    return 0;
+}
+
 int storage_ext4_cache_get(struct storage_volume *volume, uint64_t block, uint8_t **data,
                            bool for_write)
 {

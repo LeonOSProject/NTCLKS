@@ -267,6 +267,49 @@ int storage_ext4_parse_group_desc(const uint8_t *raw, uint32_t raw_len,
     return 0;
 }
 
+int storage_ext4_parse_inode(const uint8_t *raw, uint32_t raw_len,
+                             const struct storage_ext4_super_view *sb,
+                             struct ext4_inode_view *out)
+{
+    if (!raw || !out || !sb || raw_len < 128 || raw_len > EXT4_MAX_BLOCK_SIZE)
+        return -RELIEFOS_EINVAL;
+    *out = (struct ext4_inode_view){0};
+    out->mode = ext4_get_le16(raw);
+    out->uid = ext4_get_le16(raw + 2) | ((uint32_t)ext4_get_le16(raw + 120) << 16);
+    out->gid = ext4_get_le16(raw + 24) | ((uint32_t)ext4_get_le16(raw + 122) << 16);
+    out->size = ext4_get_le32(raw + 4);
+    if ((out->mode & EXT2_S_IFMT) == EXT2_S_IFREG ||
+        (sb->feature_incompat & EXT4_FEATURE_INCOMPAT_EXTENTS))
+        out->size |= (uint64_t)ext4_get_le32(raw + 108) << 32;
+    out->atime = ext4_get_le32(raw + 8);
+    out->ctime = ext4_get_le32(raw + 12);
+    out->mtime = ext4_get_le32(raw + 16);
+    out->dtime = ext4_get_le32(raw + 20);
+    out->links_count = ext4_get_le16(raw + 26);
+    out->blocks = ext4_get_le32(raw + 28);
+    out->flags = ext4_get_le32(raw + 32);
+    out->generation = ext4_get_le32(raw + 100);
+    out->file_acl = ext4_get_le32(raw + 104);
+    if (sb->feature_incompat & EXT4_FEATURE_INCOMPAT_64BIT)
+        out->file_acl |= (uint64_t)ext4_get_le16(raw + 118) << 32;
+    if (sb->feature_ro_compat & EXT4_FEATURE_RO_COMPAT_HUGE_FILE) {
+        out->blocks |= (uint64_t)ext4_get_le16(raw + 116) << 32;
+        if (out->flags & EXT4_HUGE_FILE_FL) {
+            if (sb->block_size != 1024 && sb->block_size != 2048 && sb->block_size != 4096)
+                return -RELIEFOS_EINVAL;
+            out->blocks *= sb->block_size / SECTOR_SIZE;
+        }
+    }
+    if (raw_len > 128) {
+        if (raw_len < 132) return -RELIEFOS_EINVAL;
+        out->extra_isize = ext4_get_le16(raw + 128);
+        if (out->extra_isize > raw_len - 128 || (out->extra_isize & 3))
+            return -RELIEFOS_EINVAL;
+    }
+    for (uint32_t i = 0; i < 60; ++i) out->i_block_raw[i] = raw[40 + i];
+    return 0;
+}
+
 int storage_ext4_parse_extent_header(const uint8_t *raw, uint32_t raw_len,
                                      struct storage_ext4_extent_header_view *out)
 {

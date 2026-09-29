@@ -640,6 +640,15 @@ static int storage_read_node_cursor_unlocked(const struct storage_node *node, ui
         storage_restore_volume(old_volume);
         return ret;
     }
+    if (g_storage.filesystem == STORAGE_FILESYSTEM_EXT4) {
+        struct ext4_inode_view inode;
+        if (cursor) cursor->valid = 0;
+        ret = storage_ext4_read_inode(&g_storage, node->first_cluster, &inode);
+        if (!ret) ret = storage_ext4_read_file_range(&g_storage, node->first_cluster,
+                                                    &inode, offset, buf, len, out_read);
+        storage_restore_volume(old_volume);
+        return ret;
+    }
     if (g_storage.filesystem == STORAGE_FILESYSTEM_EXFAT) {
         if (cursor) cursor->valid = 0;
         ret = exfat_read_node(node, offset, buf, len, out_read);
