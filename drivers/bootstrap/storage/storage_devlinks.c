@@ -16,7 +16,12 @@ static int storage_devlink_next(uint64_t *cursor, char uuid[37], char target[48]
         if (ret < 0 && ret != -2 && ret != -22) return ret;
         ++*cursor;
         if (ret < 0) continue;
-        storage_format_u32(target, 48, "../../disk", disk, (int32_t)part);
+        char device_name[RELIEFOS_FS_PATH_LEN];
+        if (storage_disk_device_name(disk, (int32_t)part,
+                                     device_name, sizeof(device_name)) < 0)
+            continue;
+        storage_copy_text(target, 48, "../../");
+        storage_copy_text(target + 6, 42, device_name + 5);
         return 1;
     }
     return 0;

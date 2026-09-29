@@ -56,6 +56,9 @@ int storage_statfs(const struct storage_node *node, struct linux_statfs_abi *val
         }
         value->f_bavail = value->f_bfree;
         break;
+    case STORAGE_FILESYSTEM_EXT4:
+        ret = storage_ext4_ops.statfs(&g_storage, value);
+        break;
     case STORAGE_FILESYSTEM_EXT2: {
         struct ext2_superblock super;
         ret = storage_read_sectors(g_storage.ext2_start_lba + 2, 2, storage_scratch);

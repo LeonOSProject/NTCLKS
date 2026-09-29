@@ -1,16 +1,21 @@
 /*
- * Minimal NVMe 1.x block transport.
+ * Synchronous NVMe 1.x PCI transport.
  *
- * The bootstrap storage stack is deliberately synchronous: each controller
- * receives one admin queue and one I/O queue and completion queues are polled.
- * This keeps the transport compatible with the existing filesystem API while
- * avoiding a second asynchronous ownership model beside AHCI's legacy path.
+ * The storage facade submits one request at a time, so this driver deliberately
+ * uses one admin queue and one I/O queue per controller.  The queue protocol is
+ * still the real NVMe protocol: queue entries are phase checked, data is
+ * described with PRPs, and a controller reset rebuilds the queues after a
+ * fatal status or timeout.  Keeping this boundary synchronous lets the
+ * filesystem keep its existing retry/locking rules without hiding DMA work in
+ * an unrelated worker thread.
  */
 
-#define NVME_MAX_CONTROLLERS 4u
-#define NVME_QUEUE_DEPTH 16u
+#define NVME_MAX_CONTROLLERS 8u
+#define NVME_QUEUE_DEPTH 32u
 #define NVME_PAGE_SIZE 4096u
-#define NVME_MAX_SECTORS (NVME_PAGE_SIZE / SECTOR_SIZE)
+#define NVME_IO_BUFFER_PAGES 32u
+#define NVME_MAX_SECTORS (NVME_IO_BUFFER_PAGES * (NVME_PAGE_SIZE / SECTOR_SIZE))
+#define NVME_MAX_PRP_ENTRIES (NVME_IO_BUFFER_PAGES - 1u)
 #define NVME_WAIT_SPINS 40000000u
 #define NVME_MAX_NAMESPACE_SCAN_PAGES 8u
 
@@ -34,6 +39,7 @@
 #define NVME_ADMIN_IDENTIFY 0x06u
 #define NVME_IO_WRITE 0x01u
 #define NVME_IO_READ 0x02u
+#define NVME_IO_FLUSH 0x00u
 
 #define NVME_IDENTIFY_NAMESPACE 0u
 #define NVME_IDENTIFY_CONTROLLER 1u
@@ -69,6 +75,7 @@ struct nvme_controller {
     uint8_t bus;
     uint8_t slot;
     uint8_t function;
+    uint16_t controller_index;
     uint8_t cq_phase_admin;
     uint8_t cq_phase_io;
     uint16_t queue_depth;
@@ -88,6 +95,7 @@ struct nvme_controller {
     uint64_t identify_phys;
     uint64_t namespace_list_phys;
     uint64_t io_buffer_phys;
+    uint64_t prp_list_phys;
     struct nvme_command *admin_sq;
     struct nvme_completion *admin_cq;
     struct nvme_command *io_sq;
@@ -95,6 +103,8 @@ struct nvme_controller {
     uint8_t *identify_buffer;
     uint8_t *namespace_list;
     uint8_t *io_buffer;
+    uint64_t *prp_list;
+    uint32_t io_buffer_pages;
     char model[41];
     struct kernel_spinlock lock;
 };
@@ -168,6 +178,60 @@ static int nvme_wait_ready(const struct nvme_controller *controller, uint8_t wan
     return -5;
 }
 
+static void nvme_reset_queue_state(struct nvme_controller *controller)
+{
+    if (!controller) {
+        return;
+    }
+    if (controller->admin_sq) {
+        storage_memzero(controller->admin_sq,
+                        (size_t)controller->queue_depth * sizeof(*controller->admin_sq));
+    }
+    if (controller->admin_cq) {
+        storage_memzero(controller->admin_cq,
+                        (size_t)controller->queue_depth * sizeof(*controller->admin_cq));
+    }
+    if (controller->io_sq) {
+        storage_memzero(controller->io_sq,
+                        (size_t)controller->queue_depth * sizeof(*controller->io_sq));
+    }
+    if (controller->io_cq) {
+        storage_memzero(controller->io_cq,
+                        (size_t)controller->queue_depth * sizeof(*controller->io_cq));
+    }
+    controller->admin_sq_tail = 0;
+    controller->admin_cq_head = 0;
+    controller->io_sq_tail = 0;
+    controller->io_cq_head = 0;
+    controller->cq_phase_admin = 1;
+    controller->cq_phase_io = 1;
+    controller->next_command_id = 0;
+}
+
+static int nvme_disable_controller(struct nvme_controller *controller)
+{
+    uint32_t cc;
+    if (!controller || !controller->mmio) {
+        return -22;
+    }
+    cc = nvme_read32(controller, NVME_REG_CC);
+    if ((cc & NVME_CC_EN) == 0) {
+        controller->ready = 0;
+        return 0;
+    }
+    nvme_write32(controller, NVME_REG_CC, cc & ~NVME_CC_EN);
+    controller->ready = 0;
+    /* CSTS.CFS is sticky until the controller is re-enabled.  Do not let a
+     * fatal command prevent the recovery path from observing RDY=0. */
+    for (uint32_t i = 0; i < NVME_WAIT_SPINS; ++i) {
+        if ((nvme_read32(controller, NVME_REG_CSTS) & NVME_CSTS_RDY) == 0) {
+            return 0;
+        }
+        nvme_cpu_relax();
+    }
+    return -5;
+}
+
 static uint32_t nvme_doorbell_offset(const struct nvme_controller *controller,
                                      uint16_t queue_id, uint8_t completion)
 {
@@ -176,40 +240,56 @@ static uint32_t nvme_doorbell_offset(const struct nvme_controller *controller,
                controller->doorbell_stride;
 }
 
+static int nvme_allocate_pages(uint32_t pages, uint64_t *out_phys,
+                               uint8_t **out_virtual);
+
 static int nvme_allocate_page(uint64_t *out_phys, uint8_t **out_virtual)
+{
+    return nvme_allocate_pages(1u, out_phys, out_virtual);
+}
+
+static int nvme_allocate_pages(uint32_t pages, uint64_t *out_phys,
+                               uint8_t **out_virtual)
 {
     uint64_t phys;
     void *mapping;
-    if (!out_phys || !out_virtual) {
+    uint64_t bytes;
+    if (!pages || !out_phys || !out_virtual) {
         return -22;
     }
-    phys = mm_alloc_pages(1);
+    bytes = (uint64_t)pages * NVME_PAGE_SIZE;
+    phys = mm_alloc_pages(pages);
     if (!phys || (phys & (NVME_PAGE_SIZE - 1u)) != 0 ||
-        !paging_kernel_direct_map_range(phys, NVME_PAGE_SIZE)) {
+        !paging_kernel_direct_map_range(phys, bytes)) {
         if (phys) {
-            mm_free_pages(phys, 1);
+            mm_free_pages(phys, pages);
         }
         return -12;
     }
     mapping = paging_kernel_direct_map(phys);
     if (!mapping) {
-        mm_free_pages(phys, 1);
+        mm_free_pages(phys, pages);
         return -12;
     }
-    storage_memzero(mapping, NVME_PAGE_SIZE);
+    storage_memzero(mapping, (size_t)bytes);
     *out_phys = phys;
     *out_virtual = (uint8_t *)mapping;
     return 0;
 }
 
-static void nvme_release_page(uint64_t *phys)
+static void nvme_release_pages(uint64_t *phys, uint32_t pages)
 {
     if (phys && *phys) {
-        mm_free_pages(*phys, 1);
+        mm_free_pages(*phys, pages ? pages : 1u);
     }
     if (phys) {
         *phys = 0;
     }
+}
+
+static void nvme_release_page(uint64_t *phys)
+{
+    nvme_release_pages(phys, 1u);
 }
 
 static void nvme_release_controller_memory(struct nvme_controller *controller)
@@ -223,7 +303,9 @@ static void nvme_release_controller_memory(struct nvme_controller *controller)
     nvme_release_page(&controller->io_cq_phys);
     nvme_release_page(&controller->identify_phys);
     nvme_release_page(&controller->namespace_list_phys);
-    nvme_release_page(&controller->io_buffer_phys);
+    nvme_release_pages(&controller->io_buffer_phys,
+                       controller->io_buffer_pages ? controller->io_buffer_pages : 1u);
+    nvme_release_page(&controller->prp_list_phys);
     controller->admin_sq = 0;
     controller->admin_cq = 0;
     controller->io_sq = 0;
@@ -231,6 +313,8 @@ static void nvme_release_controller_memory(struct nvme_controller *controller)
     controller->identify_buffer = 0;
     controller->namespace_list = 0;
     controller->io_buffer = 0;
+    controller->prp_list = 0;
+    controller->io_buffer_pages = 0;
 }
 
 static int nvme_submit_locked(struct nvme_controller *controller, uint8_t admin,
@@ -278,6 +362,7 @@ static int nvme_submit_locked(struct nvme_controller *controller, uint8_t admin,
     nvme_write32(controller, nvme_doorbell_offset(controller, queue_id, 0), *sq_tail);
 
     for (uint32_t i = 0; i < NVME_WAIT_SPINS; ++i) {
+        nvme_memory_barrier();
         status = cq[*cq_head].status;
         if ((status & 1u) == *cq_phase) {
             if (cq[*cq_head].command_id != command_id) {
@@ -291,7 +376,14 @@ static int nvme_submit_locked(struct nvme_controller *controller, uint8_t admin,
                 *cq_phase ^= 1u;
             }
             nvme_write32(controller, nvme_doorbell_offset(controller, queue_id, 1), *cq_head);
-            return (status & 0xfffeu) == 0 ? 0 : -5;
+            /* Status bits 15:1 are the phase-cleared SCT/SC value. */
+            if ((status & 0xfffeu) != 0) {
+                console_printf("[reliefnt] nvme completion error pci=%u:%u.%u qid=%u cid=%u status=0x%x\n",
+                               controller->bus, controller->slot, controller->function,
+                               queue_id, command_id, status);
+                return -5;
+            }
+            return 0;
         }
         if ((nvme_read32(controller, NVME_REG_CSTS) & NVME_CSTS_CFS) != 0) {
             return -5;
@@ -349,7 +441,7 @@ static void nvme_copy_model(char out[41], const uint8_t *model)
     out[end] = 0;
 }
 
-static int nvme_create_io_queues(struct nvme_controller *controller)
+static int nvme_create_io_queues_locked(struct nvme_controller *controller)
 {
     struct nvme_command command;
     uint32_t queue_size;
@@ -364,7 +456,7 @@ static int nvme_create_io_queues(struct nvme_controller *controller)
     command.prp1 = controller->io_cq_phys;
     command.cdw10 = 1u | queue_size;
     command.cdw11 = 1u; /* physically contiguous queue, interrupt disabled */
-    ret = nvme_submit(controller, 1, &command);
+    ret = nvme_submit_locked(controller, 1, &command);
     if (ret < 0) {
         return ret;
     }
@@ -374,7 +466,79 @@ static int nvme_create_io_queues(struct nvme_controller *controller)
     command.prp1 = controller->io_sq_phys;
     command.cdw10 = 1u | queue_size;
     command.cdw11 = 1u | (1u << 16); /* contiguous, attached to CQ 1 */
-    return nvme_submit(controller, 1, &command);
+    return nvme_submit_locked(controller, 1, &command);
+}
+
+static int nvme_create_io_queues(struct nvme_controller *controller)
+{
+    int ret;
+    kernel_spin_lock(&controller->lock);
+    ret = nvme_create_io_queues_locked(controller);
+    kernel_spin_unlock(&controller->lock);
+    return ret;
+}
+
+static int nvme_program_controller(struct nvme_controller *controller)
+{
+    uint32_t cc;
+    int ret;
+    if (!controller || !controller->mmio) {
+        return -22;
+    }
+    ret = nvme_disable_controller(controller);
+    if (ret < 0) {
+        return ret;
+    }
+    nvme_reset_queue_state(controller);
+    nvme_write32(controller, NVME_REG_AQA,
+                 (uint32_t)(controller->queue_depth - 1u) |
+                 ((uint32_t)(controller->queue_depth - 1u) << 16));
+    nvme_write64(controller, NVME_REG_ASQ, controller->admin_sq_phys);
+    nvme_write64(controller, NVME_REG_ACQ, controller->admin_cq_phys);
+    nvme_memory_barrier();
+    cc = NVME_CC_EN | (6u << NVME_CC_IOSQES_SHIFT) |
+         (4u << NVME_CC_IOCQES_SHIFT);
+    nvme_write32(controller, NVME_REG_CC, cc);
+    ret = nvme_wait_ready(controller, 1);
+    if (ret < 0) {
+        return ret;
+    }
+    controller->ready = 1;
+    return nvme_create_io_queues(controller);
+}
+
+static int nvme_reinitialize_controller(struct nvme_controller *controller)
+{
+    int ret;
+    if (!controller || !controller->mmio) {
+        return -22;
+    }
+    console_printf("[reliefnt] NVMe resetting controller pci=%u:%u.%u\n",
+                   controller->bus, controller->slot, controller->function);
+    ret = nvme_disable_controller(controller);
+    if (ret == 0) {
+        nvme_reset_queue_state(controller);
+        nvme_write32(controller, NVME_REG_AQA,
+                     (uint32_t)(controller->queue_depth - 1u) |
+                     ((uint32_t)(controller->queue_depth - 1u) << 16));
+        nvme_write64(controller, NVME_REG_ASQ, controller->admin_sq_phys);
+        nvme_write64(controller, NVME_REG_ACQ, controller->admin_cq_phys);
+        nvme_memory_barrier();
+        nvme_write32(controller, NVME_REG_CC,
+                     NVME_CC_EN | (6u << NVME_CC_IOSQES_SHIFT) |
+                     (4u << NVME_CC_IOCQES_SHIFT));
+        ret = nvme_wait_ready(controller, 1);
+        if (ret == 0) {
+            controller->ready = 1;
+            ret = nvme_create_io_queues_locked(controller);
+        }
+    }
+    if (ret < 0) {
+        controller->ready = 0;
+        console_printf("[reliefnt] NVMe controller reset failed pci=%u:%u.%u ret=%d\n",
+                       controller->bus, controller->slot, controller->function, ret);
+    }
+    return ret;
 }
 
 static int nvme_initialize_controller(struct nvme_controller *controller)
@@ -384,6 +548,7 @@ static int nvme_initialize_controller(struct nvme_controller *controller)
     uint32_t mpsmin;
     uint32_t mpsmax;
     uint32_t cc;
+    uint32_t version;
     int ret;
 
     if (!controller || !controller->mmio) {
@@ -393,6 +558,13 @@ static int nvme_initialize_controller(struct nvme_controller *controller)
     if ((cap & (1ULL << 37)) == 0) {
         console_printf("[reliefnt] nvme pci=%u:%u.%u does not expose the NVM command set\n",
                        controller->bus, controller->slot, controller->function);
+        return -95;
+    }
+    version = nvme_read32(controller, NVME_REG_VS);
+    if ((version >> 16) == 0 || (version >> 16) > 2u) {
+        console_printf("[reliefnt] nvme pci=%u:%u.%u unsupported version %u.%u\n",
+                       controller->bus, controller->slot, controller->function,
+                       version >> 16, (version >> 8) & 0xffu);
         return -95;
     }
     mpsmin = (uint32_t)((cap >> 48) & 0x0fu);
@@ -407,6 +579,11 @@ static int nvme_initialize_controller(struct nvme_controller *controller)
         return -95;
     }
     controller->queue_depth = (uint16_t)min_u32(max_entries, NVME_QUEUE_DEPTH);
+    /* Queue memory is one 4 KiB physically contiguous page.  A 32-entry
+     * queue exactly fits both 64-byte SQEs and 16-byte CQEs. */
+    if (controller->queue_depth > 32u) {
+        controller->queue_depth = 32u;
+    }
     controller->cap = cap;
     controller->doorbell_stride = 4u << ((cap >> 32) & 0x0fu);
     if (controller->doorbell_stride == 0 || controller->doorbell_stride > 1024u) {
@@ -433,30 +610,16 @@ static int nvme_initialize_controller(struct nvme_controller *controller)
     if (ret < 0) goto fail;
     ret = nvme_allocate_page(&controller->namespace_list_phys, &controller->namespace_list);
     if (ret < 0) goto fail;
-    ret = nvme_allocate_page(&controller->io_buffer_phys, &controller->io_buffer);
+    ret = nvme_allocate_pages(NVME_IO_BUFFER_PAGES, &controller->io_buffer_phys,
+                              &controller->io_buffer);
+    if (ret < 0) goto fail;
+    controller->io_buffer_pages = NVME_IO_BUFFER_PAGES;
+    ret = nvme_allocate_page(&controller->prp_list_phys,
+                             (uint8_t **)(void *)&controller->prp_list);
     if (ret < 0) goto fail;
 
-    controller->admin_sq_tail = 0;
-    controller->admin_cq_head = 0;
-    controller->io_sq_tail = 0;
-    controller->io_cq_head = 0;
-    controller->cq_phase_admin = 1;
-    controller->cq_phase_io = 1;
-    controller->next_command_id = 0;
-    nvme_write32(controller, NVME_REG_AQA,
-                 (uint32_t)(controller->queue_depth - 1u) |
-                 ((uint32_t)(controller->queue_depth - 1u) << 16));
-    nvme_write64(controller, NVME_REG_ASQ, controller->admin_sq_phys);
-    nvme_write64(controller, NVME_REG_ACQ, controller->admin_cq_phys);
-    nvme_memory_barrier();
-    nvme_write32(controller, NVME_REG_CC,
-                 NVME_CC_EN | (6u << NVME_CC_IOSQES_SHIFT) |
-                 (4u << NVME_CC_IOCQES_SHIFT));
-    if (nvme_wait_ready(controller, 1) < 0) {
-        ret = -5;
-        goto fail;
-    }
-    controller->ready = 1;
+    ret = nvme_program_controller(controller);
+    if (ret < 0) goto fail;
     ret = nvme_identify(controller, 0, NVME_IDENTIFY_CONTROLLER,
                         controller->identify_buffer, controller->identify_phys);
     if (ret < 0) goto fail;
@@ -465,8 +628,6 @@ static int nvme_initialize_controller(struct nvme_controller *controller)
     if (!controller->model[0]) {
         storage_copy_text(controller->model, sizeof(controller->model), "NVMe Controller");
     }
-    ret = nvme_create_io_queues(controller);
-    if (ret < 0) goto fail;
     console_printf("[reliefnt] NVMe controller ready pci=%u:%u.%u model=\"%s\" namespaces=%u qdepth=%u\n",
                    controller->bus, controller->slot, controller->function,
                    controller->model, controller->namespace_count, controller->queue_depth);
@@ -480,9 +641,43 @@ fail:
     return ret < 0 ? ret : -5;
 }
 
-static int nvme_readwrite(struct nvme_controller *controller, uint32_t nsid,
-                          uint64_t lba, uint32_t sector_count, void *buffer,
-                          uint8_t write)
+static int nvme_prepare_prp(struct nvme_controller *controller,
+                             uint64_t bytes, struct nvme_command *command)
+{
+    uint32_t pages;
+    uint64_t page_phys;
+    if (!controller || !command || !controller->io_buffer_phys ||
+        !controller->prp_list || !controller->prp_list_phys ||
+        !controller->io_buffer_pages || !bytes ||
+        bytes > (uint64_t)controller->io_buffer_pages * NVME_PAGE_SIZE) {
+        return -22;
+    }
+    pages = (uint32_t)((bytes + NVME_PAGE_SIZE - 1u) / NVME_PAGE_SIZE);
+    command->prp1 = controller->io_buffer_phys;
+    command->prp2 = 0;
+    if (pages <= 1u) {
+        return 0;
+    }
+    if (pages == 2u) {
+        command->prp2 = controller->io_buffer_phys + NVME_PAGE_SIZE;
+        return 0;
+    }
+    if (pages - 1u > NVME_MAX_PRP_ENTRIES) {
+        return -7;
+    }
+    storage_memzero(controller->prp_list, NVME_PAGE_SIZE);
+    page_phys = controller->io_buffer_phys + NVME_PAGE_SIZE;
+    for (uint32_t i = 0; i < pages - 1u; ++i) {
+        controller->prp_list[i] = page_phys + (uint64_t)i * NVME_PAGE_SIZE;
+    }
+    nvme_memory_barrier();
+    command->prp2 = controller->prp_list_phys;
+    return 0;
+}
+
+static int nvme_readwrite_once(struct nvme_controller *controller, uint32_t nsid,
+                               uint64_t lba, uint32_t sector_count, void *buffer,
+                               uint8_t write)
 {
     struct nvme_command command;
     uint64_t bytes;
@@ -492,10 +687,10 @@ static int nvme_readwrite(struct nvme_controller *controller, uint32_t nsid,
         return -22;
     }
     bytes = (uint64_t)sector_count * SECTOR_SIZE;
-    if (bytes > NVME_PAGE_SIZE || lba + sector_count < lba) {
+    if (bytes > (uint64_t)controller->io_buffer_pages * NVME_PAGE_SIZE ||
+        lba + sector_count < lba) {
         return -22;
     }
-    kernel_spin_lock(&controller->lock);
     if (write) {
         storage_memcpy(controller->io_buffer, buffer, (size_t)bytes);
         nvme_memory_barrier();
@@ -503,14 +698,34 @@ static int nvme_readwrite(struct nvme_controller *controller, uint32_t nsid,
     storage_memzero(&command, sizeof(command));
     command.cdw0 = write ? NVME_IO_WRITE : NVME_IO_READ;
     command.nsid = nsid;
-    command.prp1 = controller->io_buffer_phys;
     command.cdw10 = (uint32_t)lba;
     command.cdw11 = (uint32_t)(lba >> 32);
     command.cdw12 = sector_count - 1u;
+    ret = nvme_prepare_prp(controller, bytes, &command);
+    if (ret < 0) {
+        return ret;
+    }
     ret = nvme_submit_locked(controller, 0, &command);
     if (ret == 0 && !write) {
         nvme_memory_barrier();
         storage_memcpy(buffer, controller->io_buffer, (size_t)bytes);
+    }
+    return ret;
+}
+
+static int nvme_readwrite(struct nvme_controller *controller, uint32_t nsid,
+                          uint64_t lba, uint32_t sector_count, void *buffer,
+                          uint8_t write)
+{
+    int ret;
+    kernel_spin_lock(&controller->lock);
+    ret = nvme_readwrite_once(controller, nsid, lba, sector_count, buffer, write);
+    if (ret < 0 && controller->ready) {
+        /* A timed out command has no safe completion ownership. Rebuild both
+         * queues, then retry once with a fresh command id and phase state. */
+        if (nvme_reinitialize_controller(controller) == 0) {
+            ret = nvme_readwrite_once(controller, nsid, lba, sector_count, buffer, write);
+        }
     }
     kernel_spin_unlock(&controller->lock);
     return ret;
@@ -518,10 +733,18 @@ static int nvme_readwrite(struct nvme_controller *controller, uint32_t nsid,
 
 static int nvme_flush_cache(struct nvme_controller *controller, uint32_t nsid)
 {
-    if (!controller || !controller->ready || !nsid) return -19;
+    int ret;
     struct nvme_command command = {0};
+    if (!controller || !controller->ready || !nsid) return -19;
+    command.cdw0 = NVME_IO_FLUSH;
     command.nsid = nsid;
-    return nvme_submit(controller, 0, &command); /* NVM Flush opcode 00h. */
+    kernel_spin_lock(&controller->lock);
+    ret = nvme_submit_locked(controller, 0, &command);
+    if (ret < 0 && controller->ready && nvme_reinitialize_controller(controller) == 0) {
+        ret = nvme_submit_locked(controller, 0, &command);
+    }
+    kernel_spin_unlock(&controller->lock);
+    return ret;
 }
 
 static int nvme_namespace_usable(struct nvme_controller *controller, uint32_t nsid,
@@ -579,6 +802,7 @@ static void nvme_register_namespace(struct nvme_controller *controller, uint32_t
     disk->port = nsid <= 0xffu ? (uint8_t)nsid : 0xffu;
     disk->transport = STORAGE_TRANSPORT_NVME;
     disk->nvme = controller;
+    disk->nvme_controller_index = controller->controller_index;
     disk->nvme_nsid = nsid;
     disk->sector_count = sectors;
     storage_copy_text(disk->device_model, sizeof(disk->device_model), controller->model);
@@ -626,6 +850,7 @@ static void storage_scan_nvme_controller(uint8_t bus, uint8_t slot, uint8_t func
     controller->bus = bus;
     controller->slot = slot;
     controller->function = function;
+    controller->controller_index = (uint16_t)g_nvme_controller_count;
     controller->mmio = (volatile uint8_t *)paging_kernel_direct_map(bar_phys);
     if (!controller->mmio) {
         return;

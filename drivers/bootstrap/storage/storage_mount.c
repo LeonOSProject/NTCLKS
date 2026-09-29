@@ -20,6 +20,98 @@ static int storage_path_append_u32(char *path, uint32_t capacity, uint32_t *posi
     return 0;
 }
 
+static int storage_path_append_text(char *path, uint32_t capacity, uint32_t *position,
+                                    const char *text)
+{
+    if (!path || !position || !text) return -22;
+    while (*text) {
+        if (*position + 1u >= capacity) return -22;
+        path[(*position)++] = *text++;
+    }
+    path[*position] = 0;
+    return 0;
+}
+
+static uint32_t storage_sata_disk_index(uint32_t disk_id)
+{
+    uint32_t index = 0;
+    for (uint32_t i = 0; i < disk_id && i < g_install_disk_count; ++i) {
+        if (g_install_disks[i].present &&
+            g_install_disks[i].transport != STORAGE_TRANSPORT_NVME) ++index;
+    }
+    return index;
+}
+
+static int storage_append_sd_suffix(char *out, uint32_t capacity, uint32_t *position,
+                                    uint32_t index)
+{
+    char letters[8];
+    uint32_t count = 0;
+    do {
+        if (count >= sizeof(letters)) return -22;
+        letters[count++] = (char)('a' + (index % 26u));
+        index = index / 26u;
+        if (index) --index;
+    } while (index || count == 0);
+    while (count) {
+        if (*position + 1u >= capacity) return -22;
+        out[(*position)++] = letters[--count];
+    }
+    out[*position] = 0;
+    return 0;
+}
+
+int storage_disk_device_name(uint32_t disk_id, int32_t partition_index,
+                             char *out, uint32_t capacity)
+{
+    const struct install_disk_state *disk;
+    uint32_t position = 0;
+    if (!out || capacity == 0 || disk_id >= g_install_disk_count ||
+        partition_index < -1 || partition_index >= (int32_t)RELIEFOS_DISK_MAX_PARTITIONS ||
+        !g_install_disks[disk_id].present) return -2;
+    disk = &g_install_disks[disk_id];
+    out[0] = 0;
+    if (disk->transport == STORAGE_TRANSPORT_NVME) {
+        if (storage_path_append_text(out, capacity, &position, "/dev/nvme") < 0 ||
+            storage_path_append_u32(out, capacity, &position,
+                                    disk->nvme_controller_index) < 0 ||
+            storage_path_append_text(out, capacity, &position, "n") < 0 ||
+            storage_path_append_u32(out, capacity, &position, disk->nvme_nsid) < 0)
+            return -22;
+    } else {
+        if (storage_path_append_text(out, capacity, &position, "/dev/sd") < 0 ||
+            storage_append_sd_suffix(out, capacity, &position,
+                                     storage_sata_disk_index(disk_id)) < 0)
+            return -22;
+    }
+    if (partition_index >= 0) {
+        if (disk->transport == STORAGE_TRANSPORT_NVME &&
+            storage_path_append_text(out, capacity, &position, "p") < 0)
+            return -22;
+        if (storage_path_append_u32(out, capacity, &position,
+                                    (uint32_t)partition_index + 1u) < 0)
+            return -22;
+    }
+    return 0;
+}
+
+int storage_parse_block_name(const char *name, uint32_t *disk_id,
+                             int32_t *partition_index)
+{
+    char candidate[RELIEFOS_FS_PATH_LEN];
+    if (!name || !disk_id || !partition_index) return -22;
+    for (uint32_t i = 0; i < g_install_disk_count; ++i) {
+        for (int32_t part = -1; part < (int32_t)RELIEFOS_DISK_MAX_PARTITIONS; ++part) {
+            if (storage_disk_device_name(i, part, candidate, sizeof(candidate)) < 0) continue;
+            if (!storage_text_eq(name, candidate + 5)) continue;
+            *disk_id = i;
+            *partition_index = part;
+            return 0;
+        }
+    }
+    return -22;
+}
+
 static int storage_set_data_mount_path(struct storage_volume *volume, uint32_t disk_id,
                                        uint32_t partition_index)
 {
@@ -51,6 +143,9 @@ static int storage_mount_runtime_boot(void)
     }
     storage_memzero(boot, sizeof(*boot));
     *boot = *root;
+    /* Copy transport geometry, never ownership of the root journal. */
+    storage_memzero(&boot->ext4, sizeof(boot->ext4));
+    boot->read_only_reason = STORAGE_EXT4_READ_ONLY_NONE;
     boot->volume_id = STORAGE_VOLUME_BOOT;
     boot->ready = false;
     boot->filesystem = STORAGE_FILESYSTEM_NONE;
@@ -85,6 +180,10 @@ static void storage_copy_disk_transport(struct storage_volume *volume,
     storage_volume_from_install_disk(volume, disk);
 }
 
+/* Both classic indirect and modern extent images use one feature-gated backend. */
+static int storage_mount_ext_family(struct storage_volume *root)
+{ return storage_ext4_mount(root); }
+
 static int storage_try_mount_root_disk(struct install_disk_state *disk)
 {
     struct storage_volume *root = &g_volumes[STORAGE_VOLUME_ROOT];
@@ -109,11 +208,11 @@ static int storage_try_mount_root_disk(struct install_disk_state *disk)
                            (unsigned int)root->exfat_sector_count);
             ret = exfat_mount();
             console_printf("[reliefnt] exfat_mount returned %d\n", ret);
-            if (ret < 0 && root->ext2_start_lba) {
-                ret = ext2_mount();
+            if (ret < 0 && root->ext_start_lba) {
+                ret = storage_mount_ext_family(root);
             }
-        } else if (root->ext2_start_lba) {
-            ret = ext2_mount();
+        } else if (root->ext_start_lba) {
+            ret = storage_mount_ext_family(root);
         } else {
             /* A GPT disk with an ESP but no recognized root must fail
              * explicitly. Mounting the ESP as / leaves a seemingly bootable
@@ -133,8 +232,12 @@ static int storage_try_mount_root_disk(struct install_disk_state *disk)
                        disk->bus, disk->slot, disk->function,
                        disk->transport == STORAGE_TRANSPORT_NVME ? disk->nvme_nsid : disk->port,
                        root->filesystem == STORAGE_FILESYSTEM_EXFAT ? "exfat" :
-                       (root->filesystem == STORAGE_FILESYSTEM_EXT2 ? "ext2" : "fat32"));
+                       (root->filesystem == STORAGE_FILESYSTEM_EXT4 ? "ext4" :
+                        (root->filesystem == STORAGE_FILESYSTEM_EXT2 ? "ext2" : "fat32")));
     } else {
+        /* Failed root mount: release the ext4 state and its caches before
+         * the volume slot is reused; g_active_volume is restored below. */
+        storage_ext4_state_reset(root);
         storage_memzero(root, sizeof(*root));
     }
     g_active_volume = old;
@@ -465,8 +568,11 @@ void storage_mount_boot_root(const struct boot_info *boot, bool ramdisk_root)
     uint64_t length = 0;
     storage_init();
     if (!ramdisk_root) {
-        console_printf("[reliefnt] storage boot root from probed disks root=/ fs=%s\n",
-                       storage_root_filesystem_name());
+        const char *root_fs = g_volumes[STORAGE_VOLUME_ROOT].filesystem == STORAGE_FILESYSTEM_EXT4
+                                  ? "ext4"
+                                  : storage_root_filesystem_name();
+        console_printf("[reliefnt] storage boot root from probed disks root=%s fs=%s\n",
+                       root_fs, root_fs);
         return;
     }
     if (!boot_find_module_range(boot, "reliefos-installer-root", &start, &length) &&
@@ -531,8 +637,9 @@ int storage_mount_ramdisk_root(const void *image, uint64_t len)
     root->esp_start_lba = 0;
     root->esp_sector_count = len / SECTOR_SIZE;
     storage_copy_text(root->mount_path, sizeof(root->mount_path), "/");
-    /* New media use ext2 to retain case-sensitive UAPI headers. Keep FAT32
-     * module support for existing media; the handoff kind/path are unchanged. */
+    /* New media use the ext-family layout (ext4 for current images). Keep
+     * FAT32 module support for existing media; the handoff kind/path are
+     * unchanged. */
     const uint8_t *bytes = image_mapping;
     int mount_result;
     if (len >= 4096 && bytes[1080] == 0x53 && bytes[1081] == 0xef) {
@@ -560,7 +667,7 @@ int storage_mount_ramdisk_root(const void *image, uint64_t len)
                    image,
                    image_mapping,
                    (unsigned long long)len,
-                   root->filesystem == STORAGE_FILESYSTEM_EXT2 ? "ext2" : "fat32");
+                   root->filesystem == STORAGE_FILESYSTEM_EXT4 ? "ext4" : (root->filesystem == STORAGE_FILESYSTEM_EXT2 ? "ext2" : "fat32"));
     return 0;
 }
 

@@ -45,6 +45,7 @@ struct reliefos_permissions {
 #define RELIEFOS_DISK_FILESYSTEM_EXT2 2U
 #define RELIEFOS_DISK_FILESYSTEM_ISO9660 3U
 #define RELIEFOS_DISK_FILESYSTEM_EXFAT 4U
+#define RELIEFOS_DISK_FILESYSTEM_EXT4 5U
 #define RELIEFOS_DISK_PARTITION_FLAG_ESP 0x00000001U
 #define RELIEFOS_DISK_PARTITION_FLAG_BOOT_ROOT 0x00000002U
 #define RELIEFOS_DISK_PARTITION_FLAG_TARGET_MOUNTED 0x00000004U
@@ -78,6 +79,8 @@ struct storage_node {
     uint32_t first_cluster;
     uint32_t volume_id;
     uint64_t size;
+    uint32_t mount_generation;
+    uint32_t inode_generation;
 };
 
 struct storage_inode_ref;
@@ -85,6 +88,13 @@ int storage_inode_get(const struct storage_node *node, struct storage_inode_ref 
 void storage_inode_retain(struct storage_inode_ref *reference);
 int storage_inode_put(struct storage_inode_ref *reference);
 int storage_inode_refresh(struct storage_node *node);
+struct storage_ext4_fiemap_extent { uint64_t logical,physical,length; uint32_t flags; };
+#define EXT4_FIEMAP_UNWRITTEN 1u
+#define EXT4_FIEMAP_HOLE 2u
+#define EXT4_FIEMAP_LAST 4u
+int storage_fallocate_node(struct storage_node *,uint32_t,uint64_t,uint64_t);
+int storage_fiemap_node(const struct storage_node *,uint64_t,uint64_t,
+                       struct storage_ext4_fiemap_extent *,uint32_t,uint32_t *);
 int storage_node_mount_flags(const struct storage_node *node, uint64_t *flags);
 int storage_tmpfs_get_page(const struct storage_node *node, uint64_t offset, uint64_t *phys);
 int storage_remount_path(const char *path, uint64_t flags);
@@ -176,6 +186,7 @@ struct storage_read_cursor {
 #define STORAGE_NODE_FLAG_DEV_DIR 0x00000002u
 #define STORAGE_NODE_FLAG_DEV_FB0 0x00000004u
 #define STORAGE_NODE_FLAG_EXT2    0x00000008u
+#define STORAGE_NODE_FLAG_EXT_FAMILY STORAGE_NODE_FLAG_EXT2
 #define STORAGE_NODE_FLAG_EXFAT   0x00000010u
 #define STORAGE_NODE_FLAG_EXFAT_NOFAT 0x00000020u
 #define STORAGE_NODE_FLAG_DEV_NODE 0x00000040u
@@ -395,7 +406,7 @@ int storage_install_list_disks(struct reliefos_install_disk *disks,
  */
 int storage_install_format_esp(uint32_t disk_id);
 /**
- * @brief Formats an installer target as a GPT disk with FAT32 ESP and ext2 root.
+ * @brief Formats an installer target as a GPT disk with FAT32 ESP and ext4 root.
  * @param disk_id Installer-selected AHCI, IDE/PATA, or NVMe disk identifier.
  * @return Zero on success or a negative errno-style storage error.
  */
@@ -418,6 +429,9 @@ int storage_disk_list_partitions(uint32_t disk_id,
 /** Returns the LBA range represented by a whole-disk or partition node. */
 int storage_disk_block_info(uint32_t disk_id, int32_t partition_index,
                             uint64_t *out_first_lba, uint64_t *out_sector_count);
+/** Format the canonical Linux block-device path for a discovered disk. */
+int storage_disk_device_name(uint32_t disk_id, int32_t partition_index,
+                             char *out, uint32_t capacity);
 /** Reads/writes a block node at a byte offset; offsets and lengths are sector aligned. */
 int storage_disk_block_read(uint32_t disk_id, int32_t partition_index,
                             uint64_t offset, void *buffer, uint32_t length,
@@ -436,7 +450,7 @@ int storage_mount_path_volume_id(const char *target, uint32_t *out_volume_id);
 /** Tear down an exact standard mount after the syscall layer checks use. */
 int storage_unmount_path(const char *target, uint32_t *out_volume_id);
 /**
- * @brief Formats an unprotected GPT partition as FAT32, exFAT, or ext2.
+ * @brief Formats an unprotected GPT partition as FAT32, exFAT, ext4, or legacy ext2.
  * @param request Partition selector and requested filesystem.
  * @return Zero on success or a negative errno-style storage error.
  */
@@ -454,7 +468,8 @@ int storage_disk_delete_partition(const struct reliefos_disk_partition_delete *r
  */
 int storage_disk_create_partition(const struct reliefos_disk_partition_create *request);
 /**
- * @brief Mounts one FAT32, exFAT, or ext2 data partition at its deterministic path.
+ * @brief Mounts one FAT32, exFAT, ext4, or legacy ext2 data partition at its
+ *        deterministic path.
  * @param request Disk and GPT-entry selector; receives the mount path.
  * @return Zero on success or a negative errno-style storage error.
  */

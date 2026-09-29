@@ -215,10 +215,10 @@ static int install_format_fat32(struct install_disk_state *disk, uint64_t start_
 }
 
 /**
- * @brief Writes one 4 KiB ext2 block during installer target formatting.
+ * @brief Writes one 4 KiB ext-family block during installer target formatting.
  * @param disk AHCI install target receiving the block.
- * @param start_lba First LBA of the ext2 partition.
- * @param block Zero-based ext2 block number.
+ * @param start_lba First LBA of the ext-family partition.
+ * @param block Zero-based filesystem block number.
  * @param data Complete 4 KiB block contents.
  * @return Zero on success or a negative storage error.
  */
@@ -229,7 +229,7 @@ static int install_write_ext2_block(struct install_disk_state *disk, uint64_t st
 }
 
 /**
- * @brief Marks a bit in an in-memory ext2 bitmap block.
+ * @brief Marks a bit in an in-memory ext-family bitmap block.
  * @param bitmap Writable 4 KiB bitmap storage.
  * @param bit Zero-based block or inode bit to mark allocated.
  */
@@ -239,7 +239,7 @@ static void install_ext2_set_bit(uint8_t *bitmap, uint32_t bit)
 }
 
 /**
- * @brief Builds one classic ext2 block-group descriptor.
+ * @brief Builds one ext-family block-group descriptor.
  * @param descriptor Writable descriptor receiving the group's metadata locations.
  * @param group Zero-based block-group index.
  * @param group_blocks Blocks available in the group.
@@ -282,14 +282,19 @@ static int install_ext2_make_group_desc(struct ext2_group_desc *descriptor,
 }
 
 /**
- * @brief Creates a writable classic ext2 filesystem for the installed root.
+ * @brief Creates a writable ext2-compatible filesystem for the installed root.
+ *
+ * The ext4 variant adds the extents incompatibility feature and stores the
+ * root directory through a valid depth-zero extent tree. The shared layout
+ * keeps the formatter small while allowing Linux ext4 tooling to inspect and
+ * mount the installed target.
  * @param disk Block disk containing the target partition.
- * @param start_lba First sector of the ext2 partition.
- * @param sector_count Number of sectors available to ext2.
+ * @param start_lba First sector of the ext-family partition.
+ * @param sector_count Number of sectors available to the filesystem.
  * @return Zero on success or a negative errno-style storage status.
  */
-static int install_format_ext2(struct install_disk_state *disk, uint64_t start_lba,
-                               uint64_t sector_count)
+static int install_format_ext_family(struct install_disk_state *disk, uint64_t start_lba,
+                                     uint64_t sector_count, bool ext4)
 {
     uint32_t blocks;
     uint32_t group_count;
@@ -340,7 +345,8 @@ static int install_format_ext2(struct install_disk_state *disk, uint64_t start_l
     super.rev_level = EXT2_DYNAMIC_REV;
     super.first_ino = 11u;
     super.inode_size = 128u;
-    super.feature_incompat = EXT2_FEATURE_INCOMPAT_FILETYPE;
+    super.feature_incompat = EXT2_FEATURE_INCOMPAT_FILETYPE |
+                             (ext4 ? EXT4_FEATURE_INCOMPAT_EXTENTS : 0u);
     storage_memcpy(super.volume_name, "RELIEFOS", 8u);
 
     /* A non-sparse classic layout keeps a backup superblock and a complete
@@ -429,7 +435,18 @@ static int install_format_ext2(struct install_disk_state *disk, uint64_t start_l
         root->size_lo = INSTALL_EXT2_BLOCK_SIZE;
         root->links_count = 2u;
         root->blocks_512 = 8u;
-        root->block[0] = root_block;
+        if (ext4) {
+            /* A depth-zero extent tree fits in i_block. */
+            root->flags = EXT4_EXTENTS_FL;
+            root->block[0] = 0x0001f30au; /* magic 0xf30a, entries 1 */
+            root->block[1] = 4u;          /* max entries 4, depth 0 */
+            root->block[2] = 0u;          /* extent generation */
+            root->block[3] = 0u;          /* logical block 0 */
+            root->block[4] = 1u;          /* length 1, start_hi 0 */
+            root->block[5] = root_block;  /* physical block */
+        } else {
+            root->block[0] = root_block;
+        }
     }
     ret = install_write_ext2_block(disk, start_lba, 3u + descriptor_blocks, storage_scratch);
     if (ret < 0) return ret;
@@ -452,6 +469,18 @@ static int install_format_ext2(struct install_disk_state *disk, uint64_t start_l
     return install_write_ext2_block(disk, start_lba,
                                     3u + descriptor_blocks + inode_table_blocks,
                                     storage_scratch);
+}
+
+static int install_format_ext2(struct install_disk_state *disk, uint64_t start_lba,
+                               uint64_t sector_count)
+{
+    return install_format_ext_family(disk, start_lba, sector_count, false);
+}
+
+static int install_format_ext4(struct install_disk_state *disk, uint64_t start_lba,
+                               uint64_t sector_count)
+{
+    return install_format_ext_family(disk, start_lba, sector_count, true);
 }
 
 static void install_utf16_name(uint16_t dst[36], const char *name)
@@ -751,7 +780,7 @@ static int install_write_gpt(struct install_disk_state *disk, uint64_t sector_co
     entry->attrs = 0;
     install_utf16_name(entry->name, "RELIEFOS_ESP");
     ++entry;
-    storage_memcpy(entry->type_guid, basic_data_guid, sizeof(entry->type_guid));
+    storage_memcpy(entry->type_guid, linux_filesystem_guid, sizeof(entry->type_guid));
     storage_memcpy(entry->unique_guid, root_part_guid, sizeof(entry->unique_guid));
     entry->first_lba = root_first;
     entry->last_lba = last_usable;

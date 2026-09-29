@@ -211,6 +211,7 @@ static int storage_write_device(const struct storage_volume *volume, uint64_t lb
     /* Evict before submission: an error can still leave a partially written
      * range. Only the successful ext2 caller republishes clean cache data. */
     ext2_cache_invalidate_range(lba, sector_count);
+    storage_ext4_cache_invalidate_write(volume, lba, sector_count);
     if (volume->kind == STORAGE_VOLUME_RAM) {
         uint64_t offset = lba * SECTOR_SIZE;
         uint64_t bytes = (uint64_t)sector_count * SECTOR_SIZE;

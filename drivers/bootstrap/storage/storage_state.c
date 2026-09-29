@@ -210,6 +210,11 @@ static int storage_path_cache_lookup(const char *path, struct storage_node *out)
             !storage_text_eq(entry->path, path)) {
             continue;
         }
+        if ((entry->node.flags & STORAGE_NODE_FLAG_EXT_FAMILY) &&
+            entry->node.mount_generation != g_active_volume->mount_generation) {
+            entry->valid = 0;
+            continue;
+        }
         if (out) {
             *out = entry->node;
         }
@@ -390,6 +395,8 @@ static int storage_select_node_volume(const struct storage_node *node,
     if (old_volume) {
         *old_volume = g_active_volume;
     }
+    if ((node->flags & STORAGE_NODE_FLAG_EXT_FAMILY) && node->mount_generation &&
+        node->mount_generation != g_volumes[node->volume_id].mount_generation) return -116;
     g_active_volume = &g_volumes[node->volume_id];
     return 0;
 }

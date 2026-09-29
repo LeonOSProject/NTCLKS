@@ -69,7 +69,7 @@ static int disk_block_cache_load(uint32_t disk_id, struct install_disk_state *di
     if (ret < 0) {
         /* Only content errors are stable enough to cache. Transport failures
          * such as EIO may be transient (especially on AHCI after reset); a
-         * cached EIO made every later /dev/diskNpM lookup fail until reboot. */
+         * cached EIO made every later /dev/sdXN or /dev/nvmeXnYpZ lookup fail until reboot. */
         if (ret == -2 || ret == -22) {
             storage_memzero(cache, sizeof(*cache));
             cache->disk_sectors = sector_count;
@@ -527,7 +527,7 @@ static int disk_gpt_write(struct install_disk_state *disk, struct disk_gpt_table
         return -22;
     }
     /* A failed or partial metadata update must never leave a stale extent
-     * cache available to a later /dev/diskNpM lookup.  Invalidate before the
+     * cache available to a later /dev/sdXN or /dev/nvmeXnYpZ lookup.  Invalidate before the
      * first sector and keep it invalid on every error path; successful writes
      * are invalidated again below for clarity. */
     disk_block_cache_invalidate_disk(disk);
@@ -632,7 +632,9 @@ static int disk_partition_filesystem(struct install_disk_state *disk,
         const struct ext2_superblock *super =
             (const struct ext2_superblock *)(const void *)storage_scratch;
         if (super->magic == EXT2_SUPER_MAGIC) {
-            *out_filesystem = RELIEFOS_DISK_FILESYSTEM_EXT2;
+            *out_filesystem = (super->feature_incompat & EXT4_FEATURE_INCOMPAT_EXTENTS) != 0
+                                  ? RELIEFOS_DISK_FILESYSTEM_EXT4
+                                  : RELIEFOS_DISK_FILESYSTEM_EXT2;
         }
     }
     return 0;
@@ -754,12 +756,13 @@ static int storage_installer_mounts_busy(void)
 /**
  * @brief Tests a user-visible filesystem selection accepted by the formatter.
  * @param filesystem RELIEFOS_DISK_FILESYSTEM value.
- * @return Nonzero when the selection is FAT32, exFAT, or ext2.
+ * @return Nonzero when the selection is FAT32, exFAT, ext4, or legacy ext2.
  */
 static int disk_filesystem_format_supported(uint32_t filesystem)
 {
     return filesystem == RELIEFOS_DISK_FILESYSTEM_FAT32 ||
            filesystem == RELIEFOS_DISK_FILESYSTEM_EXT2 ||
+           filesystem == RELIEFOS_DISK_FILESYSTEM_EXT4 ||
            filesystem == RELIEFOS_DISK_FILESYSTEM_EXFAT;
 }
 
@@ -785,6 +788,9 @@ static int disk_format_entry(struct install_disk_state *disk, const struct gpt_e
     if (filesystem == RELIEFOS_DISK_FILESYSTEM_EXFAT) {
         return install_format_exfat(disk, entry->first_lba, sector_count);
     }
+    if (filesystem == RELIEFOS_DISK_FILESYSTEM_EXT4) {
+        return install_format_ext4(disk, entry->first_lba, sector_count);
+    }
     return install_format_ext2(disk, entry->first_lba, sector_count);
 }
 
@@ -802,7 +808,8 @@ static void disk_gpt_set_filesystem_type(struct gpt_entry *entry, uint32_t files
         filesystem == RELIEFOS_DISK_FILESYSTEM_FAT32 ||
         filesystem == RELIEFOS_DISK_FILESYSTEM_EXFAT) {
         storage_memcpy(entry->type_guid, basic_data_guid, sizeof(entry->type_guid));
-    } else if (filesystem == RELIEFOS_DISK_FILESYSTEM_EXT2) {
+    } else if (filesystem == RELIEFOS_DISK_FILESYSTEM_EXT2 ||
+               filesystem == RELIEFOS_DISK_FILESYSTEM_EXT4) {
         storage_memcpy(entry->type_guid, linux_filesystem_guid, sizeof(entry->type_guid));
     }
 }
@@ -1089,7 +1096,8 @@ int storage_disk_initialize_gpt(const struct reliefos_disk_gpt_initialize *reque
 }
 
 /**
- * @brief Formats an existing unprotected GPT partition as FAT32, exFAT, or ext2.
+ * @brief Formats an existing unprotected GPT partition as FAT32, exFAT, ext4,
+ *        or legacy ext2.
  * @param request Validated disk-management format request.
  * @return Zero on success or a negative errno-style storage error.
  */
@@ -1396,6 +1404,10 @@ static int storage_filesystem_from_name(const char *filesystem, uint32_t *out_fi
         *out_filesystem = RELIEFOS_DISK_FILESYSTEM_EXT2;
         return 0;
     }
+    if (storage_text_eq_ci(filesystem, "ext4")) {
+        *out_filesystem = RELIEFOS_DISK_FILESYSTEM_EXT4;
+        return 0;
+    }
     if (storage_text_eq_ci(filesystem, "exfat")) {
         *out_filesystem = RELIEFOS_DISK_FILESYSTEM_EXFAT;
         return 0;
@@ -1558,8 +1570,9 @@ int storage_mount_block_partition(uint32_t disk_id, uint32_t partition_index,
           volume->filesystem != STORAGE_FILESYSTEM_FAT32) ||
          (filesystem == RELIEFOS_DISK_FILESYSTEM_EXFAT &&
           volume->filesystem != STORAGE_FILESYSTEM_EXFAT) ||
-         (filesystem == RELIEFOS_DISK_FILESYSTEM_EXT2 &&
-          volume->filesystem != STORAGE_FILESYSTEM_EXT2))) {
+         ((filesystem == RELIEFOS_DISK_FILESYSTEM_EXT2 ||
+           filesystem == RELIEFOS_DISK_FILESYSTEM_EXT4) &&
+          !storage_ext4_is_ext_family(volume)))) {
         ret = -5;
     }
     if (ret == 0) {
@@ -1568,7 +1581,8 @@ int storage_mount_block_partition(uint32_t disk_id, uint32_t partition_index,
         console_printf("[reliefnt] storage mounted data partition disk=%u entry=%u path=%s fs=%s\\n",
                        disk_id, partition_index, volume->mount_path,
                        filesystem == RELIEFOS_DISK_FILESYSTEM_FAT32 ? "fat32" :
-                       (filesystem == RELIEFOS_DISK_FILESYSTEM_EXFAT ? "exfat" : "ext2"));
+                       (filesystem == RELIEFOS_DISK_FILESYSTEM_EXFAT ? "exfat" :
+                        (filesystem == RELIEFOS_DISK_FILESYSTEM_EXT4 ? "ext4" : "ext2")));
         if (out_volume_id) {
             *out_volume_id = volume_id;
         }
@@ -1650,6 +1664,7 @@ int storage_unmount_path(const char *target, uint32_t *out_volume_id)
                    g_volumes[volume_id].source_disk_id,
                    g_volumes[volume_id].source_partition_index, target);
     tmpfs_destroy(g_volumes[volume_id].tmpfs);
+    storage_ext4_journal_close(&g_volumes[volume_id]);
     storage_memzero(&g_volumes[volume_id], sizeof(g_volumes[volume_id]));
     storage_cache_invalidate();
     if (out_volume_id) {
@@ -1772,7 +1787,7 @@ int storage_install_format_target(uint32_t disk_id)
     if (ret < 0) {
         return ret;
     }
-    ret = install_format_exfat(disk, root_lba, root_sectors);
+    ret = install_format_ext4(disk, root_lba, root_sectors);
     if (ret < 0) {
         return ret;
     }
@@ -1837,11 +1852,13 @@ int storage_install_mount_target(uint32_t disk_id)
         ret = ext2_mount();
     }
     if (ret == 0 && (target->filesystem == STORAGE_FILESYSTEM_EXFAT ||
-                     target->filesystem == STORAGE_FILESYSTEM_EXT2)) {
+                     storage_ext4_is_ext_family(target))) {
         target->ready = true;
         disk->target_mounted = 1;
         storage_memzero(esp, sizeof(*esp));
         *esp = *target;
+        storage_memzero(&esp->ext4, sizeof(esp->ext4));
+        esp->read_only_reason = STORAGE_EXT4_READ_ONLY_NONE;
         esp->volume_id = STORAGE_VOLUME_BOOT;
         esp->ready = false;
         storage_copy_text(esp->mount_path, sizeof(esp->mount_path), "/target/boot");
@@ -1855,9 +1872,10 @@ int storage_install_mount_target(uint32_t disk_id)
         if (ret == 0) esp->ready = true;
     }
     if (ret == 0 && (target->filesystem == STORAGE_FILESYSTEM_EXFAT ||
-                     target->filesystem == STORAGE_FILESYSTEM_EXT2)) {
+                     storage_ext4_is_ext_family(target))) {
         console_printf("[reliefnt] installer target mounted root=/target %s_lba=%llu esp=/target/boot esp_lba=%llu disk=%u port=%u\n",
-                       target->filesystem == STORAGE_FILESYSTEM_EXFAT ? "exfat" : "ext2",
+                       target->filesystem == STORAGE_FILESYSTEM_EXFAT ? "exfat" :
+                       (target->filesystem == STORAGE_FILESYSTEM_EXT4 ? "ext4" : "ext2"),
                        (unsigned long long)(target->filesystem == STORAGE_FILESYSTEM_EXFAT
                                             ? target->exfat_start_lba : target->ext2_start_lba),
                        (unsigned long long)esp->esp_start_lba,
