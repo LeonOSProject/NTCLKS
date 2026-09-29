@@ -45,7 +45,8 @@ enum attribute {
     A_ENABLED,
     A_PCI_UEVENT,
     A_BLOCK_NUMBER,
-    A_BLOCK_TEXT
+    A_BLOCK_TEXT,
+    A_BLOCK_FS_TEXT
 };
 struct sys_node {
     const char *path;
@@ -115,6 +116,62 @@ static int sys_block_name(char *out, uint32_t disk, int32_t part)
     return storage_disk_device_name(disk, part, out, RELIEFOS_FS_PATH_LEN);
 }
 
+/* Filesystem metadata is deliberately exposed through read-only sysfs instead
+ * of relaxing raw block-device reads for unprivileged processes.  The offsets
+ * match the Linux ext2/ext3/ext4 superblock ABI. */
+static uint16_t sys_fs_le16(const uint8_t *p)
+{
+    return (uint16_t)p[0] | (uint16_t)p[1] << 8;
+}
+
+static uint32_t sys_fs_le32(const uint8_t *p)
+{
+    return (uint32_t)p[0] | (uint32_t)p[1] << 8 |
+           (uint32_t)p[2] << 16 | (uint32_t)p[3] << 24;
+}
+
+static void sys_fs_uuid(char out[37], const uint8_t *uuid)
+{
+    static const char hex[] = "0123456789abcdef";
+    uint32_t at = 0;
+    for (uint32_t i = 0; i < 16; ++i) {
+        if (i == 4 || i == 6 || i == 8 || i == 10)
+            out[at++] = '-';
+        out[at++] = hex[uuid[i] >> 4];
+        out[at++] = hex[uuid[i] & 15];
+    }
+    out[at] = 0;
+}
+
+static int sys_block_fs_info(uint32_t disk, int32_t part, char type[8], char version[8],
+                             char uuid[37], char label[17])
+{
+    uint8_t super[1024];
+    uint32_t got = 0;
+    int ret = storage_disk_block_read(disk, part, 1024, super, sizeof(super), &got);
+    if (ret < 0 || got < 1024 || sys_fs_le16(super + 56) != 0xef53)
+        return 0;
+    uint32_t compat = sys_fs_le32(super + 92);
+    uint32_t incompat = sys_fs_le32(super + 96);
+    const char *name = (incompat & 0x40u) ? "ext4" : (compat & 0x4u) ? "ext3" : "ext2";
+    __builtin_memcpy(type, name, __builtin_strlen(name) + 1);
+    __builtin_memcpy(version, "1.0", 4);
+    bool nonzero = false;
+    for (uint32_t i = 0; i < 16; ++i)
+        nonzero |= super[104 + i] != 0;
+    if (nonzero)
+        sys_fs_uuid(uuid, super + 104);
+    else
+        uuid[0] = 0;
+    uint32_t n = 0;
+    while (n < 16 && super[120 + n]) {
+        uint8_t c = super[120 + n];
+        label[n++] = c >= 32 && c <= 126 ? (char)c : '?';
+    }
+    label[n] = 0;
+    return 1;
+}
+
 /* Use the same registered disks/GPT extents and dev_t encoding as devfs. */
 static int sys_blocks(sys_visit visit, void *ctx)
 {
@@ -156,13 +213,21 @@ static int sys_blocks(sys_visit visit, void *ctx)
             if (part >= 0) { text_string(&s, "\nPARTN="); text_unsigned(&s, part + 1); }
             event[s.written] = 0;
             const char *suffix[] = {"", "/holders", "/slaves", "/dev", "/size", "/uevent",
-                                   "/start", "/partition", "/queue", "/queue/logical_block_size"};
+                                   "/start", "/partition", "/queue", "/queue/logical_block_size",
+                                   "/fs_type", "/fs_version", "/fs_uuid", "/fs_label"};
             const enum attribute kind[] = {A_DIR,A_DIR,A_DIR,A_BLOCK_TEXT,A_BLOCK_NUMBER,A_BLOCK_TEXT,
-                                           A_BLOCK_NUMBER,A_BLOCK_NUMBER,A_DIR,A_BLOCK_NUMBER};
+                                           A_BLOCK_NUMBER,A_BLOCK_NUMBER,A_DIR,A_BLOCK_NUMBER,
+                                           A_BLOCK_FS_TEXT,A_BLOCK_FS_TEXT,A_BLOCK_FS_TEXT,A_BLOCK_FS_TEXT};
+            char fs_type[8], fs_version[8], fs_uuid[37], fs_label[17];
+            int has_fs = sys_block_fs_info(disks[i].id, part, fs_type, fs_version, fs_uuid, fs_label);
             for (uint32_t j=0; j<sizeof(kind)/sizeof(kind[0]); ++j) {
-                if ((part < 0 && (j == 6 || j == 7)) || (part >= 0 && j >= 8)) continue;
+                if ((part < 0 && (j == 6 || j == 7)) || (part >= 0 && (j == 8 || j == 9))) continue;
+                if (j >= 10 && !has_fs) continue;
                 sys_path(path, base, -1, suffix[j]);
-                struct sys_node n = {.path=path,.attr=kind[j],.target=j == 3 ? number : event,
+                const char *fs_target = j == 10 ? fs_type : j == 11 ? fs_version :
+                                        j == 12 ? fs_uuid : fs_label;
+                struct sys_node n = {.path=path,.attr=kind[j],
+                    .target=j >= 10 ? fs_target : j == 3 ? number : event,
                     .value=j == 4 ? sectors * (disks[i].sector_size / 512u) :
                            j == 6 ? start * (disks[i].sector_size / 512u) :
                            j == 7 ? (uint32_t)part + 1 : disks[i].sector_size};
@@ -463,6 +528,9 @@ static void sys_value(const struct sys_node *n, struct text_stream *s)
         text_unsigned(s, n->value);
         break;
     case A_BLOCK_TEXT:
+        text_string(s, n->target);
+        break;
+    case A_BLOCK_FS_TEXT:
         text_string(s, n->target);
         break;
     default:
