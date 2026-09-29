@@ -637,8 +637,9 @@ int storage_mount_ramdisk_root(const void *image, uint64_t len)
     root->esp_start_lba = 0;
     root->esp_sector_count = len / SECTOR_SIZE;
     storage_copy_text(root->mount_path, sizeof(root->mount_path), "/");
-    /* New media use ext2 to retain case-sensitive UAPI headers. Keep FAT32
-     * module support for existing media; the handoff kind/path are unchanged. */
+    /* New media use the ext-family layout (ext4 for current images). Keep
+     * FAT32 module support for existing media; the handoff kind/path are
+     * unchanged. */
     const uint8_t *bytes = image_mapping;
     int mount_result;
     if (len >= 4096 && bytes[1080] == 0x53 && bytes[1081] == 0xef) {

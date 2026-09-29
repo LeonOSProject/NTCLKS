@@ -45,6 +45,7 @@ struct reliefos_permissions {
 #define RELIEFOS_DISK_FILESYSTEM_EXT2 2U
 #define RELIEFOS_DISK_FILESYSTEM_ISO9660 3U
 #define RELIEFOS_DISK_FILESYSTEM_EXFAT 4U
+#define RELIEFOS_DISK_FILESYSTEM_EXT4 5U
 #define RELIEFOS_DISK_PARTITION_FLAG_ESP 0x00000001U
 #define RELIEFOS_DISK_PARTITION_FLAG_BOOT_ROOT 0x00000002U
 #define RELIEFOS_DISK_PARTITION_FLAG_TARGET_MOUNTED 0x00000004U
@@ -405,7 +406,7 @@ int storage_install_list_disks(struct reliefos_install_disk *disks,
  */
 int storage_install_format_esp(uint32_t disk_id);
 /**
- * @brief Formats an installer target as a GPT disk with FAT32 ESP and ext2 root.
+ * @brief Formats an installer target as a GPT disk with FAT32 ESP and ext4 root.
  * @param disk_id Installer-selected AHCI, IDE/PATA, or NVMe disk identifier.
  * @return Zero on success or a negative errno-style storage error.
  */
@@ -449,7 +450,7 @@ int storage_mount_path_volume_id(const char *target, uint32_t *out_volume_id);
 /** Tear down an exact standard mount after the syscall layer checks use. */
 int storage_unmount_path(const char *target, uint32_t *out_volume_id);
 /**
- * @brief Formats an unprotected GPT partition as FAT32, exFAT, or ext2.
+ * @brief Formats an unprotected GPT partition as FAT32, exFAT, ext4, or legacy ext2.
  * @param request Partition selector and requested filesystem.
  * @return Zero on success or a negative errno-style storage error.
  */
@@ -467,7 +468,8 @@ int storage_disk_delete_partition(const struct reliefos_disk_partition_delete *r
  */
 int storage_disk_create_partition(const struct reliefos_disk_partition_create *request);
 /**
- * @brief Mounts one FAT32, exFAT, or ext2 data partition at its deterministic path.
+ * @brief Mounts one FAT32, exFAT, ext4, or legacy ext2 data partition at its
+ *        deterministic path.
  * @param request Disk and GPT-entry selector; receives the mount path.
  * @return Zero on success or a negative errno-style storage error.
  */
