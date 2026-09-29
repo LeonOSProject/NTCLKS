@@ -1010,6 +1010,7 @@ struct storage_volume {
     struct ahci_hba_mem *abar;
     struct ahci_hba_port *hba_port;
     struct nvme_controller *nvme;
+    uint16_t nvme_controller_index;
     uint32_t nvme_nsid;
     uint8_t *ram_base;
     uint64_t ram_bytes;
@@ -1124,9 +1125,17 @@ struct install_disk_state {
     struct ahci_hba_mem *abar;
     struct ahci_hba_port *hba_port;
     struct nvme_controller *nvme;
+    uint16_t nvme_controller_index;
     uint32_t nvme_nsid;
     uint64_t sector_count;
 };
+
+/* Public block-device spelling used by devfs, mount tables, and GPT links.
+ * The storage core continues to address disks by their probe-time disk_id. */
+int storage_disk_device_name(uint32_t disk_id, int32_t partition_index,
+                             char *out, uint32_t capacity);
+int storage_parse_block_name(const char *name, uint32_t *disk_id,
+                             int32_t *partition_index);
 
 static struct storage_volume g_volumes[STORAGE_MAX_VOLUMES];
 static struct storage_volume *g_active_volume = &g_volumes[0];

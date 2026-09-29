@@ -110,14 +110,9 @@ static int sys_emit(sys_visit visit, void *ctx, const char *path, enum attribute
     struct sys_node n = {.path=path, .attr=attr, .index=index, .target=target};
     return visit(&n, ctx);
 }
-static void sys_block_name(char *out, uint32_t disk, int32_t part)
+static int sys_block_name(char *out, uint32_t disk, int32_t part)
 {
-    sys_path(out, "disk", (int)disk, "");
-    if (part >= 0) {
-        char suffix[RELIEFOS_FS_PATH_LEN];
-        sys_path(suffix, "p", part + 1, "");
-        sys_path(out, "disk", (int)disk, suffix);
-    }
+    return storage_disk_device_name(disk, part, out, RELIEFOS_FS_PATH_LEN);
 }
 
 /* Use the same registered disks/GPT extents and dev_t encoding as devfs. */
@@ -130,7 +125,9 @@ static int sys_blocks(sys_visit visit, void *ctx)
     if (count > RELIEFOS_INSTALL_MAX_DISKS) return -5;
     for (uint32_t i = 0; i < count; ++i) {
         char diskpath[RELIEFOS_FS_PATH_LEN];
-        sys_path(diskpath, "/sys/devices/platform/leonos-block/disk", disks[i].id, "");
+        char diskname[RELIEFOS_FS_PATH_LEN];
+        if (sys_block_name(diskname, disks[i].id, -1) < 0) return -2;
+        sys_path(diskpath, "/sys/devices/platform/leonos-block/", -1, diskname + 5);
         for (int32_t part = -1; part < (int32_t)RELIEFOS_DISK_MAX_PARTITIONS; ++part) {
             uint64_t start = 0, sectors = disks[i].sector_count;
             if (part >= 0) {
@@ -140,10 +137,11 @@ static int sys_blocks(sys_visit visit, void *ctx)
             }
             char name[RELIEFOS_FS_PATH_LEN], base[RELIEFOS_FS_PATH_LEN];
             char path[RELIEFOS_FS_PATH_LEN], target[RELIEFOS_FS_PATH_LEN], number[64], event[256];
-            sys_block_name(name, disks[i].id, part);
+            if (sys_block_name(name, disks[i].id, part) < 0) return -2;
+            const char *devname = name + 5; /* Skip the /dev/ prefix. */
             sys_path(base, diskpath, -1, part < 0 ? "" : "/");
             if (part >= 0) {
-                sys_path(path, base, -1, name);
+                sys_path(path, base, -1, devname);
                 sys_path(base, path, -1, "");
             }
             uint32_t minor = STORAGE_BLOCK_MINOR(STORAGE_BLOCK_VOLUME_ID(disks[i].id, part));
@@ -153,7 +151,7 @@ static int sys_blocks(sys_visit visit, void *ctx)
             s = (struct text_stream){.buffer=event, .capacity=sizeof(event)-1};
             text_string(&s, "MAJOR="); text_unsigned(&s, STORAGE_BLOCK_MAJOR);
             text_string(&s, "\nMINOR="); text_unsigned(&s, minor);
-            text_string(&s, "\nDEVNAME="); text_string(&s, name);
+            text_string(&s, "\nDEVNAME="); text_string(&s, devname);
             text_string(&s, "\nDEVTYPE="); text_string(&s, part < 0 ? "disk" : "partition");
             if (part >= 0) { text_string(&s, "\nPARTN="); text_unsigned(&s, part + 1); }
             event[s.written] = 0;
@@ -173,11 +171,11 @@ static int sys_blocks(sys_visit visit, void *ctx)
             sys_path(target, "../../", -1, base + 5);
             sys_path(path, "/sys/dev/block/", -1, number);
             if ((ret=sys_emit(visit,ctx,path,A_LINK,0,target))) return ret;
-            sys_path(path, "/sys/class/block/", -1, name);
+            sys_path(path, "/sys/class/block/", -1, devname);
             if ((ret=sys_emit(visit,ctx,path,A_LINK,0,target))) return ret;
             if (part < 0) {
                 sys_path(target, "../", -1, base + 5);
-                sys_path(path, "/sys/block/", -1, name);
+                sys_path(path, "/sys/block/", -1, devname);
                 if ((ret=sys_emit(visit,ctx,path,A_LINK,0,target))) return ret;
             }
         }

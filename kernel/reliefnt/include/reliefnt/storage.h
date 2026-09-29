@@ -428,6 +428,9 @@ int storage_disk_list_partitions(uint32_t disk_id,
 /** Returns the LBA range represented by a whole-disk or partition node. */
 int storage_disk_block_info(uint32_t disk_id, int32_t partition_index,
                             uint64_t *out_first_lba, uint64_t *out_sector_count);
+/** Format the canonical Linux block-device path for a discovered disk. */
+int storage_disk_device_name(uint32_t disk_id, int32_t partition_index,
+                             char *out, uint32_t capacity);
 /** Reads/writes a block node at a byte offset; offsets and lengths are sector aligned. */
 int storage_disk_block_read(uint32_t disk_id, int32_t partition_index,
                             uint64_t offset, void *buffer, uint32_t length,

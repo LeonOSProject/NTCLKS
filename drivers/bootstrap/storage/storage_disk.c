@@ -69,7 +69,7 @@ static int disk_block_cache_load(uint32_t disk_id, struct install_disk_state *di
     if (ret < 0) {
         /* Only content errors are stable enough to cache. Transport failures
          * such as EIO may be transient (especially on AHCI after reset); a
-         * cached EIO made every later /dev/diskNpM lookup fail until reboot. */
+         * cached EIO made every later /dev/sdXN or /dev/nvmeXnYpZ lookup fail until reboot. */
         if (ret == -2 || ret == -22) {
             storage_memzero(cache, sizeof(*cache));
             cache->disk_sectors = sector_count;
@@ -527,7 +527,7 @@ static int disk_gpt_write(struct install_disk_state *disk, struct disk_gpt_table
         return -22;
     }
     /* A failed or partial metadata update must never leave a stale extent
-     * cache available to a later /dev/diskNpM lookup.  Invalidate before the
+     * cache available to a later /dev/sdXN or /dev/nvmeXnYpZ lookup.  Invalidate before the
      * first sector and keep it invalid on every error path; successful writes
      * are invalidated again below for clarity. */
     disk_block_cache_invalidate_disk(disk);

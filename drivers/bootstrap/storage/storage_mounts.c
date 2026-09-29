@@ -134,6 +134,7 @@ static int storage_read_mount_table(uint64_t offset, void *buffer, uint32_t capa
         if (!volume->ready || !volume->mount_path[0]) continue;
         switch (volume->filesystem) {
         case STORAGE_FILESYSTEM_EXT2: filesystem = "ext2"; break;
+        case STORAGE_FILESYSTEM_EXT4: filesystem = "ext4"; break;
         case STORAGE_FILESYSTEM_FAT32: filesystem = "vfat"; break;
         case STORAGE_FILESYSTEM_EXFAT: filesystem = "exfat"; break;
         case STORAGE_FILESYSTEM_ISO9660: filesystem = "iso9660"; break;
@@ -145,11 +146,16 @@ static int storage_read_mount_table(uint64_t offset, void *buffer, uint32_t capa
         if (volume->tmpfs) {
             storage_copy_text(source,sizeof(source),volume->tmpfs_source);
         } else if (volume->data_partition_mount) {
-            storage_format_u32(source, sizeof(source), "/dev/disk",
-                               volume->source_disk_id, (int32_t)volume->source_partition_index);
+            if (storage_disk_device_name(volume->source_disk_id,
+                                         (int32_t)volume->source_partition_index,
+                                         source, sizeof(source)) < 0) {
+                kernel_execution_unlock_irqrestore(flags);
+                return -2;
+            }
         } else if (!volume->ram_base && volume->transport &&
                    volume->filesystem != STORAGE_FILESYSTEM_ISO9660) {
-            const uint8_t *guid = volume->filesystem == STORAGE_FILESYSTEM_EXT2 ? volume->ext2_unique_guid :
+            const uint8_t *guid = (volume->filesystem == STORAGE_FILESYSTEM_EXT2 ||
+                                   volume->filesystem == STORAGE_FILESYSTEM_EXT4) ? volume->ext2_unique_guid :
                 volume->filesystem == STORAGE_FILESYSTEM_EXFAT ? volume->exfat_unique_guid : volume->esp_unique_guid;
             if (storage_guid_valid(guid)) {
                 storage_copy_text(source, sizeof(source), "/dev/disk/by-partuuid/");

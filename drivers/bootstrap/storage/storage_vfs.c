@@ -36,10 +36,6 @@ static const struct storage_dev_entry storage_dev_entries[] = {
     {"audio",     STORAGE_DEV_KIND_AUDIO,    RELIEFOS_FS_TYPE_DEVICE, 0},
     {"ttyS0",     STORAGE_DEV_KIND_SERIAL,   RELIEFOS_FS_TYPE_DEVICE, 0},
     {"serial0",   STORAGE_DEV_KIND_SERIAL,   RELIEFOS_FS_TYPE_DEVICE, 0},
-    {"sda",       STORAGE_DEV_KIND_DISK,     RELIEFOS_FS_TYPE_DEVICE, 0},
-    {"vda",       STORAGE_DEV_KIND_DISK,     RELIEFOS_FS_TYPE_DEVICE, 0},
-    {"nvme0n1",   STORAGE_DEV_KIND_DISK,     RELIEFOS_FS_TYPE_DEVICE, 0},
-    {"disk0",     STORAGE_DEV_KIND_DISK,     RELIEFOS_FS_TYPE_DEVICE, 0},
     {"ethernet0", STORAGE_DEV_KIND_NET,      RELIEFOS_FS_TYPE_DEVICE, 0},
     {"rtc",       STORAGE_DEV_KIND_RTC,      RELIEFOS_FS_TYPE_DEVICE, 0},
     {"driverctl", STORAGE_DEV_KIND_DRIVERCTL, RELIEFOS_FS_TYPE_DEVICE, 0},
@@ -73,72 +69,6 @@ static const struct storage_dev_entry *storage_dev_find(const char *name,
         }
     }
     return NULL;
-}
-
-static int storage_parse_block_name(const char *name, uint32_t *disk_id,
-                                    int32_t *partition_index)
-{
-    const char *p;
-    uint32_t value;
-    if (!name || !disk_id || !partition_index) return -22;
-    *partition_index = -1;
-    if ((name[0] == 's' || name[0] == 'S' || name[0] == 'v' || name[0] == 'V') &&
-        (name[1] == 'd' || name[1] == 'D') &&
-        ((name[2] >= 'a' && name[2] <= 'h') || (name[2] >= 'A' && name[2] <= 'H'))) {
-        *disk_id = (uint32_t)((name[2] >= 'a' && name[2] <= 'h') ? name[2] - 'a' : name[2] - 'A');
-        p = name + 3;
-        if (*p >= '1' && *p <= '9') {
-            value = 0;
-            while (*p >= '0' && *p <= '9') {
-                if (value >= RELIEFOS_DISK_MAX_PARTITIONS) return -22;
-                value = value * 10u + (uint32_t)(*p++ - '0');
-            }
-            if (*p || value == 0 || value > RELIEFOS_DISK_MAX_PARTITIONS) return -22;
-            *partition_index = (int32_t)value - 1;
-            return 0;
-        }
-        if (*p) return -22;
-    } else if ((name[0] == 'n' || name[0] == 'N') &&
-               (name[1] == 'v' || name[1] == 'V') &&
-               (name[2] == 'm' || name[2] == 'M') &&
-               (name[3] == 'e' || name[3] == 'E')) {
-        p = name + 4;
-        value = 0;
-        if (!*p || *p < '0' || *p > '9') return -22;
-        while (*p >= '0' && *p <= '9') {
-            if (value >= STORAGE_MAX_INSTALL_DISKS) return -22;
-            value = value * 10u + (uint32_t)(*p++ - '0');
-        }
-        if ((p[0] != 'n' && p[0] != 'N') || p[1] != '1') return -22;
-        *disk_id = value;
-        p += 2;
-        if (*p && *p != 'p') return -22;
-    } else if (name[0] == 'd' || name[0] == 'D') {
-        if ((name[1] != 'i' && name[1] != 'I') ||
-            (name[2] != 's' && name[2] != 'S') ||
-            (name[3] != 'k' && name[3] != 'K')) return -22;
-        p = name + 4;
-        value = 0;
-        if (!*p || *p < '0' || *p > '9') return -22;
-        while (*p >= '0' && *p <= '9') {
-            if (value >= STORAGE_MAX_INSTALL_DISKS) return -22;
-            value = value * 10u + (uint32_t)(*p++ - '0');
-        }
-        *disk_id = value;
-    } else {
-        return -22;
-    }
-    if (!*p) return 0;
-    if (*p != 'p') return -22;
-    ++p;
-    value = 0;
-    if (!*p || *p < '1' || *p > '9') return -22;
-    while (*p >= '0' && *p <= '9') {
-        value = value * 10u + (uint32_t)(*p++ - '0');
-    }
-    if (*p || value == 0 || value > RELIEFOS_DISK_MAX_PARTITIONS) return -22;
-    *partition_index = (int32_t)value - 1;
-    return 0;
 }
 
 static void storage_format_u32(char *out, uint32_t cap, const char *prefix,
@@ -356,7 +286,7 @@ static int storage_lookup_path_unlocked(const char *path, struct storage_node *o
         return 0;
     }
     if (g_devfs_enabled && (storage_text_eq(resolved, "/dev/disk") ||
-                              storage_text_eq(resolved, "/dev/disk/by-partuuid"))) {
+                            storage_text_eq(resolved, "/dev/disk/by-partuuid"))) {
         if (out) *out = (struct storage_node){
             .type = RELIEFOS_FS_TYPE_DIR, .flags = STORAGE_NODE_FLAG_DEV_DIR,
             .first_cluster = storage_text_eq(resolved, "/dev/disk")
@@ -402,39 +332,8 @@ static int storage_lookup_path_unlocked(const char *path, struct storage_node *o
                                                 sizeof(storage_dev_entries[0])));
         }
         if (entry && !entry->directory && out) {
-            if (entry->kind != STORAGE_DEV_KIND_DISK) {
-                storage_dev_node(entry, out);
-                return 0;
-            }
-            /* Disk aliases (disk0/sda/vda/nvme0n1) are backed by the same
-             * dynamically sized block node as their canonical /dev/diskN
-             * name.  Resolve the capacity here instead of returning the old
-             * zero-sized compatibility alias. */
-            {
-                uint32_t disk_id;
-                int32_t partition_index;
-                uint64_t first_lba;
-                uint64_t sector_count;
-                int block_ret = storage_parse_block_name(name, &disk_id, &partition_index);
-                if (block_ret == 0) {
-                    block_ret = storage_disk_block_info(disk_id, partition_index,
-                                                        &first_lba, &sector_count);
-                }
-                if (block_ret == 0) {
-                    *out = (struct storage_node){
-                        .type = RELIEFOS_FS_TYPE_DEVICE,
-                        .flags = STORAGE_NODE_FLAG_DEV_NODE | STORAGE_NODE_FLAG_DEV_BLOCK,
-                        .first_cluster = STORAGE_DEV_KIND_DISK,
-                        .volume_id = STORAGE_BLOCK_VOLUME_ID(disk_id, partition_index),
-                        .size = sector_count * 512u,
-                    };
-                    return 0;
-                }
-                /* The alias exists, so only a genuine missing disk should
-                 * become ENOENT. Do not disguise an I/O or busy error as a
-                 * missing /dev node: block tools need the real diagnostic. */
-                return block_ret == -2 ? -2 : block_ret;
-            }
+            storage_dev_node(entry, out);
+            return 0;
         }
         if (entry && entry->directory) {
             return -20;
@@ -852,12 +751,12 @@ static int storage_readdir_node_unlocked(const struct storage_node *node, uint64
             return 1;
         }
         if (node->first_cluster == STORAGE_DEV_KIND_DIR) {
-            /* Expose canonical block nodes and GPT partitions in devfs. The
-             * fixed aliases above remain for compatibility, while these
-             * names reflect disks actually discovered at boot. */
+            /* Expose the Linux block namespace generated from discovered
+             * transport identities. */
             uint64_t dynamic = *cursor - count;
             for (uint32_t disk_id = 0; disk_id < g_install_disk_count;
                  ++disk_id) {
+                char device_name[RELIEFOS_FS_PATH_LEN];
                 uint64_t first_lba;
                 uint64_t sectors;
                 int block_ret = storage_disk_block_info(disk_id, -1, &first_lba, &sectors);
@@ -865,14 +764,15 @@ static int storage_readdir_node_unlocked(const struct storage_node *node, uint64
                     if (block_ret == -2) continue;
                     return block_ret;
                 }
-                if (disk_id != 0 && dynamic == 0) {
+                if (dynamic == 0) {
+                    if (storage_disk_device_name(disk_id, -1, device_name,
+                                                 sizeof(device_name)) < 0) return -22;
                     ++(*cursor);
                     entry->type = RELIEFOS_FS_TYPE_DEVICE;
-                    storage_format_u32(entry->name, sizeof(entry->name),
-                                       "disk", disk_id, -1);
+                    storage_copy_text(entry->name, sizeof(entry->name), device_name + 5);
                     return 1;
                 }
-                if (disk_id != 0) --dynamic;
+                --dynamic;
                 for (uint32_t part = 0; part < RELIEFOS_DISK_MAX_PARTITIONS; ++part) {
                     block_ret = storage_disk_block_info(disk_id, (int32_t)part,
                                                         &first_lba, &sectors);
@@ -881,10 +781,12 @@ static int storage_readdir_node_unlocked(const struct storage_node *node, uint64
                         return block_ret;
                     }
                     if (dynamic == 0) {
+                        if (storage_disk_device_name(disk_id, (int32_t)part,
+                                                     device_name, sizeof(device_name)) < 0)
+                            return -22;
                         ++(*cursor);
                         entry->type = RELIEFOS_FS_TYPE_DEVICE;
-                        storage_format_u32(entry->name, sizeof(entry->name),
-                                           "disk", disk_id, (int32_t)part);
+                        storage_copy_text(entry->name, sizeof(entry->name), device_name + 5);
                         return 1;
                     }
                     --dynamic;
