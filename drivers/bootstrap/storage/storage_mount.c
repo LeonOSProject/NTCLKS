@@ -51,6 +51,9 @@ static int storage_mount_runtime_boot(void)
     }
     storage_memzero(boot, sizeof(*boot));
     *boot = *root;
+    /* Copy transport geometry, never ownership of the root journal. */
+    storage_memzero(&boot->ext4, sizeof(boot->ext4));
+    boot->read_only_reason = STORAGE_EXT4_READ_ONLY_NONE;
     boot->volume_id = STORAGE_VOLUME_BOOT;
     boot->ready = false;
     boot->filesystem = STORAGE_FILESYSTEM_NONE;
@@ -98,8 +101,16 @@ static int storage_mount_ext_family(struct storage_volume *root)
     if (ret == 0 && root->filesystem == STORAGE_FILESYSTEM_EXT4) {
         return 0;
     }
-    if (ret == -RELIEFOS_EOPNOTSUPP) {
+    if (ret < 0 && ret != -RELIEFOS_EINVAL) {
         return ret;
+    }
+    if (ret == -RELIEFOS_EINVAL) {
+        /* Distinguish a non-ext probe from recognized but invalid geometry.
+         * Neither corrupt metadata nor unsupported features may downgrade. */
+        if (root->ext_sector_count < 4) return ret;
+        int probe = storage_read_device(root, root->ext_start_lba + 2, 2, storage_scratch);
+        if (probe < 0) return probe;
+        if (ext4_get_le16(storage_scratch + 56) == EXT4_SUPER_MAGIC) return ret;
     }
     storage_ext4_state_reset(root);
     return ext2_mount();

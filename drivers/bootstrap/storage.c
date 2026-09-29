@@ -20,6 +20,7 @@
 #include "storage/storage_ext4_alloc.c"
 #include "storage/storage_ext4_extent.c"
 #include "storage/storage_ext4_ops.c"
+#include "storage/storage_ext4_journal.c"
 #include "storage/storage_sync.c"
 #include "storage/storage_iso.c"
 #include "storage/storage_fat32.c"

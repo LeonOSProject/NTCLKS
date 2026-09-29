@@ -1,8 +1,8 @@
 /* Sector completion precedes write return. fsync additionally drains the
  * device's volatile cache and propagates errors before publishing account data. */
-static int storage_flush_volume(const struct storage_volume *volume)
+static int storage_flush_volume_device(const struct storage_volume *volume)
 {
-    if (!volume || !volume->ready) return -19;
+    if (!volume) return -19;
     if (volume->kind == STORAGE_VOLUME_RAM || volume->ide_atapi || volume->filesystem == STORAGE_FILESYSTEM_ISO9660) return 0;
     if (volume->transport == STORAGE_TRANSPORT_IDE_PIO) {
         struct ide_device_info device;
@@ -14,6 +14,22 @@ static int storage_flush_volume(const struct storage_volume *volume)
     if (volume->transport == STORAGE_TRANSPORT_AHCI)
         return ahci_flush_cache(volume->hba_port);
     return -95;
+}
+
+static int storage_flush_volume(const struct storage_volume *volume)
+{
+    if (!volume || !volume->ready) return -19;
+    return storage_flush_volume_device(volume);
+}
+
+int storage_ext4_device_flush(const struct storage_volume *volume)
+{
+    /* Mount-time recovery runs before volume->ready is published. */
+    if (volume && volume->kind == STORAGE_VOLUME_RAM) return 0;
+    kernel_spin_lock(&storage_transport_lock);
+    int ret = storage_flush_volume_device(volume);
+    kernel_spin_unlock(&storage_transport_lock);
+    return ret;
 }
 
 int storage_sync_volume(uint32_t volume_id)
@@ -32,7 +48,9 @@ int storage_sync_volume(uint32_t volume_id)
         (volume->filesystem == STORAGE_FILESYSTEM_EXT4 ||
          volume->filesystem == STORAGE_FILESYSTEM_EXT2) &&
         storage_ext4_cache_flush) {
-        ret = storage_ext4_cache_flush(volume);
+        ret = storage_ext4_journal_commit(volume, true);
+        if (!ret) ret = storage_ext4_journal_checkpoint(volume);
+        if (!ret) ret = storage_ext4_cache_flush(volume);
     }
     kernel_spin_lock(&storage_transport_lock);
     int transport_ret = storage_flush_volume(volume);

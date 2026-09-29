@@ -87,9 +87,8 @@ int storage_ext4_feature_policy(const struct storage_ext4_super_view *view,
                   EXT4_FEATURE_RO_COMPAT_READONLY)) != 0) {
         reason = STORAGE_EXT4_READ_ONLY_UNKNOWN_RO_COMPAT;
     } else if ((view->feature_incompat & EXT4_FEATURE_INCOMPAT_RECOVER) != 0) {
-        /* Journal recovery is a later task; until its replay is safe, a
-         * filesystem that claims pending recovery is never written (ruling
-         * 2, extended to a bare RECOVER flag without HAS_JOURNAL). */
+        /* Mount clears this provisional reason only after successful replay.
+         * A bare RECOVER without HAS_JOURNAL cannot be recovered safely. */
         reason = STORAGE_EXT4_READ_ONLY_JOURNAL_NEEDS_RECOVERY;
     }
     if (reason != STORAGE_EXT4_READ_ONLY_NONE) {
@@ -138,6 +137,7 @@ void storage_ext4_state_reset(struct storage_volume *volume)
     if (!volume) {
         return;
     }
+    storage_ext4_journal_close(volume);
     storage_ext4_cache_invalidate(volume);
     storage_memzero(&volume->ext4, sizeof(volume->ext4));
     volume->read_only_reason = STORAGE_EXT4_READ_ONLY_NONE;
@@ -164,6 +164,14 @@ int storage_ext4_mount(struct storage_volume *volume)
     if (!volume) {
         return -RELIEFOS_EINVAL;
     }
+    if (volume->ext4.journal) {
+        ret = storage_ext4_journal_commit(volume, true);
+        if (!ret) ret = storage_ext4_journal_checkpoint(volume);
+        if (ret < 0) return ret;
+        storage_ext4_journal_close(volume);
+    }
+    storage_memzero(&volume->ext4, sizeof(volume->ext4));
+    volume->read_only_reason = STORAGE_EXT4_READ_ONLY_NONE;
     /* Every mount attempt gets a fresh generation so cache entries from a
      * previous mount of this volume object are never served. */
     volume->mount_generation++;
@@ -235,6 +243,40 @@ int storage_ext4_mount(struct storage_volume *volume)
         flex_log = (uint8_t)EXT4_MAX_FLEX_LOG;
     }
     volume->ext4.flex_log_groups = flex_log;
+
+    /* Recovery must precede the root inode and full descriptor validation.
+     * Permanent RO policies prohibit recovery writes as well. */
+    volume->read_only_reason = decision.read_only_reason;
+    if (view.feature_compat & EXT4_FEATURE_COMPAT_HAS_JOURNAL) {
+        ret = storage_ext4_journal_open(volume);
+        if (ret == -RELIEFOS_EOPNOTSUPP || ret == -RELIEFOS_ENOMEM) goto fail;
+        if (!ret && (decision.read_only_reason == STORAGE_EXT4_READ_ONLY_NONE ||
+                     decision.read_only_reason == STORAGE_EXT4_READ_ONLY_JOURNAL_NEEDS_RECOVERY)) {
+            ret = storage_ext4_journal_replay(volume);
+            if (!ret) {
+                ret = storage_read_device(volume, volume->ext_start_lba + 2u, 2u, storage_scratch);
+                if (ret < 0) goto fail;
+                ret = storage_ext4_parse_super(storage_scratch, EXT4_SUPERBLOCK_SIZE, &view);
+                if (ret < 0) goto fail;
+                if (view.feature_ro_compat & EXT4_FEATURE_RO_COMPAT_METADATA_CSUM) {
+                    ret = storage_ext4_verify_super_checksum(storage_scratch, EXT4_SUPERBLOCK_SIZE);
+                    if (ret < 0) goto fail;
+                }
+                if (view.block_size != volume->ext4.block_size ||
+                    view.blocks_count != volume->ext4.blocks_count ||
+                    view.desc_size != volume->ext4.desc_size ||
+                    view.inode_size != volume->ext4.inode_size ||
+                    view.inodes_per_group != volume->ext4.inodes_per_group ||
+                    view.blocks_per_group != volume->ext4.blocks_per_group) {
+                    ret = -RELIEFOS_EIO; goto fail;
+                }
+                volume->ext4.super_view = view;
+                ret = storage_ext4_feature_policy(&view, &decision);
+                if (ret < 0) goto fail;
+            }
+        }
+        if (ret < 0) decision.read_only_reason = STORAGE_EXT4_READ_ONLY_JOURNAL_CORRUPT;
+    }
 
     /* Group descriptors start at block s_first_data_block + 1 and are
      * verified group by group. */
@@ -329,7 +371,8 @@ int storage_ext4_mount(struct storage_volume *volume)
                        : decision.read_only_reason ==
                                      STORAGE_EXT4_READ_ONLY_JOURNAL_NEEDS_RECOVERY
                              ? " journal-needs-recovery"
-                             : "";
+                             : decision.read_only_reason == STORAGE_EXT4_READ_ONLY_JOURNAL_CORRUPT
+                                   ? " journal-corrupt" : "";
     console_printf("[reliefnt] ext4 mount ok fs=%s blocks=%llu groups=%llu%s\n",
                    filesystem == STORAGE_FILESYSTEM_EXT4 ? "ext4" : "ext2",
                    (unsigned long long)view.blocks_count,

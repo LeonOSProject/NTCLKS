@@ -22,7 +22,7 @@
  * Every mutation updates the in-memory group summaries, the on-disk
  * superblock free counts and the cached descriptor/bitmap/superblock blocks
  * (storage_ext4_cache_mark_dirty); journal handles wrap these dirty
- * metadata updates in a later task. */
+ * metadata updates through the task 7 transaction wrappers below. */
 #include "storage_internal.h"
 
 /* Group descriptor field offsets (ext4.h:402-432). */
@@ -1025,7 +1025,7 @@ static int ext4_flex_free_blocks(struct storage_volume *volume, uint64_t flex,
     return 0;
 }
 
-int storage_ext4_alloc_blocks(struct storage_volume *volume, uint64_t goal,
+static int ext4_alloc_blocks_impl(struct storage_volume *volume, uint64_t goal,
                               uint32_t count, uint64_t *first,
                               uint32_t *allocated)
 {
@@ -1128,7 +1128,7 @@ commit:
     return 0;
 }
 
-int storage_ext4_free_blocks(struct storage_volume *volume, uint64_t first,
+static int ext4_free_blocks_impl(struct storage_volume *volume, uint64_t first,
                              uint32_t count)
 {
     uint64_t end;
@@ -1286,7 +1286,7 @@ static int ext4_alloc_inode_in_group(struct storage_volume *volume, uint64_t gro
     return 0;
 }
 
-int storage_ext4_alloc_inode(struct storage_volume *volume, bool directory,
+static int ext4_alloc_inode_impl(struct storage_volume *volume, bool directory,
                              uint64_t *ino)
 {
     uint64_t preferred = 0;
@@ -1346,7 +1346,7 @@ int storage_ext4_alloc_inode(struct storage_volume *volume, bool directory,
     return -RELIEFOS_ENOSPC;
 }
 
-int storage_ext4_free_inode(struct storage_volume *volume, uint64_t ino,
+static int ext4_free_inode_impl(struct storage_volume *volume, uint64_t ino,
                             bool directory)
 {
     struct storage_ext4_group_view view;
@@ -1425,4 +1425,49 @@ int storage_ext4_free_inode(struct storage_volume *volume, uint64_t ino,
     if (ret < 0)
         return ret;
     return ext4_super_counts_update(volume, 0, 1);
+}
+
+/* Nested allocator calls join an outer inode/directory transaction. Standalone
+ * calls own a transaction; errors restore all captured metadata and summaries. */
+static int ext4_allocator_stop(struct storage_ext4_handle *handle, int result)
+{
+    if (result < 0) storage_ext4_journal_abort(handle, result);
+    int stop = storage_ext4_journal_stop(handle);
+    return result < 0 ? result : stop;
+}
+int storage_ext4_alloc_blocks(struct storage_volume *v, uint64_t goal, uint32_t count,
+                              uint64_t *first, uint32_t *allocated)
+{
+    if (first) *first = 0;
+    if (allocated) *allocated = 0;
+    struct storage_ext4_handle h;
+    int ret = storage_ext4_journal_start(v, EXT4_JOURNAL_CREDITS, &h);
+    if (ret < 0) return ret;
+    ret = ext4_allocator_stop(&h, ext4_alloc_blocks_impl(v, goal, count, first, allocated));
+    if (ret < 0) { if (first) *first = 0; if (allocated) *allocated = 0; }
+    return ret;
+}
+int storage_ext4_free_blocks(struct storage_volume *v, uint64_t first, uint32_t count)
+{
+    struct storage_ext4_handle h;
+    int ret = storage_ext4_journal_start(v, EXT4_JOURNAL_CREDITS, &h);
+    if (ret < 0) return ret;
+    return ext4_allocator_stop(&h, ext4_free_blocks_impl(v, first, count));
+}
+int storage_ext4_alloc_inode(struct storage_volume *v, bool directory, uint64_t *ino)
+{
+    if (ino) *ino = 0;
+    struct storage_ext4_handle h;
+    int ret = storage_ext4_journal_start(v, EXT4_JOURNAL_CREDITS, &h);
+    if (ret < 0) return ret;
+    ret = ext4_allocator_stop(&h, ext4_alloc_inode_impl(v, directory, ino));
+    if (ret < 0 && ino) *ino = 0;
+    return ret;
+}
+int storage_ext4_free_inode(struct storage_volume *v, uint64_t ino, bool directory)
+{
+    struct storage_ext4_handle h;
+    int ret = storage_ext4_journal_start(v, EXT4_JOURNAL_CREDITS, &h);
+    if (ret < 0) return ret;
+    return ext4_allocator_stop(&h, ext4_free_inode_impl(v, ino, directory));
 }

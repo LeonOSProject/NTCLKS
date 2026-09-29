@@ -1650,6 +1650,7 @@ int storage_unmount_path(const char *target, uint32_t *out_volume_id)
                    g_volumes[volume_id].source_disk_id,
                    g_volumes[volume_id].source_partition_index, target);
     tmpfs_destroy(g_volumes[volume_id].tmpfs);
+    storage_ext4_journal_close(&g_volumes[volume_id]);
     storage_memzero(&g_volumes[volume_id], sizeof(g_volumes[volume_id]));
     storage_cache_invalidate();
     if (out_volume_id) {
@@ -1842,6 +1843,8 @@ int storage_install_mount_target(uint32_t disk_id)
         disk->target_mounted = 1;
         storage_memzero(esp, sizeof(*esp));
         *esp = *target;
+        storage_memzero(&esp->ext4, sizeof(esp->ext4));
+        esp->read_only_reason = STORAGE_EXT4_READ_ONLY_NONE;
         esp->volume_id = STORAGE_VOLUME_BOOT;
         esp->ready = false;
         storage_copy_text(esp->mount_path, sizeof(esp->mount_path), "/target/boot");

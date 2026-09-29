@@ -296,6 +296,13 @@ int storage_ext4_cache_get(struct storage_volume *volume, uint64_t block, uint8_
     if (!entry) {
         return err;
     }
+    if (for_write) {
+        err = storage_ext4_journal_capture(volume, block, entry->data);
+        if (err < 0) {
+            entry->pinned = storage_ext4_journal_owns(volume, block);
+            return err;
+        }
+    }
     *data = entry->data;
     return 0;
 }
@@ -311,9 +318,11 @@ int storage_ext4_cache_mark_dirty(struct storage_volume *volume, uint64_t block)
         int ret = ext4_cache_block_range(volume, block, &lba, &sectors);
         return ret < 0 ? ret : -RELIEFOS_ENOENT;
     }
+    int ret = storage_ext4_journal_publish(volume, block, entry->data);
+    if (ret < 0) return ret;
     entry->dirty = 1;
     entry->checksum_ok = 0;
-    entry->pinned = 0;
+    entry->pinned = storage_ext4_journal_owns(volume, block);
     return 0;
 }
 
@@ -341,6 +350,7 @@ int storage_ext4_cache_flush(struct storage_volume *volume)
                 entry->pinned = 0;
                 continue;
             }
+            if (storage_ext4_journal_owns(volume, entry->block)) continue;
             if (entry->dirty) {
                 int ret = ext4_cache_write_back(volume, entry);
                 if (ret < 0) {
@@ -355,6 +365,15 @@ int storage_ext4_cache_flush(struct storage_volume *volume)
         }
     }
     return result;
+}
+
+void storage_ext4_cache_finish(struct storage_volume *volume, uint64_t block, const uint8_t *data)
+{
+    struct storage_ext4_cache_entry *entry =
+        ext4_cache_lookup(&ext4_cache_tables[EXT4_CACHE_TABLE_BLOCK], volume, block);
+    if (!entry) return;
+    storage_memcpy(entry->data, data, volume->ext4.block_size);
+    entry->dirty = 0; entry->pinned = 0; entry->checksum_ok = 0;
 }
 
 void storage_ext4_cache_invalidate(struct storage_volume *volume)

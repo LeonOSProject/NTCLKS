@@ -602,6 +602,29 @@ struct storage_ext4_fiemap_extent {
     uint32_t flags;
 };
 struct storage_volume;
+struct storage_ext4_journal;
+struct storage_ext4_handle {
+    struct storage_volume *volume;
+    uint32_t credits;
+    bool active;
+};
+#define EXT4_JOURNAL_CREDITS 32u
+int storage_ext4_journal_open(struct storage_volume *);
+int storage_ext4_journal_start(struct storage_volume *, uint32_t, struct storage_ext4_handle *);
+int storage_ext4_journal_dirty(struct storage_ext4_handle *, uint64_t);
+int storage_ext4_journal_stop(struct storage_ext4_handle *);
+void storage_ext4_journal_abort(struct storage_ext4_handle *, int);
+int storage_ext4_journal_commit(struct storage_volume *, bool);
+int storage_ext4_journal_checkpoint(struct storage_volume *);
+int storage_ext4_journal_replay(struct storage_volume *);
+void storage_ext4_journal_close(struct storage_volume *);
+/* Cache integration: capture before exposing writable bytes, publish after
+ * modification, retain ownership until checkpoint or rollback. */
+int storage_ext4_journal_capture(struct storage_volume *, uint64_t, const uint8_t *);
+int storage_ext4_journal_publish(struct storage_volume *, uint64_t, const uint8_t *);
+bool storage_ext4_journal_owns(const struct storage_volume *, uint64_t);
+void storage_ext4_cache_finish(struct storage_volume *, uint64_t, const uint8_t *);
+int storage_ext4_device_flush(const struct storage_volume *);
 int storage_ext4_parse_inode(const uint8_t *, uint32_t,
                              const struct storage_ext4_super_view *, struct ext4_inode_view *);
 int storage_ext4_read_inode(struct storage_volume *, uint64_t, struct ext4_inode_view *);
@@ -663,6 +686,8 @@ struct storage_ext4_state {
     uint64_t next_goal_block;
     uint64_t reserved_window_end;
     uint64_t read_bytes, read_commands, read_blocks, read_cache_hits;
+    struct storage_ext4_journal *journal;
+    uint64_t journal_commits, journal_replays, journal_revoke_hits;
 };
 
 /* ---- ext4 mount and feature policy (task 4) --------------------------
@@ -693,6 +718,7 @@ struct storage_volume;
 #define STORAGE_EXT4_READ_ONLY_READONLY_FEATURE 1u
 #define STORAGE_EXT4_READ_ONLY_UNKNOWN_RO_COMPAT 2u
 #define STORAGE_EXT4_READ_ONLY_JOURNAL_NEEDS_RECOVERY 3u
+#define STORAGE_EXT4_READ_ONLY_JOURNAL_CORRUPT 4u
 
 enum storage_ext4_feature_verdict {
     STORAGE_EXT4_FEATURE_RW = 0,
@@ -740,6 +766,8 @@ void storage_ext4_state_reset(struct storage_volume *volume);
  * blocks first.  Skipping the flush would silently drop uncommitted writes
  * once the write paths start publishing through this cache. */
 int storage_ext4_cache_read(struct storage_volume *volume, uint64_t block, void *out);
+/* Journal-owned entries stay pinned after mark_dirty and cache_flush never
+ * writes them home. Only journal checkpoint/rollback releases that ownership. */
 int storage_ext4_cache_get(struct storage_volume *volume, uint64_t block, uint8_t **data,
                            bool for_write);
 int storage_ext4_cache_mark_dirty(struct storage_volume *volume, uint64_t block);
