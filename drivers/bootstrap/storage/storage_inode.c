@@ -35,6 +35,9 @@ int storage_inode_get(const struct storage_node *node, struct storage_inode_ref 
     if (!node || !out) return -22;
     *out = NULL;
     if (!(node->flags & (STORAGE_NODE_FLAG_EXT2 | STORAGE_NODE_FLAG_TMPFS))) return 0;
+    if ((node->flags & STORAGE_NODE_FLAG_EXT_FAMILY) && node->mount_generation &&
+        (node->volume_id >= STORAGE_MAX_VOLUMES ||
+         node->mount_generation != g_volumes[node->volume_id].mount_generation)) return -116;
     uint64_t flags;
     kernel_execution_lock_irqsave(&flags);
     struct storage_inode_ref *ref = storage_inode_find(node->volume_id, node->first_cluster);
@@ -44,9 +47,9 @@ int storage_inode_get(const struct storage_node *node, struct storage_inode_ref 
         int ret = storage_select_node_volume(node, &previous);
         bool memory = node->flags & STORAGE_NODE_FLAG_TMPFS;
         if (!ret && memory) ret = tmpfs_hold(g_storage.tmpfs, node->first_cluster);
-        else if (!ret && g_storage.filesystem == STORAGE_FILESYSTEM_EXT4) {
+        else if (!ret && storage_ext4_is_ext_family(&g_storage)) {
             struct ext4_inode_view ext4_inode;
-            ret = storage_ext4_read_inode(&g_storage, node->first_cluster, &ext4_inode);
+            ret = storage_ext4_check_node(&g_storage, node, &ext4_inode);
             if (!ret) inode.mode = ext4_inode.mode;
         } else if (!ret) ret = ext2_read_inode(node->first_cluster, &inode);
         storage_restore_volume(previous);
@@ -121,13 +124,13 @@ int storage_inode_refresh(struct storage_node *node)
     if (!node) return -22;
     if (!(node->flags & (STORAGE_NODE_FLAG_EXT2 | STORAGE_NODE_FLAG_TMPFS))) return 0;
     if (node->volume_id < STORAGE_MAX_VOLUMES &&
-        g_volumes[node->volume_id].filesystem == STORAGE_FILESYSTEM_EXT4) {
+        storage_ext4_is_ext_family(&g_volumes[node->volume_id])) {
         struct storage_volume *previous = NULL;
         struct ext4_inode_view inode;
         uint64_t flags;
         kernel_execution_lock_irqsave(&flags);
         int ret = storage_select_node_volume(node, &previous);
-        if (!ret) ret = storage_ext4_read_inode(&g_storage, node->first_cluster, &inode);
+        if (!ret) ret = storage_ext4_check_node(&g_storage, node, &inode);
         if (!ret) node->size = inode.size;
         storage_restore_volume(previous);
         kernel_execution_unlock_irqrestore(flags);

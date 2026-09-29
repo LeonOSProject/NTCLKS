@@ -78,6 +78,8 @@ struct storage_node {
     uint32_t first_cluster;
     uint32_t volume_id;
     uint64_t size;
+    uint32_t mount_generation;
+    uint32_t inode_generation;
 };
 
 struct storage_inode_ref;
@@ -176,6 +178,7 @@ struct storage_read_cursor {
 #define STORAGE_NODE_FLAG_DEV_DIR 0x00000002u
 #define STORAGE_NODE_FLAG_DEV_FB0 0x00000004u
 #define STORAGE_NODE_FLAG_EXT2    0x00000008u
+#define STORAGE_NODE_FLAG_EXT_FAMILY STORAGE_NODE_FLAG_EXT2
 #define STORAGE_NODE_FLAG_EXFAT   0x00000010u
 #define STORAGE_NODE_FLAG_EXFAT_NOFAT 0x00000020u
 #define STORAGE_NODE_FLAG_DEV_NODE 0x00000040u

@@ -201,6 +201,8 @@ const char *storage_root_filesystem_name(void)
         return "exfat";
     case STORAGE_FILESYSTEM_EXT2:
         return "ext2";
+    case STORAGE_FILESYSTEM_EXT4:
+        return "ext4";
     case STORAGE_FILESYSTEM_FAT32:
         return "fat32";
     case STORAGE_FILESYSTEM_ISO9660:
@@ -481,8 +483,8 @@ static int storage_lookup_path_unlocked(const char *path, struct storage_node *o
         return 0;
     }
 
-    if (g_storage.filesystem == STORAGE_FILESYSTEM_EXT2) {
-        ret = ext2_lookup_path(backend_path, out);
+    if (storage_ext4_is_ext_family(&g_storage)) {
+        ret = storage_ext4_ops.lookup(&g_storage, backend_path, out);
         if (ret == 0 && out) storage_path_cache_store(resolved, out);
         return ret;
     }
@@ -632,23 +634,15 @@ static int storage_read_node_cursor_unlocked(const struct storage_node *node, ui
         return 0;
     }
 
-    if (g_storage.filesystem == STORAGE_FILESYSTEM_EXT2) {
+    if (storage_ext4_is_ext_family(&g_storage)) {
         if (cursor) {
             cursor->valid = 0;
         }
-        ret = ext2_read_node(node, offset, buf, len, out_read);
+        ret = storage_ext4_ops.read(&g_storage, node, offset, buf, len, out_read);
         storage_restore_volume(old_volume);
         return ret;
     }
-    if (g_storage.filesystem == STORAGE_FILESYSTEM_EXT4) {
-        struct ext4_inode_view inode;
-        if (cursor) cursor->valid = 0;
-        ret = storage_ext4_read_inode(&g_storage, node->first_cluster, &inode);
-        if (!ret) ret = storage_ext4_read_file_range(&g_storage, node->first_cluster,
-                                                    &inode, offset, buf, len, out_read);
-        storage_restore_volume(old_volume);
-        return ret;
-    }
+
     if (g_storage.filesystem == STORAGE_FILESYSTEM_EXFAT) {
         if (cursor) cursor->valid = 0;
         ret = exfat_read_node(node, offset, buf, len, out_read);
@@ -921,14 +915,10 @@ static int storage_readdir_node_unlocked(const struct storage_node *node, uint64
         storage_restore_volume(old_volume);
         return ret;
     }
-    if (g_storage.filesystem == STORAGE_FILESYSTEM_EXT2) {
-        ret = ext2_iter_dir_entry(node->first_cluster, *cursor, entry);
+    if (storage_ext4_is_ext_family(&g_storage)) {
+        ret = storage_ext4_ops.readdir(&g_storage, node, cursor, entry);
         storage_restore_volume(old_volume);
-        if (ret == 0) {
-            ++(*cursor);
-            return 1;
-        }
-        return ret == -2 ? 0 : ret;
+        return ret;
     }
     if (g_storage.filesystem == STORAGE_FILESYSTEM_EXFAT) {
         ret = exfat_iter_dir_entry(node->first_cluster,
@@ -1049,13 +1039,13 @@ int storage_write_node(const char *path, uint64_t offset,
         storage_begin_mutation();
         return tmpfs_write(g_storage.tmpfs, node.first_cluster, offset, buf, len, out_written);
     }
-    if (g_storage.filesystem == STORAGE_FILESYSTEM_EXT2) {
+    if (storage_ext4_is_ext_family(&g_storage)) {
         storage_begin_mutation();
         /* storage_lookup_path() already selected /target's ext2 volume and
          * returned its inode. Passing a backend-local string through the
          * global router again would reinterpret /docs/foo as the installer
          * FAT root rather than /target/docs/foo. */
-        return ext2_write_node(&node, offset, buf, len, out_written);
+        return storage_ext4_ops.write(&g_storage, &node, offset, buf, len, out_written);
     }
     if (g_storage.filesystem == STORAGE_FILESYSTEM_EXFAT) {
         ret = storage_backend_path(path, backend_path, sizeof(backend_path));
@@ -1304,12 +1294,12 @@ int storage_write_file(const char *path, const void *buf, uint32_t len)
     if (parent_node.type != RELIEFOS_FS_TYPE_DIR) {
         return -20;
     }
-    if (g_storage.filesystem == STORAGE_FILESYSTEM_EXT2) {
+    if (storage_ext4_is_ext_family(&g_storage)) {
         if (storage_backend_path(resolved, backend_path, sizeof(backend_path)) < 0) {
             return -22;
         }
         storage_begin_mutation();
-        return ext2_write_file(backend_path, buf, len);
+        return storage_ext4_replace(&g_storage, backend_path, buf, len);
     }
     if (g_storage.filesystem == STORAGE_FILESYSTEM_TMPFS) {
         ret = storage_backend_path(resolved, backend_path, sizeof(backend_path));
@@ -1519,9 +1509,9 @@ int storage_truncate_file(const char *path, uint64_t length)
     if (node.type != RELIEFOS_FS_TYPE_FILE) {
         return -21;
     }
-    if (g_storage.filesystem == STORAGE_FILESYSTEM_EXT2) {
+    if (storage_ext4_is_ext_family(&g_storage)) {
         storage_begin_mutation();
-        return ext2_truncate_file(&node, length);
+        return storage_ext4_ops.truncate(&g_storage, &node, length);
     }
     if (g_storage.filesystem == STORAGE_FILESYSTEM_TMPFS) {
         storage_begin_mutation();
@@ -1599,12 +1589,12 @@ int storage_mkdir(const char *path)
     if (parent_node.type != RELIEFOS_FS_TYPE_DIR) {
         return -20;
     }
-    if (g_storage.filesystem == STORAGE_FILESYSTEM_EXT2) {
+    if (storage_ext4_is_ext_family(&g_storage)) {
         if (storage_backend_path(resolved, backend_path, sizeof(backend_path)) < 0) {
             return -22;
         }
         storage_begin_mutation();
-        return ext2_mkdir(backend_path);
+        return storage_ext4_ops.mkdir(&g_storage, backend_path);
     }
     if (g_storage.filesystem == STORAGE_FILESYSTEM_TMPFS) {
         ret = storage_backend_path(resolved, backend_path, sizeof(backend_path));
@@ -1712,13 +1702,13 @@ int storage_unlink(const char *path)
     if (ret < 0) {
         return ret;
     }
-    if (g_storage.filesystem == STORAGE_FILESYSTEM_EXT2) {
+    if (storage_ext4_is_ext_family(&g_storage)) {
         if (node.type == RELIEFOS_FS_TYPE_DIR) return -21;
         if (storage_backend_path(resolved, backend_path, sizeof(backend_path)) < 0) {
             return -22;
         }
         storage_begin_mutation();
-        return ext2_unlink(backend_path);
+        return storage_ext4_ops.unlink(&g_storage, backend_path);
     }
     if (g_storage.filesystem == STORAGE_FILESYSTEM_TMPFS) {
         ret = storage_backend_path(resolved, backend_path, sizeof(backend_path));
@@ -1811,13 +1801,13 @@ int storage_rmdir(const char *path)
     if (ret < 0) {
         return ret;
     }
-    if (g_storage.filesystem == STORAGE_FILESYSTEM_EXT2) {
+    if (storage_ext4_is_ext_family(&g_storage)) {
         if (node.type != RELIEFOS_FS_TYPE_DIR) return -20;
         if (storage_backend_path(resolved, backend_path, sizeof(backend_path)) < 0) {
             return -22;
         }
         storage_begin_mutation();
-        return ext2_rmdir(backend_path);
+        return storage_ext4_ops.rmdir(&g_storage, backend_path);
     }
     if (g_storage.filesystem == STORAGE_FILESYSTEM_TMPFS) {
         ret = storage_backend_path(resolved, backend_path, sizeof(backend_path));
@@ -1901,6 +1891,10 @@ int storage_rename(const char *old_path, const char *new_path)
         storage_begin_mutation();
         return tmpfs_rename(old_tmp_volume->tmpfs, old_backend_path, new_backend_path);
     }
+    if (storage_ext4_is_ext_family(old_tmp_volume)) {
+        storage_begin_mutation();
+        return storage_ext4_ops.rename(old_tmp_volume, old_backend_path, new_backend_path);
+    }
     if (!storage_text_eq_ci(old_parent, new_parent)) {
         return -22;
     }
@@ -1917,7 +1911,7 @@ int storage_rename(const char *old_path, const char *new_path)
     }
     ret = storage_lookup_path(old_resolved, &node);
     if (ret < 0) return ret;
-    if (g_storage.filesystem == STORAGE_FILESYSTEM_EXT2) {
+    if (storage_ext4_is_ext_family(&g_storage)) {
         struct storage_volume *old_volume;
         struct storage_volume *new_volume;
         if (storage_route_path(old_resolved, &old_volume, old_backend_path,
@@ -1928,7 +1922,7 @@ int storage_rename(const char *old_path, const char *new_path)
             return -18;
         }
         storage_begin_mutation();
-        return ext2_rename(old_backend_path, new_backend_path);
+        return storage_ext4_ops.rename(&g_storage, old_backend_path, new_backend_path);
     }
     if (g_storage.filesystem == STORAGE_FILESYSTEM_EXFAT) {
         struct storage_volume *old_volume;
@@ -2027,9 +2021,9 @@ int storage_link(const char *old_path, const char *new_path)
         storage_begin_mutation();
         return tmpfs_link(g_storage.tmpfs, old_backend_path, new_backend_path);
     }
-    if (g_storage.filesystem != STORAGE_FILESYSTEM_EXT2) return -95;
+    if (!storage_ext4_is_ext_family(&g_storage)) return -95;
     storage_begin_mutation();
-    return ext2_link(old_backend_path, new_backend_path);
+    return storage_ext4_ops.link(&g_storage, old_backend_path, new_backend_path);
 }
 
 int storage_symlink(const char *target, const char *path)
@@ -2054,15 +2048,15 @@ int storage_symlink(const char *target, const char *path)
         ret = tmpfs_create(g_storage.tmpfs, backend_path, LINUX_S_IFLNK | 0777, target, NULL);
         goto out;
     }
-    if (g_storage.filesystem != STORAGE_FILESYSTEM_EXT2) { ret = -1; goto out; }
+    if (!storage_ext4_is_ext_family(&g_storage)) { ret = -1; goto out; }
     storage_begin_mutation();
-    ret = ext2_symlink(target, backend_path);
+    ret = storage_ext4_ops.symlink(&g_storage, target, backend_path);
     if (!ret) {
         struct reliefos_time_info now;
         struct storage_node node;
-        if (time_wall_clock(&now) == 0 && ext2_lookup_path(backend_path, &node) == 0)
+        if (time_wall_clock(&now) == 0 && storage_ext4_ops.lookup(&g_storage, backend_path, &node) == 0)
             ret = storage_inode_utimensat(&node, now.unix_seconds, now.unix_seconds, true, true);
-        if (ret < 0) (void)ext2_unlink(backend_path);
+        if (ret < 0) (void)storage_ext4_ops.unlink(&g_storage, backend_path);
     }
 out:
     storage_restore_volume(previous);
@@ -2093,7 +2087,7 @@ int storage_readlink(const char *path, char *buffer, uint32_t capacity, uint32_t
         }
     } else if (!ret && (node.flags & STORAGE_NODE_FLAG_TMPFS))
         ret = tmpfs_readlink(g_storage.tmpfs, node.first_cluster, buffer, capacity, out_len);
-    else if (!ret) ret = ext2_symlink_read(&node, buffer, capacity, out_len);
+    else if (!ret) ret = storage_ext4_ops.readlink(&g_storage, &node, buffer, capacity, out_len);
     storage_restore_volume(previous);
     kernel_execution_unlock_irqrestore(irq_flags);
     return ret;
@@ -2182,7 +2176,7 @@ int storage_create_special(const char *path, uint32_t mode, struct storage_node 
         storage_begin_mutation();
         return tmpfs_create(volume->tmpfs, backend, mode | 0777, NULL, out);
     }
-    if (mode == LINUX_S_IFIFO && volume->filesystem != STORAGE_FILESYSTEM_EXT2) return -95;
+    if (mode == LINUX_S_IFIFO && !storage_ext4_is_ext_family(volume)) return -95;
     ret = storage_write_file(path, "", 0);
     if (ret < 0) return ret;
     ret = storage_lookup_path(path, out);
@@ -2192,7 +2186,7 @@ int storage_create_special(const char *path, uint32_t mode, struct storage_node 
         char backend[RELIEFOS_FS_PATH_LEN];
         ret = storage_select_node_volume(out, &previous);
         if (!ret) ret = storage_backend_path(path, backend, sizeof(backend));
-        if (!ret) ret = ext2_mark_special(backend, out, mode);
+        if (!ret) ret = storage_ext4_mark_special(&g_storage, backend, out, mode);
         storage_restore_volume(previous);
     }
     if (ret < 0) { (void)storage_unlink(path); return ret; }

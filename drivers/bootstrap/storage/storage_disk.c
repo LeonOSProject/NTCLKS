@@ -1559,7 +1559,7 @@ int storage_mount_block_partition(uint32_t disk_id, uint32_t partition_index,
          (filesystem == RELIEFOS_DISK_FILESYSTEM_EXFAT &&
           volume->filesystem != STORAGE_FILESYSTEM_EXFAT) ||
          (filesystem == RELIEFOS_DISK_FILESYSTEM_EXT2 &&
-          volume->filesystem != STORAGE_FILESYSTEM_EXT2))) {
+          !storage_ext4_is_ext_family(volume)))) {
         ret = -5;
     }
     if (ret == 0) {
@@ -1838,7 +1838,7 @@ int storage_install_mount_target(uint32_t disk_id)
         ret = ext2_mount();
     }
     if (ret == 0 && (target->filesystem == STORAGE_FILESYSTEM_EXFAT ||
-                     target->filesystem == STORAGE_FILESYSTEM_EXT2)) {
+                     storage_ext4_is_ext_family(target))) {
         target->ready = true;
         disk->target_mounted = 1;
         storage_memzero(esp, sizeof(*esp));
@@ -1858,7 +1858,7 @@ int storage_install_mount_target(uint32_t disk_id)
         if (ret == 0) esp->ready = true;
     }
     if (ret == 0 && (target->filesystem == STORAGE_FILESYSTEM_EXFAT ||
-                     target->filesystem == STORAGE_FILESYSTEM_EXT2)) {
+                     storage_ext4_is_ext_family(target))) {
         console_printf("[reliefnt] installer target mounted root=/target %s_lba=%llu esp=/target/boot esp_lba=%llu disk=%u port=%u\n",
                        target->filesystem == STORAGE_FILESYSTEM_EXFAT ? "exfat" : "ext2",
                        (unsigned long long)(target->filesystem == STORAGE_FILESYSTEM_EXFAT

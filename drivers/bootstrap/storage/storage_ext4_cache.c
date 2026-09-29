@@ -376,6 +376,30 @@ void storage_ext4_cache_finish(struct storage_volume *volume, uint64_t block, co
     entry->dirty = 0; entry->pinned = 0; entry->checksum_ok = 0;
 }
 
+void storage_ext4_cache_invalidate_write(const struct storage_volume *writer,uint64_t lba,uint32_t count)
+{
+    if (!writer || !count || lba>UINT64_MAX-count) return;
+    for (unsigned t=0;t<EXT4_CACHE_TABLE_COUNT;t++) {
+        struct ext4_cache_table *table=&ext4_cache_tables[t]; if (!table->entries) continue;
+        for (unsigned i=0;i<table->capacity;i++) {
+            struct storage_ext4_cache_entry *e=&table->entries[i];
+            if (!e->valid || e->dirty || e->pinned) continue;
+            const struct storage_volume *v=e->volume;
+            bool same=v==writer;
+            if (v->kind==STORAGE_VOLUME_RAM && writer->kind==STORAGE_VOLUME_RAM)
+                same=v->ram_base && v->ram_base==writer->ram_base;
+            else if (v->transport==writer->transport) {
+                if (v->transport==STORAGE_TRANSPORT_AHCI) same=v->hba_port==writer->hba_port;
+                else if (v->transport==STORAGE_TRANSPORT_NVME) same=v->nvme==writer->nvme && v->nvme_nsid==writer->nvme_nsid;
+                else if (v->transport==STORAGE_TRANSPORT_IDE_PIO) same=v->ide_command_base==writer->ide_command_base && v->ide_drive==writer->ide_drive;
+            }
+            if (!same) continue;
+            uint64_t first=v->ext_start_lba+e->block*(v->ext4.block_size/512);
+            if (first<lba+count && lba<first+v->ext4.block_size/512) e->valid=0;
+        }
+    }
+}
+
 void storage_ext4_cache_invalidate(struct storage_volume *volume)
 {
     if (!volume) {

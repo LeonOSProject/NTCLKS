@@ -624,6 +624,7 @@ int storage_ext4_journal_capture(struct storage_volume *, uint64_t, const uint8_
 int storage_ext4_journal_publish(struct storage_volume *, uint64_t, const uint8_t *);
 bool storage_ext4_journal_owns(const struct storage_volume *, uint64_t);
 void storage_ext4_cache_finish(struct storage_volume *, uint64_t, const uint8_t *);
+void storage_ext4_cache_invalidate_write(const struct storage_volume *,uint64_t,uint32_t);
 int storage_ext4_device_flush(const struct storage_volume *);
 int storage_ext4_parse_inode(const uint8_t *, uint32_t,
                              const struct storage_ext4_super_view *, struct ext4_inode_view *);
@@ -663,6 +664,35 @@ int storage_ext4_link(struct storage_volume *,uint64_t,const char *,uint64_t);
 int storage_ext4_unlink(struct storage_volume *,uint64_t,const char *,bool);
 int storage_ext4_rename(struct storage_volume *,uint64_t,const char *,uint64_t,const char *);
 int storage_ext4_orphan_add(struct storage_volume *,uint64_t,struct ext4_inode_view *);
+int storage_ext4_unlink_held(struct storage_volume *,uint64_t,const char *,bool,bool);
+int storage_ext4_rename_held(struct storage_volume *,uint64_t,const char *,uint64_t,const char *,bool);
+bool storage_ext4_is_ext_family(const struct storage_volume *);
+void storage_ext4_invalidate_groups(struct storage_volume *);
+int storage_ext4_check_node(struct storage_volume *,const struct storage_node *,struct ext4_inode_view *);
+int storage_ext4_replace(struct storage_volume *,const char *,const void *,uint32_t);
+int storage_ext4_mark_special(struct storage_volume *,const char *,const struct storage_node *,uint32_t);
+struct storage_ext4_operations {
+    int (*lookup)(struct storage_volume *,const char *,struct storage_node *);
+    int (*read)(struct storage_volume *,const struct storage_node *,uint64_t,void *,uint32_t,uint32_t *);
+    int (*write)(struct storage_volume *,const struct storage_node *,uint64_t,const void *,uint32_t,uint32_t *);
+    int (*readdir)(struct storage_volume *,const struct storage_node *,uint64_t *,struct reliefos_dir_entry *);
+    int (*create)(struct storage_volume *,const char *,uint16_t,uint32_t,uint32_t,struct storage_node *);
+    int (*mkdir)(struct storage_volume *,const char *);
+    int (*link)(struct storage_volume *,const char *,const char *);
+    int (*unlink)(struct storage_volume *,const char *);
+    int (*rmdir)(struct storage_volume *,const char *);
+    int (*rename)(struct storage_volume *,const char *,const char *);
+    int (*truncate)(struct storage_volume *,const struct storage_node *,uint64_t);
+    int (*symlink)(struct storage_volume *,const char *,const char *);
+    int (*readlink)(struct storage_volume *,const struct storage_node *,char *,uint32_t,uint32_t *);
+    int (*fsync)(struct storage_volume *);
+    int (*fallocate)(struct storage_volume *,uint64_t,uint32_t,uint64_t,uint64_t);
+    int (*fiemap)(struct storage_volume *,uint64_t,uint64_t,uint64_t,struct storage_ext4_fiemap_extent *,uint32_t,uint32_t *);
+    int (*getxattr)(struct storage_volume *,uint64_t,const char *,void *,uint32_t,uint32_t *);
+    int (*setxattr)(struct storage_volume *,uint64_t,const char *,const void *,uint32_t,uint32_t);
+    int (*statfs)(struct storage_volume *,struct linux_statfs_abi *);
+};
+extern const struct storage_ext4_operations storage_ext4_ops;
 
 /* Per-volume ext4 geometry.  Cache, journal and statistics fields are
  * added by later tasks.  The super_view / backup_bgs / reserved_gdt_blocks /

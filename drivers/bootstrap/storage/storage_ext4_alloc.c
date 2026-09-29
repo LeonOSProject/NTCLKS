@@ -77,6 +77,11 @@ struct ext4_group_summary {
 
 static struct ext4_group_summary ext4_group_summaries[EXT4_GROUP_CACHE_ENTRIES];
 static uint64_t ext4_group_summary_clock;
+void storage_ext4_invalidate_groups(struct storage_volume *v)
+{
+    for (unsigned i=0;i<EXT4_GROUP_CACHE_ENTRIES;i++)
+        if (ext4_group_summaries[i].volume==v) ext4_group_summaries[i].valid=0;
+}
 
 static struct ext4_group_summary *ext4_summary_lookup(struct storage_volume *volume,
                                                       uint64_t group)

@@ -165,6 +165,10 @@ int storage_ext4_mount(struct storage_volume *volume)
     if (!volume) {
         return -RELIEFOS_EINVAL;
     }
+    if (volume->ext4.block_size && !volume->ext4.journal) {
+        ret = storage_ext4_cache_flush(volume);
+        if (ret < 0) return ret;
+    }
     if (volume->ext4.journal) {
         ret = storage_ext4_journal_commit(volume, true);
         if (!ret) ret = storage_ext4_journal_checkpoint(volume);
@@ -225,6 +229,17 @@ int storage_ext4_mount(struct storage_volume *volume)
     volume->ext4.inode_size = view.inode_size;
     volume->ext4.first_data_block = view.first_data_block;
     volume->ext4.desc_size = view.desc_size;
+    /* Transitional raw-block/stat wrappers use these geometry aliases only. */
+    volume->ext2_block_size = view.block_size;
+    volume->ext2_blocks_count = view.blocks_count > UINT32_MAX ? UINT32_MAX : view.blocks_count;
+    volume->ext2_blocks_per_group = view.blocks_per_group;
+    volume->ext2_inodes_per_group = view.inodes_per_group;
+    volume->ext2_inode_size = view.inode_size;
+    volume->ext2_first_data_block = view.first_data_block;
+    volume->ext2_group_count = view.group_count;
+    volume->ext2_feature_incompat = view.feature_incompat;
+    volume->ext2_next_block = view.first_data_block;
+    volume->ext2_next_inode = 11;
 
     /* Allocator context (task 5): the parsed superblock feeds the metadata
      * checksums and the free-count bookkeeping; the raw words

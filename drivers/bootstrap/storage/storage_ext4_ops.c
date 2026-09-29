@@ -1,6 +1,8 @@
 /* Native ext-family inode reads and range I/O. Higher VFS operations are
  * added after journaled mutations (tasks 8-11). */
 #include "storage_internal.h"
+bool storage_ext4_is_ext_family(const struct storage_volume *v)
+{ return v && (v->filesystem==STORAGE_FILESYSTEM_EXT2 || v->filesystem==STORAGE_FILESYSTEM_EXT4); }
 
 /* Preserve inode extension fields, inline xattrs and OS-dependent bytes. The
  * caller owns a transaction; newly allocated inodes are zeroed by ialloc. */
@@ -238,8 +240,14 @@ static int ext4_ops_orphan_head(struct storage_volume *v,uint64_t *head,bool set
 int storage_ext4_orphan_add(struct storage_volume *v,uint64_t ino,struct ext4_inode_view *in)
 {
     uint64_t head; int ret=ext4_ops_orphan_head(v,&head,false); if (ret<0) return ret;
-    if (head==ino) return storage_ext4_write_inode(v,ino,in);
     if (head>v->ext4.inodes_count) return -RELIEFOS_EIO;
+    uint64_t next=head;
+    for (uint64_t steps=0;next;steps++) {
+        if (next==ino) return storage_ext4_write_inode(v,ino,in);
+        if (steps>=v->ext4.inodes_count || next>v->ext4.inodes_count) return -RELIEFOS_EIO;
+        struct ext4_inode_view item; ret=storage_ext4_read_inode(v,next,&item); if (ret<0) return ret;
+        next=item.dtime;
+    }
     in->dtime=head; head=ino;
     ret=storage_ext4_write_inode(v,ino,in); if (ret<0) return ret;
     return ext4_ops_orphan_head(v,&head,true);
@@ -247,8 +255,18 @@ int storage_ext4_orphan_add(struct storage_volume *v,uint64_t ino,struct ext4_in
 static int ext4_ops_orphan_del(struct storage_volume *v,uint64_t ino,struct ext4_inode_view *in)
 {
     uint64_t head; int ret=ext4_ops_orphan_head(v,&head,false); if (ret<0) return ret;
-    if (head!=ino) return -RELIEFOS_EIO; /* All operations are volume-serialized. */
-    head=in->dtime; ret=ext4_ops_orphan_head(v,&head,true); if (ret<0) return ret;
+    if (head==ino) { head=in->dtime; ret=ext4_ops_orphan_head(v,&head,true); }
+    else {
+        uint64_t current=head; bool found=false;
+        for (uint64_t steps=0;current && steps<v->ext4.inodes_count;steps++) {
+            struct ext4_inode_view previous; ret=storage_ext4_read_inode(v,current,&previous); if (ret<0) return ret;
+            if (previous.dtime==ino) { previous.dtime=in->dtime;
+                ret=storage_ext4_write_inode(v,current,&previous); found=true; break; }
+            current=previous.dtime;
+        }
+        if (!found) return -RELIEFOS_EIO;
+    }
+    if (ret<0) return ret;
     in->dtime=0; return storage_ext4_write_inode(v,ino,in);
 }
 static int ext4_ops_truncate(struct storage_volume *v,uint64_t ino,uint64_t size,bool destroy)
@@ -279,7 +297,7 @@ static int ext4_ops_truncate(struct storage_volume *v,uint64_t ino,uint64_t size
     if (!no_data) { ret=storage_ext4_remove_range(v,ino,(size+bs-1)/bs,end); if (ret<0) return ret; }
     ret=storage_ext4_journal_start(v,EXT4_JOURNAL_CREDITS,&h); if (ret<0) return ret;
     ret=storage_ext4_read_inode(v,ino,&in);
-    if (!ret) ret=ext4_ops_orphan_del(v,ino,&in);
+    if (!ret && (in.links_count || destroy)) ret=ext4_ops_orphan_del(v,ino,&in);
     /* The orphan removal and inode-bitmap release must share a transaction:
      * a crash between them must not strand an unreachable allocated inode. */
     if (!ret && destroy) ret=storage_ext4_free_inode(v,ino,(in.mode&EXT2_S_IFMT)==EXT2_S_IFDIR);

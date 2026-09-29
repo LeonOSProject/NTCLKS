@@ -489,7 +489,7 @@ int storage_ext4_create(struct storage_volume *v,uint64_t parent,const char *nam
     if (((mode&EXT2_S_IFMT)==EXT2_S_IFLNK)!=!!target || (target && !target[0])) return -RELIEFOS_EINVAL;
     unsigned target_len=ed_name_len(target); bool dir=(mode&EXT2_S_IFMT)==EXT2_S_IFDIR;
     if (target && target_len>=60) { target_len=0; while (target[target_len] && target_len<4096) target_len++;
-        if (target_len>=4096) return -36; }
+        if (target_len>=v->ext4.block_size) return -36; }
     struct storage_ext4_handle h; ret=storage_ext4_journal_start(v,EXT4_JOURNAL_CREDITS,&h); if (ret<0) return ret;
     struct ext4_inode_view par,in={0}; uint64_t ino=0,exists;
     ret=ed_get_inode(v,parent,&par); if (ret<0) goto done;
@@ -544,7 +544,7 @@ static int ed_cleanup(struct storage_volume *v,uint64_t ino,bool dir)
     (void)dir;
     return storage_ext4_destroy_inode(v,ino);
 }
-int storage_ext4_unlink(struct storage_volume *v,uint64_t parent,const char *name,bool directory)
+int storage_ext4_unlink_held(struct storage_volume *v,uint64_t parent,const char *name,bool directory,bool held)
 {
     int ret=ed_name(name,true); if (ret<0) return ret;
     struct storage_ext4_handle h; ret=storage_ext4_journal_start(v,EXT4_JOURNAL_CREDITS,&h); if (ret<0) return ret;
@@ -565,10 +565,10 @@ int storage_ext4_unlink(struct storage_volume *v,uint64_t parent,const char *nam
     ret=in.links_count?storage_ext4_write_inode(v,ino,&in):storage_ext4_orphan_add(v,ino,&in);
 done:
     ret=ed_stop(&h,ret);
-    if (!ret && !in.links_count) ret=ed_cleanup(v,ino,directory);
+    if (!ret && !in.links_count && !held) ret=ed_cleanup(v,ino,directory);
     return ret;
 }
-int storage_ext4_rename(struct storage_volume *v,uint64_t oldparent,const char *oldname,uint64_t newparent,const char *newname)
+int storage_ext4_rename_held(struct storage_volume *v,uint64_t oldparent,const char *oldname,uint64_t newparent,const char *newname,bool held)
 {
     int ret=ed_name(oldname,true); if (ret<0) return ret; ret=ed_name(newname,true); if (ret<0) return ret;
     uint64_t source,target=0; struct ext4_inode_view in,replaced={0};
@@ -626,6 +626,10 @@ int storage_ext4_rename(struct storage_volume *v,uint64_t oldparent,const char *
     ed_touch(&in); ret=storage_ext4_write_inode(v,source,&in);
 done:
     ret=ed_stop(&h,ret);
-    if (!ret && target && !replaced.links_count) ret=ed_cleanup(v,target,dir);
+    if (!ret && target && !replaced.links_count && !held) ret=ed_cleanup(v,target,dir);
     return ret;
 }
+int storage_ext4_unlink(struct storage_volume *v,uint64_t parent,const char *name,bool directory)
+{ return storage_ext4_unlink_held(v,parent,name,directory,false); }
+int storage_ext4_rename(struct storage_volume *v,uint64_t op,const char *on,uint64_t np,const char *nn)
+{ return storage_ext4_rename_held(v,op,on,np,nn,false); }

@@ -88,33 +88,9 @@ static void storage_copy_disk_transport(struct storage_volume *volume,
     storage_volume_from_install_disk(volume, disk);
 }
 
-/* "exFAT -> ext-family probe" root route: the unified parser mounts ext4
- * (and classifies) first; a pure ext2 classification or a probe that cannot
- * recognize the image as ext-family falls back to the legacy ext2 backend
- * unchanged (spec section 8 keeps it until the ext4 backend passes the ext2
- * compatibility tests).  A feature-policy rejection is final: the legacy
- * ext2 backend would mount known-unsupported or unknown features read-write,
- * which the global constraint forbids, so it never sees such images. */
+/* Both classic indirect and modern extent images use one feature-gated backend. */
 static int storage_mount_ext_family(struct storage_volume *root)
-{
-    int ret = storage_ext4_mount(root);
-    if (ret == 0 && root->filesystem == STORAGE_FILESYSTEM_EXT4) {
-        return 0;
-    }
-    if (ret < 0 && ret != -RELIEFOS_EINVAL) {
-        return ret;
-    }
-    if (ret == -RELIEFOS_EINVAL) {
-        /* Distinguish a non-ext probe from recognized but invalid geometry.
-         * Neither corrupt metadata nor unsupported features may downgrade. */
-        if (root->ext_sector_count < 4) return ret;
-        int probe = storage_read_device(root, root->ext_start_lba + 2, 2, storage_scratch);
-        if (probe < 0) return probe;
-        if (ext4_get_le16(storage_scratch + 56) == EXT4_SUPER_MAGIC) return ret;
-    }
-    storage_ext4_state_reset(root);
-    return ext2_mount();
-}
+{ return storage_ext4_mount(root); }
 
 static int storage_try_mount_root_disk(struct install_disk_state *disk)
 {
@@ -165,7 +141,7 @@ static int storage_try_mount_root_disk(struct install_disk_state *disk)
                        disk->transport == STORAGE_TRANSPORT_NVME ? disk->nvme_nsid : disk->port,
                        root->filesystem == STORAGE_FILESYSTEM_EXFAT ? "exfat" :
                        (root->filesystem == STORAGE_FILESYSTEM_EXT4 ? "ext4" :
-                        (root->filesystem == STORAGE_FILESYSTEM_EXT2 ? "ext2" : "fat32")));
+                        (root->filesystem == STORAGE_FILESYSTEM_EXT4 ? "ext4" : (root->filesystem == STORAGE_FILESYSTEM_EXT2 ? "ext2" : "fat32"))));
     } else {
         /* Failed root mount: release the ext4 state and its caches before
          * the volume slot is reused; g_active_volume is restored below. */
@@ -598,7 +574,7 @@ int storage_mount_ramdisk_root(const void *image, uint64_t len)
                    image,
                    image_mapping,
                    (unsigned long long)len,
-                   root->filesystem == STORAGE_FILESYSTEM_EXT2 ? "ext2" : "fat32");
+                   root->filesystem == STORAGE_FILESYSTEM_EXT4 ? "ext4" : (root->filesystem == STORAGE_FILESYSTEM_EXT2 ? "ext2" : "fat32"));
     return 0;
 }
 

@@ -52,9 +52,13 @@ int storage_sync_volume(uint32_t volume_id)
         if (!ret) ret = storage_ext4_journal_checkpoint(volume);
         if (!ret) ret = storage_ext4_cache_flush(volume);
     }
-    kernel_spin_lock(&storage_transport_lock);
-    int transport_ret = storage_flush_volume(volume);
-    kernel_spin_unlock(&storage_transport_lock);
+    int transport_ret;
+    if (volume->kind == STORAGE_VOLUME_RAM) transport_ret = storage_flush_volume(volume);
+    else {
+        kernel_spin_lock(&storage_transport_lock);
+        transport_ret = storage_flush_volume(volume);
+        kernel_spin_unlock(&storage_transport_lock);
+    }
     if (ret == 0) ret = transport_ret;
     storage_io_async_context = saved_async;
     kernel_execution_unlock_irqrestore(flags);

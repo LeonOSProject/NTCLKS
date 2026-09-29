@@ -254,7 +254,7 @@ int storage_ext4_journal_stop(struct storage_ext4_handle *h)
         for (uint32_t i=0;i<j->count;i++) storage_ext4_cache_finish(v,j->images[i].block,j->images[i].before);
         v->ext4.super_view=j->before_super; v->ext4.next_goal_block=j->before_goal;
         v->ext4.reserved_window_end=j->before_window;
-        ++v->mount_generation; storage_ext4_cache_invalidate(v);
+        storage_ext4_invalidate_groups(v); storage_ext4_cache_invalidate(v);
         j->count=0; j->error=0;
     }
     return ret;
