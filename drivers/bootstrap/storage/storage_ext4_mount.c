@@ -180,6 +180,19 @@ int storage_ext4_mount(struct storage_volume *volume)
     /* Every mount attempt gets a fresh generation so cache entries from a
      * previous mount of this volume object are never served. */
     volume->mount_generation++;
+    /* Drop every cached mapping for this volume before the first cached read,
+     * not after the group-descriptor pass.  Both the physical root and the
+     * installer ramdisk live in g_volumes[STORAGE_VOLUME_ROOT], and the RAM-root
+     * path memzeros that object, which resets mount_generation to zero before
+     * this increment -- so the disk's entries are stamped with the same
+     * generation the ramdisk will use and every cache guard matches them.
+     * Two of those caches matter early: the block cache and the group-descriptor
+     * summary.  A stale summary hands the ramdisk the *disk's* inode_table
+     * block, so reading journal inode 8 fetches unrelated data, the inode
+     * checksum fails, and the mount falls back to read-only because the journal
+     * looks corrupt -- which then stops userland on /run (a black screen). */
+    storage_ext4_cache_invalidate(volume);
+    storage_ext4_invalidate_groups(volume);
     if ((!volume->ext_start_lba && volume->kind != STORAGE_VOLUME_RAM) ||
         volume->ext_sector_count < 4u) {
         ret = -RELIEFOS_EINVAL;

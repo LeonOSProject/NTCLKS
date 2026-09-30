@@ -97,13 +97,15 @@ static uint32_t storage_mount_parent(const char *path)
 
 /** @brief Emit the common mountinfo prefix; IDs are stable for each mounted slot. */
 static void storage_mount_prefix(struct storage_mount_text *text, uint32_t id,
-                                 uint32_t device, const char *path, const char *options)
+                                 uint64_t device, const char *path, const char *options)
 {
     storage_mount_number(text, id);
     storage_mount_emit(text, " ");
     storage_mount_number(text, storage_mount_parent(path));
-    storage_mount_emit(text, " 0:");
-    storage_mount_number(text, device);
+    storage_mount_emit(text, " ");
+    storage_mount_number(text, (uint32_t)((device >> 8) & 0xfffu));
+    storage_mount_emit(text, ":");
+    storage_mount_number(text, (uint32_t)((device & 255u) | ((device >> 12) & ~255u)));
     storage_mount_emit(text, " / ");
     storage_mount_field(text, path);
     storage_mount_emit(text, " ");
@@ -179,7 +181,7 @@ static int storage_read_mount_table(uint64_t offset, void *buffer, uint32_t capa
             storage_copy_text(options+length,sizeof(options)-length,extra_names[j]);
         }
         if (mountinfo) {
-            storage_mount_prefix(&text, i + 1, i + 1, volume->mount_path, options);
+            storage_mount_prefix(&text, i + 1, storage_volume_device_number(volume), volume->mount_path, options);
             storage_mount_emit(&text, filesystem);
             storage_mount_emit(&text, " ");
             storage_mount_field(&text, source);
@@ -223,4 +225,19 @@ int storage_read_mounts(uint64_t offset, void *buffer, uint32_t capacity, uint32
 int storage_read_mountinfo(uint64_t offset, void *buffer, uint32_t capacity, uint32_t *out_read)
 {
     return storage_read_mount_table(offset, buffer, capacity, out_read, 1);
+}
+
+/**
+ * @brief Read a mounted filesystem's Linux stat device number under the mount lock.
+ * @param volume_id Mounted-volume slot, distinct from an encoded block device ID.
+ * @return Linux dev_t matching mountinfo and stat, or zero for an unavailable slot.
+ */
+uint64_t storage_volume_device(uint32_t volume_id)
+{
+    uint64_t flags;
+    kernel_execution_lock_irqsave(&flags);
+    uint64_t device = volume_id < STORAGE_MAX_VOLUMES && g_volumes[volume_id].ready ?
+        storage_volume_device_number(&g_volumes[volume_id]) : 0;
+    kernel_execution_unlock_irqrestore(flags);
+    return device;
 }

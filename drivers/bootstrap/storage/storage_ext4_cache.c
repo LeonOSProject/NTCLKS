@@ -48,6 +48,13 @@ static struct ext4_cache_table ext4_cache_tables[] = {
 #define EXT4_CACHE_TABLE_COUNT \
     ((uint32_t)(sizeof(ext4_cache_tables) / sizeof(ext4_cache_tables[0])))
 
+/* Transport descriptors consume physical addresses. The kernel image is
+ * identity-mapped below 192 MiB, within AHCI's 32-bit DMA address range.
+ * Keep this bounded staging area alive across asynchronous retries; storage
+ * transactions serialize access and retain their owner on EAGAIN. */
+static uint8_t ext4_read_dma[EXT4_READAHEAD_BLOCKS * EXT4_MAX_BLOCK_SIZE]
+    __attribute__((aligned(4096)));
+
 /* Translates a filesystem block to partition sectors, refusing anything
  * outside the volume's geometry or partition range before touching the
  * device ("bounded I/O"). */
@@ -219,7 +226,9 @@ int storage_ext4_cache_read(struct storage_volume *volume, uint64_t block, void 
         if (err < 0) {
             return err;
         }
-        return storage_read_device(volume, lba, sectors, out);
+        err = storage_read_device(volume, lba, sectors, ext4_read_dma);
+        if (!err) storage_memcpy(out, ext4_read_dma, volume->ext4.block_size);
+        return err;
     }
     entry = ext4_cache_fill(table, volume, block, false, &err);
     if (!entry) {
@@ -256,8 +265,9 @@ int storage_ext4_cache_read_blocks(struct storage_volume *v, uint64_t first,
                !ext4_cache_lookup(table, v, first + done + run)) ++run;
         ret = ext4_cache_block_range(v, first + done, &lba, &sectors);
         if (ret < 0) return ret;
-        ret = storage_read_device(v, lba, run * sectors, (uint8_t *)out + (size_t)done * bs);
+        ret = storage_read_device(v, lba, run * sectors, ext4_read_dma);
         if (ret < 0) return ret;
+        storage_memcpy((uint8_t *)out + (size_t)done * bs, ext4_read_dma, (size_t)run * bs);
         ++v->ext4.read_commands; v->ext4.read_blocks += run;
         for (uint32_t j = 0; caching && j < run; ++j) {
             struct storage_ext4_cache_entry *victim = NULL;

@@ -60,6 +60,12 @@ make O=$PWD/out/x86_64/release ARCH=x86_64 PROFILE=release all
 `O=` 为输出目录（需绝对路径；默认 `out/<arch>/<profile>`），`ARCH=x86_64`，
 `PROFILE=release|debug`。其余目标：
 
+基础内核版本在 `configs/build-version` 中，当前为 `5.0.0`。可以像 Linux 一样
+修改 Makefile 的 `EXTRAVERSION`，或使用 `make EXTRAVERSION=-perf all` 构建
+`5.0.0-perf`；`LOCALVERSION=-test` 会继续追加为 `5.0.0-perf-test`。
+默认后缀为空。后缀变化自动触发版本头和内核重建；系统信息、uname 和 procfs
+都报告完整内核版本。完整版本最多 31 字节，后缀接受字母、数字、`._+-`。
+
 | 目标 | 作用 |
 | --- | --- |
 | `make O=... all` | 六个内核制品（kernel.sys、kernel.debug、loader.elf、五个 .drv、kerneldebug.sys） |

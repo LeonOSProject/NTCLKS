@@ -16,7 +16,7 @@ RELIEFOS_KERNEL_SYS := $(O_GENERATED)/system/kernel.sys
 RELIEFOS_KERNEL_DEBUG := $(O_GENERATED)/system/kernel.debug
 BUILD_INFO_HEADER := $(O_INCLUDE)/generated/build_info.h
 RELIEFOS_SOURCE_ID := $(shell git -C $(RELIEFOS_SRC) rev-parse --short HEAD 2>/dev/null || echo unknown)
-RELIEFOS_SIG_version := source=$(RELIEFOS_SOURCE_ID)|epoch=$(SOURCE_DATE_EPOCH)
+RELIEFOS_SIG_version := source=$(RELIEFOS_SOURCE_ID)|epoch=$(SOURCE_DATE_EPOCH)|extra=$(EXTRAVERSION)|local=$(LOCALVERSION)
 $(if $(RELIEFOS_PASSIVE),,$(eval $(call RELIEFOS_SIGNATURE_RULE,version)))
 
 # --- flags ------------------------------------------------------------------
@@ -129,6 +129,7 @@ $(BUILD_INFO_HEADER): $(RELIEFOS_SRC)/configs/build-version $(RELIEFOS_VERSION_T
 	| $(O_INCLUDE)/generated
 	$(call RELIEFOS_LOG,GEN,$@)
 	$(Q)$(RELIEFOS_VERSION_TOOL) --version-file $< \
+        --extra-version '$(EXTRAVERSION)' --local-version '$(LOCALVERSION)' \
         --source-id '$(RELIEFOS_SOURCE_ID)' \
 	    --epoch '$(or $(SOURCE_DATE_EPOCH),$(shell git -C $(RELIEFOS_SRC) show -s --format=%ct HEAD 2>/dev/null || echo 0))' \
 	    --output $@
