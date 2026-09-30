@@ -16,6 +16,17 @@ struct task_file *task_file_for_io(struct task *task, int fd);
 
 #include <reliefnt/sched.h>
 
+/**
+ * @brief Transfer regular-file or genuine block-node data, retaining progress across retries.
+ * @param task Current task, with dispatcher-owned retry state.
+ * @param file Open readable/writable descriptor with a kernel-resolved node.
+ * @param buffer User buffer already validated by the dispatcher for count bytes.
+ * @param count Requested byte count; capped at Linux MAX_RW_COUNT.
+ * @param position Byte offset for positional I/O; otherwise use the shared file offset.
+ * @param writing Whether to write rather than read.
+ * @param positional Whether to preserve the shared file offset.
+ * @return Bytes transferred, negative errno, or -EAGAIN with saved retry progress.
+ */
 int64_t syscall_regular_io(struct task *task, struct task_file *file,
                            uint64_t buffer, uint64_t count, uint64_t position,
                            bool writing, bool positional);

@@ -64,7 +64,7 @@ int storage_inode_stat(const struct storage_node *node, struct linux_stat_abi *v
         ret = storage_ext4_check_node(&g_storage, node, &inode);
         if (!ret) {
             *value = (struct linux_stat_abi){0};
-            value->st_dev = (uint64_t)node->volume_id + 1;
+            value->st_dev = storage_volume_device_number(&g_storage);
             value->st_ino = node->first_cluster;
             value->st_nlink = inode.links_count;
             value->st_mode = inode.mode;

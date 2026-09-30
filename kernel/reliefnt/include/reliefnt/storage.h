@@ -201,6 +201,13 @@ struct storage_read_cursor {
 #define STORAGE_DEVFS_DEVICE 200u
 #define STORAGE_PROCFS_DEVICE 201u
 
+/**
+ * @brief Read the Linux device identity of a mounted filesystem under the mount lock.
+ * @param volume_id Mounted-volume slot, distinct from a block device's encoded ID.
+ * @return Linux dev_t matching mountinfo and stat, or zero for an unavailable slot.
+ */
+uint64_t storage_volume_device(uint32_t volume_id);
+
 /* Device-node volume_id encoding for block devices.  The low 16 bits select
  * the physical disk; the high 16 bits contain GPT entry + 1, or zero for the
  * whole disk.  Device nodes never use volume_id for mounted-volume lookup. */

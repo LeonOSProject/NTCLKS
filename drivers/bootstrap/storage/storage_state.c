@@ -368,6 +368,23 @@ static uint64_t min_u64(uint64_t a, uint64_t b)
     return a < b ? a : b;
 }
 
+/* Caller holds the storage execution lock. Keep stat and mountinfo identities
+ * equal to the registered block device; RAM/pseudo filesystems are anonymous. */
+static uint64_t storage_volume_device_number(const struct storage_volume *volume)
+{
+    uint64_t device = 0;
+    if (!volume->ram_base && !volume->tmpfs) {
+        if (volume->data_partition_mount)
+            device = storage_block_rdev(STORAGE_BLOCK_VOLUME_ID(
+                volume->source_disk_id, volume->source_partition_index));
+        else if (volume->filesystem == STORAGE_FILESYSTEM_FAT32) device = volume->esp_device;
+        else if (volume->filesystem == STORAGE_FILESYSTEM_EXT2 ||
+                 volume->filesystem == STORAGE_FILESYSTEM_EXT4) device = volume->ext_device;
+        else if (volume->filesystem == STORAGE_FILESYSTEM_EXFAT) device = volume->exfat_device;
+    }
+    return device ? device : (uint64_t)volume->volume_id + 1;
+}
+
 static int storage_select_volume(uint32_t volume_id)
 {
     int ret = storage_acquire_task_io();

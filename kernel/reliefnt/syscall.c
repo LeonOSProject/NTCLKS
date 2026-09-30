@@ -171,7 +171,7 @@ static int linux_stat_from_legacy(struct linux_stat_abi *out,
         node && (node->flags & STORAGE_NODE_FLAG_PROC) ? STORAGE_PROCFS_DEVICE :
         node && (node->flags & (STORAGE_NODE_FLAG_DEV_NODE | STORAGE_NODE_FLAG_DEV_DIR |
                                STORAGE_NODE_FLAG_DEV_LINK)) ? STORAGE_DEVFS_DEVICE :
-        node ? (uint64_t)node->volume_id + 1 : 1;
+        node ? storage_volume_device(node->volume_id) : 1;
     out->st_ino = linux_stat_inode(path, st);
     out->st_nlink = 1;
     out->st_mode = mode;
@@ -1882,16 +1882,32 @@ static int task_device_is(const struct task_file *file, uint32_t kind)
            file->node.first_cluster == kind;
 }
 
+/**
+ * @brief Decode a kernel-created descriptor backed by a genuine block device node.
+ * @param file Descriptor to validate; may be null.
+ * @param disk_id Optional physical disk ID output.
+ * @param partition_index Optional GPT entry index output, or -1 for the whole disk.
+ * @return One for a block descriptor, zero for all other descriptors.
+ */
 static int task_block_device(const struct task_file *file, uint32_t *disk_id,
                              int32_t *partition_index)
 {
     if (!file || !(file->flags & TASK_FILE_FLAG_DEV_BLOCK) ||
+        !(file->node.flags & STORAGE_NODE_FLAG_DEV_BLOCK) ||
         !task_device_is(file, STORAGE_DEV_KIND_DISK)) return 0;
     if (disk_id) *disk_id = STORAGE_BLOCK_DISK_ID(file->node.volume_id);
     if (partition_index) *partition_index = STORAGE_BLOCK_PARTITION(file->node.volume_id);
     return 1;
 }
 
+/**
+ * @brief Read an opened device; block descriptors use Linux open-time DAC checks.
+ * @param task Current task, required for device context.
+ * @param file Opened readable device descriptor.
+ * @param buffer Validated writable destination of length bytes.
+ * @param length Maximum byte count to read.
+ * @return Bytes read or negative errno, including a pending storage retry.
+ */
 static int task_device_read(struct task *task, struct task_file *file,
                             void *buffer, uint32_t length)
 {
@@ -1900,10 +1916,8 @@ static int task_device_read(struct task *task, struct task_file *file,
     uint32_t got = 0;
     if (!task || !file || !buffer || !length) return 0;
     if (task_block_device(file, &disk_id, &partition_index)) {
-        if (task_effective_role(task) != RELIEFOS_AUTH_ROLE_ADMIN &&
-            !(task->uid == 0 && storage_installer_root_active())) {
-            return -RELIEFOS_EACCES;
-        }
+        /* Linux DAC is checked when opening the device. A readable descriptor
+         * remains readable after fork, privilege changes or SCM_RIGHTS. */
         int ret = storage_disk_block_read(disk_id, partition_index, file->offset,
                                           buffer, length, &got);
         return ret < 0 ? ret : (int)got;
@@ -4928,8 +4942,6 @@ int64_t syscall_dispatch_regs_legacy(uint64_t number, uint64_t a0, uint64_t a1, 
         if (file->flags & TASK_FILE_FLAG_DEV_NODE) {
             if (!file_can_read(file)) return -RELIEFOS_EBADF;
             if (file->flags & TASK_FILE_FLAG_DEV_BLOCK) {
-                if (task_effective_role(task) != RELIEFOS_AUTH_ROLE_ADMIN &&
-                    !(task->uid == 0 && storage_installer_root_active())) return -RELIEFOS_EACCES;
                 return syscall_regular_io(task,file,a1,a2,0,false,false);
             }
             request_len = a2 > RELIEFOS_FS_IO_SLICE_BYTES
@@ -5105,6 +5117,13 @@ int64_t syscall_dispatch_regs_legacy(uint64_t number, uint64_t a0, uint64_t a1, 
         char path[RELIEFOS_FS_PATH_LEN];
         uint32_t flags = (uint32_t)(number == LINUX_SYS_OPENAT ? a2 : a1);
         uint32_t mode = (uint32_t)(number == LINUX_SYS_OPENAT ? a3 : a2);
+        /* Unknown open bits are ignored by Linux open/openat. Never let them
+         * supply private descriptor kinds such as DEV_BLOCK or DEV_NODE. */
+        flags &= LINUX_O_ACCMODE | LINUX_O_CREAT | LINUX_O_EXCL | LINUX_O_NOCTTY |
+                 LINUX_O_TRUNC | LINUX_O_APPEND | LINUX_O_NONBLOCK | LINUX_O_DSYNC |
+                 LINUX_O_ASYNC | LINUX_O_DIRECT | LINUX_O_LARGEFILE | LINUX_O_DIRECTORY |
+                 LINUX_O_NOFOLLOW | LINUX_O_NOATIME | LINUX_O_CLOEXEC | LINUX_O_SYNC |
+                 LINUX_O_PATH | LINUX_O_TMPFILE;
         /* Translate only user open flags: internal epoll allocation uses the
          * same numeric bit as O_PATH and must retain its descriptor kind. */
         flags = (flags & ~(uint32_t)(LINUX_O_PATH | TASK_FILE_FLAG_PATH)) |
@@ -5851,7 +5870,7 @@ int64_t syscall_dispatch_regs_legacy(uint64_t number, uint64_t a0, uint64_t a1, 
             bool writing = number == LINUX_SYS_PWRITE64;
             if (writing ? !file_can_write(file) : !file_can_read(file)) return -RELIEFOS_EBADF;
             if (writing ? !user_range_ok(a1,a2) : !user_range_writable(a1,a2)) return -RELIEFOS_EFAULT;
-            if (task_effective_role(task) != RELIEFOS_AUTH_ROLE_ADMIN &&
+            if (writing && task_effective_role(task) != RELIEFOS_AUTH_ROLE_ADMIN &&
                 !(task->uid == 0 && storage_installer_root_active())) return -RELIEFOS_EACCES;
             return syscall_regular_io(task,file,a1,a2,a3,writing,true);
         }

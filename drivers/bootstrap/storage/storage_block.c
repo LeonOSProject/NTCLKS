@@ -89,6 +89,8 @@ static void storage_volume_from_install_disk(struct storage_volume *volume,
     volume->hba_port = disk->hba_port;
     volume->nvme = disk->nvme;
     volume->nvme_nsid = disk->nvme_nsid;
+    for (uint32_t i = 0; i < g_install_disk_count; ++i)
+        if (disk == &g_install_disks[i]) volume->source_disk_id = i;
     storage_copy_text(volume->device_model, sizeof(volume->device_model), disk->device_model);
 }
 
@@ -736,12 +738,19 @@ static int gpt_find_esp(void)
     for (uint32_t i = 0; i < count; ++i) {
         const struct gpt_entry *entry = (const void *)(table + (uint64_t)i * size);
         if (!entry->first_lba) continue;
-        if (entry->first_lba == g_storage.esp_start_lba)
+        uint64_t device = storage_block_rdev(STORAGE_BLOCK_VOLUME_ID(g_storage.source_disk_id, i));
+        if (entry->first_lba == g_storage.esp_start_lba) {
             storage_memcpy(g_storage.esp_unique_guid, entry->unique_guid, 16);
-        if (entry->first_lba == g_storage.ext2_start_lba)
+            g_storage.esp_device = device;
+        }
+        if (entry->first_lba == g_storage.ext2_start_lba) {
             storage_memcpy(g_storage.ext2_unique_guid, entry->unique_guid, 16);
-        if (entry->first_lba == g_storage.exfat_start_lba)
+            g_storage.ext_device = device;
+        }
+        if (entry->first_lba == g_storage.exfat_start_lba) {
             storage_memcpy(g_storage.exfat_unique_guid, entry->unique_guid, 16);
+            g_storage.exfat_device = device;
+        }
     }
     mm_free_pages(phys, (total_sectors + 7u) / 8u);
     return esp_found ? 0 : -2;
