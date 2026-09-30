@@ -37,6 +37,8 @@ struct options {
     const char *output;
     const char *source_id;
     const char *epoch;
+    const char *extra_version;
+    const char *local_version;
 };
 
 struct identity {
@@ -74,6 +76,8 @@ static void usage(void)
         "  --output PATH        header to publish; its directory must exist\n"
         "  --source-id ID       fixed source identifier, e.g. an abbreviated commit\n"
         "  --epoch SECONDS      Unix time for the build timestamp and copyright year\n"
+        "  --extra-version TEXT kernel release suffix, e.g. -perf (default empty)\n"
+        "  --local-version TEXT additional local suffix (default empty)\n"
         "  --help               show this message\n",
         TOOL_NAME);
 }
@@ -101,6 +105,10 @@ static int parse_options(int argc, char **argv, struct options *options)
             options->source_id = argv[++index];
         } else if (strcmp(argument, "--epoch") == 0) {
             options->epoch = argv[++index];
+        } else if (strcmp(argument, "--extra-version") == 0) {
+            options->extra_version = argv[++index];
+        } else if (strcmp(argument, "--local-version") == 0) {
+            options->local_version = argv[++index];
         } else {
             return report("unrecognised argument '%s'; try --help", argument);
         }
@@ -300,7 +308,8 @@ int main(int argc, char **argv)
     struct byte_buffer out = { NULL, 0, 0 };
     char timestamp[32];
     char copyright[160];
-    char version_string[128];
+    /* Must fit the 32-byte kernel_version field in the system-info ABI. */
+    char version_string[32];
     unsigned long long epoch = 0;
     long major = 0;
     long minor = 0;
@@ -351,8 +360,16 @@ int main(int argc, char **argv)
         status = report("--source-id contains unsafe characters");
         goto cleanup;
     }
-    if (snprintf(version_string, sizeof(version_string), "%s",
-            identity.release_version) >= (int)sizeof(version_string)) {
+    const char *extra = options.extra_version != NULL ? options.extra_version : "";
+    const char *local = options.local_version != NULL ? options.local_version : "";
+    const char *suffix_characters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._+-";
+    if (strspn(extra, suffix_characters) != strlen(extra) ||
+            strspn(local, suffix_characters) != strlen(local)) {
+        status = report("kernel version suffix contains unsafe characters");
+        goto cleanup;
+    }
+    if (snprintf(version_string, sizeof(version_string), "%s%s%s",
+            identity.release_version, extra, local) >= (int)sizeof(version_string)) {
         status = report("the derived version string does not fit");
         goto cleanup;
     }
