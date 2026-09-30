@@ -147,11 +147,28 @@ static void ext4_ops_touch(struct ext4_inode_view *in)
     struct reliefos_time_info now;
     if (!time_wall_clock(&now)) in->mtime=in->ctime=(uint32_t)now.unix_seconds;
 }
+/* Submit file data one block at a time through kernel memory.  The transport
+ * programs the controller's PRDT with the buffer address verbatim, so the
+ * caller's pointer must be a physical address: kernel_malloc() returns one
+ * because the kernel is identity mapped, but `data` may be a user mapping
+ * (the write(2) buffer reaches here unmodified).  Handing a user virtual
+ * address to the controller silently writes the data to whatever physical
+ * frame shares those low bits, which is how a copied file ends up allocated
+ * but full of zeros.  Only the sub-block tail was safe before, because that
+ * path already staged its bytes in a kernel scratch buffer.
+ * Per-block staging keeps the buffer bounded by one block independent of `n`. */
 static int ext4_ops_data_write(struct storage_volume *v,uint64_t physical,uint32_t n,const uint8_t *data)
 {
     uint32_t bs=v->ext4.block_size;
-    int ret=storage_write_device(v,v->ext_start_lba+physical*(bs/512),n*(bs/512),data);
-    if (!ret) for (uint32_t i=0;i<n;i++) storage_ext4_cache_finish(v,physical+i,data+i*bs);
+    uint8_t *bounce=kernel_malloc(bs);
+    if (!bounce) return -RELIEFOS_ENOMEM;
+    int ret=0;
+    for (uint32_t i=0;i<n && !ret;i++) {
+        storage_memcpy(bounce,data+(size_t)i*bs,bs);
+        ret=storage_write_device(v,v->ext_start_lba+(physical+i)*(bs/512),bs/512,bounce);
+        if (!ret) storage_ext4_cache_finish(v,physical+i,bounce);
+    }
+    kernel_free(bounce);
     return ret;
 }
 int storage_ext4_write_file_range(struct storage_volume *v,uint64_t ino,uint64_t offset,
