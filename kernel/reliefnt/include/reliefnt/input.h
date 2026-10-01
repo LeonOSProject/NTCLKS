@@ -64,6 +64,7 @@ int input_pop(struct input_raw_event *event);
  * Raw input delivery to the desktop remains independent, so opening an
  * event device cannot consume the desktop compositor's input queue. */
 uint64_t input_evdev_cursor_now(void);
+int input_evdev_write(uint32_t device_kind, const void *buffer, uint32_t length);
 int input_evdev_read(uint32_t device_kind, uint64_t *cursor,
                      void *buffer, uint32_t length, uint64_t grab_token);
 int input_evdev_available(uint32_t device_kind, uint64_t cursor,

@@ -1023,7 +1023,8 @@ int64_t syscall_mm_mmap(uint64_t addr, uint64_t len, uint64_t prot,
                     return -RELIEFOS_EINVAL;
                 }
                 /* The reserved VRAM includes the final partial page. */
-                bytes = align_up_page((uint64_t)fb->pitch * fb->height);
+                bytes = align_up_page(fb->max_bytes ? fb->max_bytes
+                                                    : (uint64_t)fb->pitch * fb->height);
                 if (offset > bytes || mapped_len > bytes - offset) {
                     return -RELIEFOS_EINVAL;
                 }
@@ -1458,8 +1459,14 @@ int64_t syscall_mm_munmap(uint64_t addr, uint64_t len)
             ++free_slots;
         }
     }
-    if (split_count > free_slots) {
-        return -RELIEFOS_ENOMEM;
+    /* Splits need a spare VMA entry each. The growable store extends on
+     * demand, so secure the slots before mutating anything instead of
+     * refusing whenever the fixed array happens to be full. */
+    while (split_count > free_slots) {
+        if (!sched_task_vma_at(task, sched_task_vma_capacity(task))) {
+            return -RELIEFOS_ENOMEM;
+        }
+        ++free_slots;
     }
     task_unmap_pages(task, start, end);
     for (uint32_t i = 0; i < sched_task_vma_capacity(task); ++i) {
