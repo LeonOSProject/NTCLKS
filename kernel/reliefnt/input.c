@@ -380,6 +380,29 @@ uint64_t input_evdev_cursor_now(void)
     return cursor;
 }
 
+/** @brief Accept injected evdev records written to an input device.
+ * @param device_kind Keyboard or mouse device kind.
+ * @param buffer Complete struct input_event records.
+ * @param length Storage size in bytes.
+ * @return Bytes consumed, or negative errno.
+ */
+int input_evdev_write(uint32_t device_kind, const void *buffer, uint32_t length)
+{
+    const struct input_event *records = (const struct input_event *)buffer;
+    uint32_t count;
+    if (!buffer && length) return -14; /* EFAULT */
+    if (length % sizeof(*records) != 0) return -22; /* EINVAL */
+    count = length / sizeof(*records);
+    for (uint32_t i = 0; i < count; ++i) {
+        const struct input_event *event = &records[i];
+        if (event->type == EV_LED && event->code == LED_CAPSL) {
+            __atomic_store_n(&caps_lock_active, event->value != 0u,
+                             __ATOMIC_RELAXED);
+        }
+    }
+    return (int)length;
+}
+
 int input_evdev_read(uint32_t device_kind, uint64_t *cursor,
                      void *buffer, uint32_t length, uint64_t grab_token)
 {
@@ -404,9 +427,11 @@ int input_evdev_read_vt(uint32_t device_kind, uint64_t *cursor,
     uint32_t count = 0;
     uint64_t flags;
     if (!cursor || !buffer || length < sizeof(*events) ||
-        (length % sizeof(*events)) != 0 || index >= INPUT_EVDEV_DEVICES) {
+        index >= INPUT_EVDEV_DEVICES) {
         return -22;
     }
+    /* Linux read() semantics: deliver only whole events; a caller buffer that
+     * is not a multiple of the record size simply holds fewer events. */
     capacity = length / sizeof(*events);
     kernel_spin_lock_irqsave(&input_lock, &flags);
     if (!evdev_present[index]) {

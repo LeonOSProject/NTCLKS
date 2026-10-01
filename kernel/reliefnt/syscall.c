@@ -184,7 +184,10 @@ static int linux_stat_from_legacy(struct linux_stat_abi *out,
         out->st_mode = ((value.mode & LINUX_S_IFMT) ? value.mode & LINUX_S_IFMT : mode & LINUX_S_IFMT) |
             (value.mode & 07777u);
     }
-    out->st_rdev = type == RELIEFOS_FS_TYPE_DEVICE ? 1 : 0;
+    /* Device nodes report a per-kind rdev (the PTY major convention) so two
+     * different devices are never mistaken for duplicates of each other. */
+    out->st_rdev = type == RELIEFOS_FS_TYPE_DEVICE
+        ? (136u << 8) | (node ? node->first_cluster : 0u) : 0;
     if (node && (node->flags & STORAGE_NODE_FLAG_DEV_BLOCK))
         out->st_rdev = storage_block_rdev(node->volume_id);
     if (node && (node->flags & STORAGE_NODE_FLAG_PTY)) {
@@ -1980,6 +1983,10 @@ static int task_device_write(struct task *task, struct task_file *file,
         if (!buffer) return -RELIEFOS_EFAULT;
         return (int)pty_write_output(task->pty_id, (const char *)buffer, length);
     }
+    if (task_device_is(file, STORAGE_DEV_KIND_KEYBOARD) ||
+        task_device_is(file, STORAGE_DEV_KIND_MOUSE)) {
+        return input_evdev_write(file->node.first_cluster, buffer, length);
+    }
     if (task_device_is(file, STORAGE_DEV_KIND_CONSOLE)) {
         if (!buffer) return -RELIEFOS_EFAULT;
         console_write_len((const char *)buffer, length);
@@ -2083,6 +2090,18 @@ static int task_evdev_ioctl(struct task_file *file, uint64_t request,
         return -RELIEFOS_ENOTTY;
     }
     size = _IOC_SIZE(request);
+    if (_IOC_NR(request) == 0x03 && _IOC_DIR(request) == _IOC_READ) {
+        /* EVIOCGREP: the default key repeat delay and period. */
+        unsigned int rep[2] = {250u, 667u};
+        if (size < sizeof(rep) || !user_range_writable(user_arg, sizeof(rep)))
+            return -RELIEFOS_EFAULT;
+        __builtin_memcpy((void *)(uintptr_t)user_arg, rep, sizeof(rep));
+        return 0;
+    }
+    if (_IOC_NR(request) == 0x03 && _IOC_DIR(request) == _IOC_WRITE) {
+        /* EVIOCSREP: key repeat parameters are accepted and ignored. */
+        return 0;
+    }
     if (_IOC_NR(request) == 0x19 && _IOC_DIR(request) == _IOC_READ) {
         uint64_t leds = device_kind == STORAGE_DEV_KIND_KEYBOARD && input_caps_lock_active()
                             ? 1ULL << LED_CAPSL : 0;
@@ -2092,20 +2111,41 @@ static int task_evdev_ioctl(struct task_file *file, uint64_t request,
             ((uint8_t *)(uintptr_t)user_arg)[i] = (uint8_t)(leds >> (8U * i));
         return (int)count;
     }
+    if ((_IOC_NR(request) == 0x1a || _IOC_NR(request) == 0x1b) &&
+        _IOC_DIR(request) == _IOC_READ) {
+        /* EVIOCGSND and EVIOCGSW: no sounds or switch states exist on these
+         * devices, so the bitmaps are all zeroes. */
+        uint32_t count = size < sizeof(uint64_t) ? size : sizeof(uint64_t);
+        if (count && !user_range_writable(user_arg, count)) return -RELIEFOS_EFAULT;
+        for (uint32_t i = 0; i < count; ++i)
+            ((uint8_t *)(uintptr_t)user_arg)[i] = 0;
+        return (int)count;
+    }
     if (!size || !user_range_ok(user_arg, size)) {
         return -RELIEFOS_EFAULT;
     }
-    if (_IOC_NR(request) == 0x06 || _IOC_NR(request) == 0x07) {
+    if (_IOC_NR(request) == 0x06 || _IOC_NR(request) == 0x07 ||
+        _IOC_NR(request) == 0x08) {
         const char *value;
         if (_IOC_NR(request) == 0x06) {
             value = device_kind == STORAGE_DEV_KIND_KEYBOARD
                         ? "LeonOS PS/2 Keyboard" : "LeonOS PS/2 Mouse";
-        } else {
+        } else if (_IOC_NR(request) == 0x07) {
             value = device_kind == STORAGE_DEV_KIND_KEYBOARD
                         ? "platform/i8042/serio0" : "platform/i8042/serio1";
+        } else {
+            /* EVIOCGUNIQ: the virtual devices carry no unique serial. */
+            value = "";
         }
         evdev_copy_text((char *)(uintptr_t)user_arg, size, value);
         return 0;
+    }
+    if (_IOC_NR(request) == 0x09 || _IOC_NR(request) == 0x0a) {
+        /* EVIOCGPROP and EVIOCGMTSLOTS: no input properties and no
+         * multitouch slots are advertised on these devices. */
+        for (uint32_t i = 0; i < size; ++i)
+            ((uint8_t *)(uintptr_t)user_arg)[i] = 0;
+        return (int)size;
     }
     if (_IOC_NR(request) == 0x18) {
         input_evdev_key_state((void *)(uintptr_t)user_arg, size);
@@ -6698,7 +6738,12 @@ int64_t syscall_dispatch_regs_legacy(uint64_t number, uint64_t a0, uint64_t a1, 
         }
         if (a1 == RELIEFOS_FBIOBLIT || a1 == FBIOPUT_VSCREENINFO) {
             if (!task || !pty_vt_number(task->controlling_pty_id)) return -RELIEFOS_EPERM;
-            if (pty_vt_active() != task->controlling_pty_id || !pty_vt_graphical_active())
+            if (pty_vt_active() != task->controlling_pty_id) return -RELIEFOS_EAGAIN;
+            /* The native present path additionally requires the VT to be
+             * claimed in graphics mode. The standard fbdev mode-set runs
+             * during driver probe, before any KDSETMODE, and only needs the
+             * controlling active VT. */
+            if (a1 == RELIEFOS_FBIOBLIT && !pty_vt_graphical_active())
                 return -RELIEFOS_EAGAIN;
         }
         if (a1 == RELIEFOS_FBIOBLIT) {
@@ -6776,7 +6821,11 @@ int64_t syscall_dispatch_regs_legacy(uint64_t number, uint64_t a0, uint64_t a1, 
             if (!user_range_ok(a2, sizeof(info))) return -RELIEFOS_EFAULT;
             copy_text(info.id, sizeof(info.id), "leonos-fb");
             info.smem_start = (uint64_t)(uintptr_t)fb->pixels;
-            info.smem_len = fb->pitch * fb->height;
+            /* Linux fbdev semantics: smem_len is the total video memory,
+             * stable across mode sets, so an existing mapping never becomes
+             * too small when the mode changes. */
+            info.smem_len = fb->max_bytes ? fb->max_bytes
+                                         : fb->pitch * fb->height;
             info.type = 0;
             info.line_length = fb->pitch;
             *(struct fb_fix_screeninfo *)(uintptr_t)a2 = info;
@@ -6788,8 +6837,12 @@ int64_t syscall_dispatch_regs_legacy(uint64_t number, uint64_t a0, uint64_t a1, 
         {
             const struct fb_var_screeninfo *info =
                 (const struct fb_var_screeninfo *)(uintptr_t)a2;
+            /* The dynamic backend owns a 32bpp surface whatever format the
+             * boot firmware advertised; accept the native 32bpp request and
+             * let framebuffer_set_mode decide what is really settable. */
             if (!info->xres || !info->yres || info->xres > fb->max_width ||
-                info->yres > fb->max_height || info->bits_per_pixel != fb->bpp) {
+                info->yres > fb->max_height ||
+                (info->bits_per_pixel != fb->bpp && info->bits_per_pixel != 32u)) {
                 return -RELIEFOS_EINVAL;
             }
             return framebuffer_set_mode(info->xres, info->yres) == 0
