@@ -68,6 +68,7 @@ int pty_vt_graphical(uint32_t pty_id);
 /** @brief Read or update Linux VT ownership state. */
 int pty_vt_get_mode(uint32_t pty_id, struct vt_mode *mode);
 int pty_vt_set_mode(uint32_t pty_id, const struct vt_mode *mode);
+int pty_vt_reset_mode(uint32_t pty_id);
 /** @brief Read or update Linux keyboard translation state. */
 int pty_vt_get_keyboard_mode(uint32_t pty_id, int *mode);
 int pty_vt_set_keyboard_mode(uint32_t pty_id, int mode);

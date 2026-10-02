@@ -52,6 +52,12 @@ static uint32_t active_vt;
 static uint8_t vt_graphical[VT_COUNT];
 static struct vt_mode vt_modes[VT_COUNT];
 static int vt_keyboard_modes[VT_COUNT];
+/* VT_AUTO describes the switching policy, not whether a process has claimed
+ * the console. Keep allocation and hand-off state separately so VT_OPENQRY
+ * cannot return a console that is still owned by a VT_PROCESS client. */
+static uint8_t vt_claimed[VT_COUNT];
+static uint8_t vt_release_pending[VT_COUNT];
+static uint8_t vt_acquire_pending[VT_COUNT];
 /* Set-1 modifier keys currently held, tracked per physical key so the derived
  * shift/ctrl/alt levels survive either side being released first. */
 #define CONSOLE_KEY_LSHIFT (1U << 0)
@@ -209,6 +215,9 @@ void pty_init(void)
         vt_graphical[i] = 0;
         vt_modes[i] = (struct vt_mode){ .mode = VT_AUTO };
         vt_keyboard_modes[i] = K_XLATE;
+        vt_claimed[i] = 0;
+        vt_release_pending[i] = 0;
+        vt_acquire_pending[i] = 0;
     }
     console_modifier_keys = 0;
     console_shift_down = 0;
@@ -233,6 +242,9 @@ int pty_vt_init(void)
         sessions[number - 1u].locked = 0;
         vt_modes[number - 1u] = (struct vt_mode){ .mode = VT_AUTO };
         vt_keyboard_modes[number - 1u] = K_XLATE;
+        vt_claimed[number - 1u] = 0;
+        vt_release_pending[number - 1u] = 0;
+        vt_acquire_pending[number - 1u] = 0;
     }
     vt_display_generation = 1;
     active_vt = 1;
@@ -256,6 +268,28 @@ int pty_vt_set_mode(uint32_t pty_id, const struct vt_mode *mode)
     if (mode->mode != VT_AUTO && mode->mode != VT_PROCESS && mode->mode != VT_ACKACQ)
         return -22;
     vt_modes[pty_id - 1u] = *mode;
+    if (mode->mode == VT_AUTO) {
+        /* Returning to VT_AUTO relinquishes the process claim and completes
+         * any stale hand-off state. This is the normal Xorg/vlock cleanup. */
+        vt_claimed[pty_id - 1u] = 0;
+        vt_release_pending[pty_id - 1u] = 0;
+        vt_acquire_pending[pty_id - 1u] = 0;
+    } else {
+        vt_claimed[pty_id - 1u] = 1;
+        if (mode->mode == VT_PROCESS || mode->mode == VT_ACKACQ)
+            vt_acquire_pending[pty_id - 1u] = 0;
+    }
+    return 0;
+}
+
+/** @brief Return a fixed virtual console to its default Linux ownership state. */
+int pty_vt_reset_mode(uint32_t pty_id)
+{
+    if (!pty_vt_number(pty_id)) return -22;
+    vt_modes[pty_id - 1u] = (struct vt_mode){ .mode = VT_AUTO };
+    vt_claimed[pty_id - 1u] = 0;
+    vt_release_pending[pty_id - 1u] = 0;
+    vt_acquire_pending[pty_id - 1u] = 0;
     return 0;
 }
 
@@ -282,15 +316,40 @@ int pty_vt_open_query(void)
 {
     if (!vt_ready) return -19;
     for (uint32_t i = 0; i < VT_COUNT; ++i)
-        if (vt_modes[i].mode == VT_AUTO) return (int)(i + 1u);
+        if (!vt_claimed[i] && vt_modes[i].mode == VT_AUTO) return (int)(i + 1u);
     return -16;
 }
 
-/** @brief Release or acknowledge the active virtual console. */
+/** @brief Release or acknowledge a virtual-console hand-off.
+ *
+ * Linux uses three requests for a VT_PROCESS owner: zero rejects a pending
+ * release, one confirms that the old display may be released, and two
+ * acknowledges acquisition of a newly active display. The fixed-console
+ * implementation does not signal user tasks itself, but it retains the same
+ * state transitions so callers cannot acknowledge an unrelated hand-off.
+ */
 int pty_vt_release_display(uint32_t pty_id, int request)
 {
     if (!pty_vt_number(pty_id) || pty_vt_active() != pty_id) return -22;
     if (request != 0 && request != 1 && request != 2) return -22;
+    struct vt_mode *mode = &vt_modes[pty_id - 1u];
+    if (request == 0) {
+        /* VT_FALSE: keep ownership when a release request is refused. */
+        if (mode->mode != VT_PROCESS) return -22;
+        vt_release_pending[pty_id - 1u] = 0;
+        return 0;
+    }
+    if (request == 1) {
+        /* VT_TRUE: the process has finished using its display. */
+        if (mode->mode != VT_PROCESS) return -22;
+        vt_release_pending[pty_id - 1u] = 0;
+        return 0;
+    }
+    if (mode->mode != VT_ACKACQ)
+        return -22;
+    /* VT_ACKACQ: the process has resumed after acquisition. */
+    vt_acquire_pending[pty_id - 1u] = 0;
+    mode->mode = VT_PROCESS;
     return 0;
 }
 
@@ -332,6 +391,11 @@ int pty_vt_switch(uint32_t number)
 {
     if (!pty_vt_id(number)) return -22;
     if (active_vt != number) {
+        uint32_t old_vt = active_vt;
+        if (old_vt && vt_modes[old_vt - 1u].mode != VT_AUTO)
+            vt_release_pending[old_vt - 1u] = 1;
+        if (vt_modes[number - 1u].mode != VT_AUTO)
+            vt_acquire_pending[number - 1u] = 1;
         ++vt_display_generation;
         active_vt = number;
         input_set_graphical_vt(vt_graphical[number - 1u] ? number : 0);
@@ -1126,7 +1190,10 @@ int pty_detach_controlling(uint32_t pty_id, uint32_t caller_pid)
         sched_clear_controlling_pty(pty_id);
         session->process_session = 0;
         session->foreground_pgid = 0;
-        if (pty_vt_number(pty_id)) (void)pty_vt_set_graphics(pty_id, 0);
+        if (pty_vt_number(pty_id)) {
+            (void)pty_vt_set_graphics(pty_id, 0);
+            (void)pty_vt_reset_mode(pty_id);
+        }
         if (group) {
             sched_signal_kernel_group(group, 1);
             sched_signal_kernel_group(group, 18);
@@ -1148,7 +1215,10 @@ void pty_process_session_exit(uint32_t tgid)
         sched_clear_controlling_pty(pty_id);
         session->process_session = 0;
         session->foreground_pgid = 0;
-        if (pty_vt_number(pty_id)) (void)pty_vt_set_graphics(pty_id, 0);
+        if (pty_vt_number(pty_id)) {
+            (void)pty_vt_set_graphics(pty_id, 0);
+            (void)pty_vt_reset_mode(pty_id);
+        }
         if (foreground) sched_signal_kernel_group(foreground, 1);
     } else if (old) {
         sched_signal_kernel_group(old, 1);
