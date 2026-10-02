@@ -702,7 +702,8 @@ static int framebuffer_vmware_probe(void)
     pseudocolor = vmware_svga_read(VMWARE_SVGA_REG_PSEUDOCOLOR);
     pitch = vmware_svga_read(VMWARE_SVGA_REG_BYTES_PER_LINE);
     if (!width || !height || depth != 24u || bpp != 32u || pseudocolor != 0u ||
-        pitch < width * 4u || (uint64_t)pitch * height > usable_bytes ||
+        (uint64_t)pitch < (uint64_t)width * 4u ||
+        (uint64_t)pitch * height > usable_bytes ||
         !framebuffer_range_valid((uint64_t)fb_start + fb_offset,
                                  (uint64_t)pitch * height)) {
         console_printf("[reliefnt] VMware SVGA active mode unavailable "
