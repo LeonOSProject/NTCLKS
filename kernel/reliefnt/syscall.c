@@ -6826,7 +6826,9 @@ int64_t syscall_dispatch_regs_legacy(uint64_t number, uint64_t a0, uint64_t a1, 
              * too small when the mode changes. */
             info.smem_len = fb->max_bytes ? fb->max_bytes
                                          : fb->pitch * fb->height;
-            info.type = 0;
+            info.type = FB_TYPE_PACKED_PIXELS;
+            info.visual = fb->type == MULTIBOOT2_FRAMEBUFFER_TYPE_RGB
+                              ? FB_VISUAL_TRUECOLOR : FB_VISUAL_PSEUDOCOLOR;
             info.line_length = fb->pitch;
             *(struct fb_fix_screeninfo *)(uintptr_t)a2 = info;
             return 0;

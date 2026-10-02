@@ -639,6 +639,12 @@ static int framebuffer_vmware_probe(void)
     uint32_t fb_offset;
     uint32_t fb_max_size;
     uint32_t fb_size;
+    uint32_t width;
+    uint32_t height;
+    uint32_t depth;
+    uint32_t bpp;
+    uint32_t pseudocolor;
+    uint32_t pitch;
     uint64_t usable_bytes;
     uint32_t io_base;
 
@@ -682,6 +688,35 @@ static int framebuffer_vmware_probe(void)
                        (uint32_t)framebuffer_current_bytes());
         return 0;
     }
+
+    /* The boot protocol framebuffer is only a hint.  SVGA II exposes the
+     * scan-out surface through FB_START/FB_OFFSET, which may differ from the
+     * address supplied by the loader (notably with EFI GOP handoff).  Keep
+     * fbdev mmap and native drawing on the device's actual linear surface and
+     * publish the active SVGA mode so a same-mode Xorg probe does not retain
+     * stale loader geometry or pitch. */
+    width = vmware_svga_read(VMWARE_SVGA_REG_WIDTH);
+    height = vmware_svga_read(VMWARE_SVGA_REG_HEIGHT);
+    depth = vmware_svga_read(VMWARE_SVGA_REG_DEPTH);
+    bpp = vmware_svga_read(VMWARE_SVGA_REG_BITS_PER_PIXEL);
+    pseudocolor = vmware_svga_read(VMWARE_SVGA_REG_PSEUDOCOLOR);
+    pitch = vmware_svga_read(VMWARE_SVGA_REG_BYTES_PER_LINE);
+    if (!width || !height || depth != 24u || bpp != 32u || pseudocolor != 0u ||
+        pitch < width * 4u || (uint64_t)pitch * height > usable_bytes ||
+        !framebuffer_range_valid((uint64_t)fb_start + fb_offset,
+                                 (uint64_t)pitch * height)) {
+        console_printf("[reliefnt] VMware SVGA active mode unavailable "
+                       "mode=%ux%u depth=%u bpp=%u pseudo=%u pitch=%u\n",
+                       width, height, depth, bpp, pseudocolor, pitch);
+        return 0;
+    }
+    fb.pixels = (uint32_t *)(uintptr_t)((uint64_t)fb_start + fb_offset);
+    fb.width = width;
+    fb.height = height;
+    fb.pitch = pitch;
+    fb.bpp = (uint8_t)bpp;
+    fb.bytes_per_pixel = 4u;
+    framebuffer_set_default_format();
 
     vmware_svga.max_width = vmware_svga_read(VMWARE_SVGA_REG_MAX_WIDTH);
     vmware_svga.max_height = vmware_svga_read(VMWARE_SVGA_REG_MAX_HEIGHT);
