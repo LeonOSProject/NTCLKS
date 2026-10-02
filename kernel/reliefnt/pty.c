@@ -330,7 +330,7 @@ int pty_vt_open_query(void)
  */
 int pty_vt_release_display(uint32_t pty_id, int request)
 {
-    if (!pty_vt_number(pty_id) || pty_vt_active() != pty_id) return -22;
+    if (!pty_vt_number(pty_id)) return -22;
     if (request != 0 && request != 1 && request != 2) return -22;
     struct vt_mode *mode = &vt_modes[pty_id - 1u];
     if (request == 0) {
@@ -341,12 +341,12 @@ int pty_vt_release_display(uint32_t pty_id, int request)
     }
     if (request == 1) {
         /* VT_TRUE: the process has finished using its display. */
-        if (mode->mode != VT_PROCESS) return -22;
+        if (mode->mode != VT_PROCESS || !vt_release_pending[pty_id - 1u]) return -11;
         vt_release_pending[pty_id - 1u] = 0;
         return 0;
     }
-    if (mode->mode != VT_ACKACQ)
-        return -22;
+    if (mode->mode != VT_ACKACQ || !vt_acquire_pending[pty_id - 1u] ||
+        pty_vt_active() != pty_id) return -11;
     /* VT_ACKACQ: the process has resumed after acquisition. */
     vt_acquire_pending[pty_id - 1u] = 0;
     mode->mode = VT_PROCESS;
@@ -394,8 +394,10 @@ int pty_vt_switch(uint32_t number)
         uint32_t old_vt = active_vt;
         if (old_vt && vt_modes[old_vt - 1u].mode != VT_AUTO)
             vt_release_pending[old_vt - 1u] = 1;
-        if (vt_modes[number - 1u].mode != VT_AUTO)
+        if (vt_modes[number - 1u].mode != VT_AUTO) {
             vt_acquire_pending[number - 1u] = 1;
+            vt_modes[number - 1u].mode = VT_ACKACQ;
+        }
         ++vt_display_generation;
         active_vt = number;
         input_set_graphical_vt(vt_graphical[number - 1u] ? number : 0);
