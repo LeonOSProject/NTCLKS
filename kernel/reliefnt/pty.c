@@ -10,6 +10,8 @@
 #include <reliefnt/futex.h>
 #include <reliefnt/wait.h>
 #include <reliefos/psf_font.h>
+#include <linux/vt.h>
+#include <linux/kd.h>
 
 #define PTY_MAX 32u
 #define VT_COUNT 6u
@@ -48,6 +50,8 @@ static uint32_t next_generation;
 static uint8_t vt_ready;
 static uint32_t active_vt;
 static uint8_t vt_graphical[VT_COUNT];
+static struct vt_mode vt_modes[VT_COUNT];
+static int vt_keyboard_modes[VT_COUNT];
 /* Set-1 modifier keys currently held, tracked per physical key so the derived
  * shift/ctrl/alt levels survive either side being released first. */
 #define CONSOLE_KEY_LSHIFT (1U << 0)
@@ -116,6 +120,10 @@ int pty_lookup_vt_path(const char *path, struct storage_node *node)
     if (!path || !vt_ready) return -2;
     for (i = 0; i < sizeof(prefix) - 1u; ++i) {
         if (path[i] != prefix[i]) return -2;
+    }
+    if (path[i] == '0') {
+        if (path[i + 1u]) return -2;
+        return pty_get_node(active_vt, node);
     }
     if (path[i] < '1' || path[i] > '6' || path[i + 1u]) return -2;
     return pty_get_node((uint32_t)(path[i] - '0'), node);
@@ -197,7 +205,11 @@ void pty_init(void)
     vt_display_generation = 0;
     vt_ready = 0;
     active_vt = 0;
-    for (uint32_t i = 0; i < VT_COUNT; ++i) vt_graphical[i] = 0;
+    for (uint32_t i = 0; i < VT_COUNT; ++i) {
+        vt_graphical[i] = 0;
+        vt_modes[i] = (struct vt_mode){ .mode = VT_AUTO };
+        vt_keyboard_modes[i] = K_XLATE;
+    }
     console_modifier_keys = 0;
     console_shift_down = 0;
     console_ctrl_down = 0;
@@ -219,11 +231,66 @@ int pty_vt_init(void)
         if (id != (int32_t)number) return -12;
         sessions[number - 1u].console = 1;
         sessions[number - 1u].locked = 0;
+        vt_modes[number - 1u] = (struct vt_mode){ .mode = VT_AUTO };
+        vt_keyboard_modes[number - 1u] = K_XLATE;
     }
     vt_display_generation = 1;
     active_vt = 1;
     vt_ready = 1;
     console_vt_activate(1, false);
+    return 0;
+}
+
+/** @brief Read the Linux VT ownership mode for a fixed console. */
+int pty_vt_get_mode(uint32_t pty_id, struct vt_mode *mode)
+{
+    if (!mode || !pty_vt_number(pty_id)) return -22;
+    *mode = vt_modes[pty_id - 1u];
+    return 0;
+}
+
+/** @brief Set the Linux VT ownership mode for a fixed console. */
+int pty_vt_set_mode(uint32_t pty_id, const struct vt_mode *mode)
+{
+    if (!mode || !pty_vt_number(pty_id)) return -22;
+    if (mode->mode != VT_AUTO && mode->mode != VT_PROCESS && mode->mode != VT_ACKACQ)
+        return -22;
+    vt_modes[pty_id - 1u] = *mode;
+    return 0;
+}
+
+/** @brief Read the Linux virtual-console keyboard translation mode. */
+int pty_vt_get_keyboard_mode(uint32_t pty_id, int *mode)
+{
+    if (!mode || !pty_vt_number(pty_id)) return -22;
+    *mode = vt_keyboard_modes[pty_id - 1u];
+    return 0;
+}
+
+/** @brief Set the Linux virtual-console keyboard translation mode. */
+int pty_vt_set_keyboard_mode(uint32_t pty_id, int mode)
+{
+    if (!pty_vt_number(pty_id) ||
+        (mode != K_RAW && mode != K_XLATE && mode != K_MEDIUMRAW && mode != K_UNICODE))
+        return -22;
+    vt_keyboard_modes[pty_id - 1u] = mode;
+    return 0;
+}
+
+/** @brief Return the first virtual console available for allocation. */
+int pty_vt_open_query(void)
+{
+    if (!vt_ready) return -19;
+    for (uint32_t i = 0; i < VT_COUNT; ++i)
+        if (vt_modes[i].mode == VT_AUTO) return (int)(i + 1u);
+    return -16;
+}
+
+/** @brief Release or acknowledge the active virtual console. */
+int pty_vt_release_display(uint32_t pty_id, int request)
+{
+    if (!pty_vt_number(pty_id) || pty_vt_active() != pty_id) return -22;
+    if (request != 0 && request != 1 && request != 2) return -22;
     return 0;
 }
 

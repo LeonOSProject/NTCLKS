@@ -20,6 +20,7 @@ static const struct storage_dev_entry storage_dev_entries[] = {
     {"random",    STORAGE_DEV_KIND_RANDOM,   RELIEFOS_FS_TYPE_DEVICE, 0},
     {"urandom",   STORAGE_DEV_KIND_URANDOM,  RELIEFOS_FS_TYPE_DEVICE, 0},
     {"tty",       STORAGE_DEV_KIND_TTY,      RELIEFOS_FS_TYPE_DEVICE, 0},
+    {"tty0",      STORAGE_DEV_KIND_TTY,      RELIEFOS_FS_TYPE_DEVICE, 0},
     {"tty1",      STORAGE_DEV_KIND_TTY,      RELIEFOS_FS_TYPE_DEVICE, 0},
     {"tty2",      STORAGE_DEV_KIND_TTY,      RELIEFOS_FS_TYPE_DEVICE, 0},
     {"tty3",      STORAGE_DEV_KIND_TTY,      RELIEFOS_FS_TYPE_DEVICE, 0},
@@ -247,7 +248,7 @@ static int storage_lookup_path_unlocked(const char *path, struct storage_node *o
     if (g_devfs_enabled && !__builtin_strncmp(resolved, "/dev/pts/", 9))
         return pty_lookup_path(resolved, out);
     if (g_devfs_enabled && !__builtin_strncmp(resolved, "/dev/tty", 8) &&
-        resolved[8] >= '1' && resolved[8] <= '6' && !resolved[9])
+        resolved[8] >= '0' && resolved[8] <= '6' && !resolved[9])
         return pty_lookup_vt_path(resolved, out);
     if (g_devfs_enabled && storage_text_eq_ci(resolved, "/dev")) {
         if (out) {

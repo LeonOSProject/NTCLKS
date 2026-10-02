@@ -1203,7 +1203,7 @@ static int task_pty_endpoint_path(const char *path, uint32_t *pty_id)
     uint32_t digits = 0;
     if (!path || !pty_id) return 0;
     if (pty_lookup_vt_path(path, NULL) == 0) {
-        *pty_id = (uint32_t)(path[8] - '0');
+        *pty_id = path[8] == '0' ? pty_vt_active() : (uint32_t)(path[8] - '0');
         return 1;
     }
     while (*prefix && *path && *prefix == *path) { ++prefix; ++path; }
@@ -6800,14 +6800,23 @@ int64_t syscall_dispatch_regs_legacy(uint64_t number, uint64_t a0, uint64_t a1, 
     /* Linux virtual-console and keyboard-display ioctls operate on a VT
      * descriptor, never on a serial device or an unrelated PTY. */
     if (number == LINUX_SYS_IOCTL &&
-        (a1 == VT_GETSTATE || a1 == RELIEFOS_VT_GETGENERATION ||
-         a1 == VT_ACTIVATE || a1 == VT_WAITACTIVE || a1 == KDGETMODE ||
-         a1 == KDSETMODE)) {
+        (a1 == VT_OPENQRY || a1 == VT_GETMODE || a1 == VT_SETMODE ||
+         a1 == VT_GETSTATE || a1 == VT_RELDISP ||
+         a1 == RELIEFOS_VT_GETGENERATION || a1 == VT_ACTIVATE ||
+         a1 == VT_WAITACTIVE || a1 == KDGETMODE || a1 == KDSETMODE ||
+         a1 == KDGKBMODE || a1 == KDSKBMODE)) {
         struct task *task = sched_current_task();
         struct task_pty_fd *endpoint = task_pty_endpoint_for_fd(task, (int)a0);
         uint32_t id = endpoint && endpoint->endpoint == TASK_PTY_ENDPOINT_SLAVE
                           ? endpoint->pty_id : 0u;
         if (!pty_vt_number(id)) return -RELIEFOS_ENOTTY;
+        if (a1 == VT_OPENQRY) {
+            if (!user_range_writable(a2, sizeof(int))) return -RELIEFOS_EFAULT;
+            int free_vt = pty_vt_open_query();
+            if (free_vt < 0) return free_vt;
+            *(int *)(uintptr_t)a2 = free_vt;
+            return 0;
+        }
         if (a1 == RELIEFOS_VT_GETGENERATION) {
             if (!user_range_writable(a2, sizeof(uint64_t))) return -RELIEFOS_EFAULT;
             *(uint64_t *)(uintptr_t)a2 = pty_vt_generation();
@@ -6821,6 +6830,21 @@ int64_t syscall_dispatch_regs_legacy(uint64_t number, uint64_t a0, uint64_t a1, 
             };
             return 0;
         }
+        if (a1 == VT_GETMODE) {
+            if (!user_range_writable(a2, sizeof(struct vt_mode))) return -RELIEFOS_EFAULT;
+            return pty_vt_get_mode(id, (struct vt_mode *)(uintptr_t)a2);
+        }
+        if (a1 == VT_SETMODE) {
+            if (task->controlling_pty_id != id &&
+                !(task->cap_effective & (1ULL << CAP_SYS_TTY_CONFIG))) return -RELIEFOS_EPERM;
+            if (!user_range_ok(a2, sizeof(struct vt_mode))) return -RELIEFOS_EFAULT;
+            return pty_vt_set_mode(id, (const struct vt_mode *)(uintptr_t)a2);
+        }
+        if (a1 == VT_RELDISP) {
+            if (task->controlling_pty_id != id &&
+                !(task->cap_effective & (1ULL << CAP_SYS_TTY_CONFIG))) return -RELIEFOS_EPERM;
+            return pty_vt_release_display(id, (int)a2);
+        }
         if (a1 == VT_ACTIVATE || a1 == VT_WAITACTIVE) {
             if (task->controlling_pty_id != id &&
                 !(task->cap_effective & (1ULL << CAP_SYS_TTY_CONFIG))) return -RELIEFOS_EPERM;
@@ -6832,6 +6856,15 @@ int64_t syscall_dispatch_regs_legacy(uint64_t number, uint64_t a0, uint64_t a1, 
             if (!user_range_writable(a2, sizeof(int))) return -RELIEFOS_EFAULT;
             *(int *)(uintptr_t)a2 = pty_vt_graphical(id) ? KD_GRAPHICS : KD_TEXT;
             return 0;
+        }
+        if (a1 == KDGKBMODE) {
+            if (!user_range_writable(a2, sizeof(int))) return -RELIEFOS_EFAULT;
+            return pty_vt_get_keyboard_mode(id, (int *)(uintptr_t)a2);
+        }
+        if (a1 == KDSKBMODE) {
+            if (task->controlling_pty_id != id &&
+                !(task->cap_effective & (1ULL << CAP_SYS_TTY_CONFIG))) return -RELIEFOS_EPERM;
+            return pty_vt_set_keyboard_mode(id, (int)a2);
         }
         if (task->controlling_pty_id != id) return -RELIEFOS_EPERM;
         if (a2 != KD_TEXT && a2 != KD_GRAPHICS) return -RELIEFOS_EINVAL;

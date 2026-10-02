@@ -9,6 +9,7 @@
 #include <reliefnt/storage.h>
 #include <reliefos/pty_abi.h>
 #include <linux/tty.h>
+#include <linux/vt.h>
 
 int pty_lookup_path(const char *path, struct storage_node *node);
 /** @brief Resolve one of the six fixed Linux virtual consoles.
@@ -64,6 +65,16 @@ int pty_vt_graphical_active(void);
  * @param pty_id Fixed terminal identifier.
  * @return Nonzero if graphical, zero if text or invalid. */
 int pty_vt_graphical(uint32_t pty_id);
+/** @brief Read or update Linux VT ownership state. */
+int pty_vt_get_mode(uint32_t pty_id, struct vt_mode *mode);
+int pty_vt_set_mode(uint32_t pty_id, const struct vt_mode *mode);
+/** @brief Read or update Linux keyboard translation state. */
+int pty_vt_get_keyboard_mode(uint32_t pty_id, int *mode);
+int pty_vt_set_keyboard_mode(uint32_t pty_id, int mode);
+/** @brief Find an available Linux virtual console. */
+int pty_vt_open_query(void);
+/** @brief Release or acknowledge the active Linux virtual console. */
+int pty_vt_release_display(uint32_t pty_id, int request);
 /**
  * @brief Offer one physical keyboard event to the console terminal.
  * @param keycode Set-1 make/break code after 0xe0 extension normalization.
