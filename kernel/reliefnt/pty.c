@@ -42,6 +42,8 @@ struct pty_session {
     uint8_t output[PTY_OUTPUT_CAP];
     uint32_t output_head;
     uint32_t output_tail;
+    /* OPOST processing tracks the cursor column for ONOCR/ONLRET/TAB3. */
+    uint32_t output_column;
     struct reliefos_pty_termios termios;
     struct linux_winsize winsize;
 };
@@ -1172,11 +1174,94 @@ uint32_t pty_output_available(uint32_t pty_id)
 }
 
 /**
+ * @brief Expand one slave output byte through OPOST processing into out; returns bytes emitted.
+ *
+ * Mirrors the Linux n_tty output rules for the flags that rewrite bytes:
+ * ONLCR, OCRNL, ONOCR, ONLRET, OLCUC and TAB3 (XTABS). The tracked cursor
+ * column feeds ONOCR/ONLRET/TAB3; without OPOST the byte passes through
+ * untouched and the column stays frozen, as on Linux.
+ *
+ * @param session PTY session whose oflag and column state apply.
+ * @param byte Output byte as written by the slave.
+ * @param out Destination of at most 8 translated bytes.
+ * @return Number of bytes placed in out; zero when the byte is suppressed.
+ */
+static uint32_t pty_output_post_process(struct pty_session *session, char byte, char out[8])
+{
+    uint32_t oflag = session->termios.c_oflag;
+    uint32_t column = session->output_column;
+    uint32_t count = 0;
+
+    if ((oflag & LINUX_OPOST) == 0) {
+        out[0] = byte;
+        return 1;
+    }
+    switch (byte) {
+    case '\n':
+        if (oflag & LINUX_ONLCR) {
+            out[count++] = '\r';
+            column = 0;
+        }
+        out[count++] = '\n';
+        if (oflag & LINUX_ONLRET) {
+            column = 0;
+        }
+        break;
+    case '\r':
+        if ((oflag & LINUX_ONOCR) && column == 0) {
+            break;
+        }
+        if (oflag & LINUX_OCRNL) {
+            out[count++] = '\n';
+            if (oflag & LINUX_ONLRET) {
+                column = 0;
+            }
+        } else {
+            out[count++] = '\r';
+            column = 0;
+        }
+        break;
+    case '\t':
+        if ((oflag & LINUX_TABDLY) == LINUX_TAB3) {
+            uint32_t spaces = 8u - (column & 7u);
+            while (spaces--) {
+                out[count++] = ' ';
+                ++column;
+            }
+        } else {
+            out[count++] = '\t';
+            column += 8u - (column & 7u);
+        }
+        break;
+    case '\b':
+        if (column) {
+            --column;
+        }
+        out[count++] = '\b';
+        break;
+    default:
+        if ((oflag & LINUX_OLCUC) && byte >= 'a' && byte <= 'z') {
+            byte = (char)(byte - 'a' + 'A');
+        }
+        out[count++] = byte;
+        if ((uint8_t)byte >= 0x20u && byte != 0x7fu) {
+            ++column;
+        }
+        break;
+    }
+    session->output_column = column;
+    return count;
+}
+
+/**
  * @brief Queue up to length bytes of output for the reader; returns bytes written, or -5 if the session is invalid.
  */
 int64_t pty_write_output(uint32_t pty_id, const char *buffer, uint32_t length)
 {
     struct pty_session *session = find_session(pty_id);
+    char staged[512];
+    uint32_t staged_length = 0;
+
     if (!session) {
         return -5;
     }
@@ -1186,18 +1271,38 @@ int64_t pty_write_output(uint32_t pty_id, const char *buffer, uint32_t length)
     if (!buffer || length == 0) {
         return 0;
     }
-    if (session->console) {
-        console_vt_write(pty_id, buffer, length);
-        return (int64_t)length;
-    }
-    if (!session->output_reported) {
+    if (!session->console && !session->output_reported) {
         session->output_reported = 1;
         console_printf("[reliefnt] pty=%u first slave output len=%u\n",
                        pty_id, length);
     }
-    return (int64_t)ring_push(session->output, PTY_OUTPUT_CAP,
-                              &session->output_head, &session->output_tail,
-                              buffer, length);
+    for (uint32_t i = 0; i < length; ++i) {
+        char out[8];
+        uint32_t count = pty_output_post_process(session, buffer[i], out);
+        for (uint32_t j = 0; j < count; ++j) {
+            if (staged_length == sizeof(staged)) {
+                if (session->console) {
+                    console_vt_write(pty_id, staged, staged_length);
+                } else {
+                    (void)ring_push(session->output, PTY_OUTPUT_CAP,
+                                    &session->output_head, &session->output_tail,
+                                    staged, staged_length);
+                }
+                staged_length = 0;
+            }
+            staged[staged_length++] = out[j];
+        }
+    }
+    if (staged_length) {
+        if (session->console) {
+            console_vt_write(pty_id, staged, staged_length);
+        } else {
+            (void)ring_push(session->output, PTY_OUTPUT_CAP,
+                            &session->output_head, &session->output_tail,
+                            staged, staged_length);
+        }
+    }
+    return (int64_t)length;
 }
 
 /**
