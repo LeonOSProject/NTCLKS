@@ -13,5 +13,6 @@
 #define K_XLATE     0x01
 #define K_MEDIUMRAW 0x02
 #define K_UNICODE   0x03
+#define K_OFF       0x04
 
 #endif

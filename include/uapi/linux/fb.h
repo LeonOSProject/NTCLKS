@@ -60,6 +60,17 @@ struct fb_fix_screeninfo {
     uint16_t reserved[2];
 };
 
+/* Linux fbdev colour-map ABI.  The four pointers are user addresses and
+ * therefore remain 64-bit in the x86-64 ioctl wire layout. */
+struct fb_cmap {
+    uint32_t start;
+    uint32_t len;
+    uint64_t red;
+    uint64_t green;
+    uint64_t blue;
+    uint64_t transp;
+};
+
 /* Keep the x86-64 userspace wire layout in lockstep with Linux.  Xorg's
  * fbdev helper reads line_length, visual, and mmio fields at these offsets;
  * a compact private struct silently shifts those fields and makes probe fail.
@@ -70,14 +81,25 @@ _Static_assert(sizeof(struct fb_fix_screeninfo) == 80,
                "Linux fb_fix_screeninfo layout changed");
 _Static_assert(offsetof(struct fb_fix_screeninfo, line_length) == 48,
                "Linux fb_fix_screeninfo line_length offset changed");
+_Static_assert(sizeof(struct fb_cmap) == 40,
+               "Linux fb_cmap layout changed");
 
 #define FBIOGET_VSCREENINFO 0x4600UL
 #define FBIOPUT_VSCREENINFO 0x4601UL
 #define FBIOGET_FSCREENINFO 0x4602UL
+#define FBIOGETCMAP 0x4604UL
+#define FBIOPUTCMAP 0x4605UL
 /* Linux fbdev pan/flush request.  On VMware SVGA the visible surface is
  * refreshed from VRAM only when the host receives an update command, so
  * mmap writers need this to push frames to the display. */
 #define FBIOPAN_DISPLAY 0x4606UL
+#define FBIOBLANK 0x4611UL
+
+#define FB_BLANK_UNBLANK 0
+#define FB_BLANK_NORMAL 1
+#define FB_BLANK_VSYNC_SUSPEND 2
+#define FB_BLANK_HSYNC_SUSPEND 3
+#define FB_BLANK_POWERDOWN 4
 
 #define FB_TYPE_PACKED_PIXELS 0U
 #define FB_VISUAL_TRUECOLOR 2U

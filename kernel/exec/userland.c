@@ -944,15 +944,12 @@ void userland_enter_first(void)
 }
 
 /**
- * @brief Log and terminate the current task with the given exit code.
+ * @brief Terminate the current user task and let the scheduler own the single exit log event.
+ * @param code Process exit status passed to the scheduler.
  */
 void userland_process_exit(uint64_t code)
 {
-    uint32_t pid = sched_current_pid();
-    console_printf("[reliefnt] Ring-3 pid=%u exited code=%llu\n",
-                   pid,
-                   (unsigned long long)code);
-    sched_exit(pid, code);
+    sched_exit(sched_current_pid(), code);
 }
 
 /**

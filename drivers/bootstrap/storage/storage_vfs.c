@@ -157,8 +157,11 @@ int storage_resolve_path(const char *cwd, const char *input, char *out, uint32_t
     if (!input || !out || cap < 2) {
         return -22;
     }
+    /* POSIX permits ':' in a pathname component (xdm uses A:0-XXXXXX for
+     * authority files). Backslash remains rejected as a non-POSIX separator
+     * and to avoid accepting DOS drive/escape syntax accidentally. */
     for (uint32_t i = 0; input[i]; ++i) {
-        if (input[i] == ':' || input[i] == '\\') {
+        if (input[i] == '\\') {
             return -22;
         }
     }
@@ -170,7 +173,7 @@ int storage_resolve_path(const char *cwd, const char *input, char *out, uint32_t
             cwd = "/";
         }
         for (uint32_t i = 0; cwd[i]; ++i) {
-            if (cwd[i] == ':' || cwd[i] == '\\') {
+            if (cwd[i] == '\\') {
                 return -22;
             }
         }
